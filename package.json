@@ -1,0 +1,15 @@
+{
+  "name": "bug-loop",
+  "private": true,
+  "workspaces": ["apps/*", "pipelines/*", "shared"],
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "bun test",
+    "service": "bun run apps/leaky-service/src/server.ts",
+    "traffic": "bun run apps/leaky-service/scripts/traffic.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.2"
+  }
+}
