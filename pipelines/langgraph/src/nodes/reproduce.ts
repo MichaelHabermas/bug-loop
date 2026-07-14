@@ -2,7 +2,7 @@ import {
   reproduceIncident,
   type IncidentTriage,
   type TriageState,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import { currentSummary } from "../state";
 
 export async function reproduceNode(state: TriageState): Promise<Partial<TriageState>> {

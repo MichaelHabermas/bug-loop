@@ -12,7 +12,8 @@
     "typescript": "^5.8.2"
   },
   "dependencies": {
-    "@bug-loop/shared": "workspace:*",
+    "@bug-loop/core": "workspace:*",
+    "@bug-loop/leaky-service": "workspace:*",
     "@langchain/core": "^1.2.2",
     "@langchain/langgraph": "^1.4.7"
   }

@@ -3,11 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./bug-loop": "./src/bug-loop.ts"
+  },
   "scripts": {
     "start": "bun run src/server.ts",
     "traffic": "bun run scripts/traffic.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
+  },
+  "dependencies": {
+    "@bug-loop/core": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",

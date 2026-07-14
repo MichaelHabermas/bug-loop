@@ -1,7 +1,7 @@
 {
   "files": [],
   "references": [
-    { "path": "./shared" },
+    { "path": "./packages/core" },
     { "path": "./apps/leaky-service" },
     { "path": "./pipelines/langgraph" },
     { "path": "./pipelines/agent-sdk" }

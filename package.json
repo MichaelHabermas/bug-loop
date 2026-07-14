@@ -1,7 +1,7 @@
 {
   "name": "bug-loop",
   "private": true,
-  "workspaces": ["apps/*", "pipelines/*", "shared"],
+  "workspaces": ["apps/*", "packages/*", "pipelines/*"],
   "scripts": {
     "typecheck": "tsc -b",
     "test": "bun test",

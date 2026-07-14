@@ -1,4 +1,4 @@
-import { enrichActionableEvent, type TriageState } from "@bug-loop/shared";
+import { enrichActionableEvent, type TriageState } from "@bug-loop/core";
 import { type Classifier, selectClassifier } from "../classifier";
 import { currentSummary } from "../state";
 

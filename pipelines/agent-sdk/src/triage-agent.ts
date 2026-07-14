@@ -4,7 +4,7 @@ import {
   type Incident,
   type ReproResult,
   type RouteKind,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 
 export interface TriageAgentInput {
   incident: Incident;

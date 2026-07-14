@@ -5,7 +5,7 @@ import {
   type LogEvent,
   type ReproResult,
   type RouteDecision,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 
 export interface Classifier {
   classify(event: LogEvent): Promise<boolean>;

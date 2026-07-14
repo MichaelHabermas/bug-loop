@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fingerprintEvent, type Incident, type LogEvent } from "@bug-loop/shared";
+import { fingerprintEvent, type Incident, type LogEvent } from "@bug-loop/core";
 import { parseTriageResult, type TriageAgentInput } from "../src/triage-agent";
 
 function input(level: LogEvent["level"] = "error"): TriageAgentInput {

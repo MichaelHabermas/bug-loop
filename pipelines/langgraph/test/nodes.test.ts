@@ -7,8 +7,8 @@ import type {
   LogEvent,
   ReproResult,
   TriageState,
-} from "@bug-loop/shared";
-import { FINGERPRINT_MARKER, fingerprintEvent } from "@bug-loop/shared";
+} from "@bug-loop/core";
+import { FINGERPRINT_MARKER, fingerprintEvent } from "@bug-loop/core";
 import {
   buildIssueInput,
   dedupeEvents,

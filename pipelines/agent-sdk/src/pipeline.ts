@@ -35,7 +35,7 @@ import {
   type TriageSummary,
   type VerifyRunner,
   type WorktreeOperations,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import { ClaudeTriageAgent, type TriageAgent } from "./triage-agent";
 
 const EMPTY_SUMMARY: TriageSummary = {

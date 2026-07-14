@@ -8,7 +8,7 @@ import {
   type IssueDetails,
   type TriageState,
   type WorktreeOperations,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import { buildIssueInput } from "./ticket";
 
 export interface FixDependencies {

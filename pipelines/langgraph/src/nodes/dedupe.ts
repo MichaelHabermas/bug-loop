@@ -6,7 +6,7 @@ import {
   type LogEvent,
   type TriageState,
   writeCursor,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import { currentSummary } from "../state";
 
 type IssueLookup = (hash: string) => Promise<IssueRef | null>;

@@ -8,5 +8,8 @@
     "emitDeclarationOnly": true
   },
   "include": ["src/**/*", "test/**/*"],
-  "references": [{ "path": "../../shared" }]
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../apps/leaky-service" }
+  ]
 }

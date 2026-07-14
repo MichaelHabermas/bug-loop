@@ -8,4 +8,4 @@ export { fixWithDependencies, initializeFixQueue } from "./fix";
 export type { FixDependencies } from "./fix";
 export { giveUpWithDependencies, prWithDependencies } from "./lifecycle";
 export type { GitHubOperations, LifecycleDependencies } from "./lifecycle";
-export type { WorktreeOperations } from "@bug-loop/shared";
+export type { WorktreeOperations } from "@bug-loop/core";

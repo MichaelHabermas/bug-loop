@@ -1,4 +1,4 @@
-import type { TriageState, TriageSummary } from "@bug-loop/shared";
+import type { TriageState, TriageSummary } from "@bug-loop/core";
 
 export const EMPTY_SUMMARY: TriageSummary = {
   eventsRead: 0,

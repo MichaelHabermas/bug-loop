@@ -11,7 +11,7 @@ import {
   type PRRef,
   type TriageState,
   type WorktreeOperations,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 
 export interface GitHubOperations {
   readIssue(number: number): Promise<IssueDetails | null>;

@@ -22,7 +22,7 @@ import {
   type VerifyRunner,
   type VerifyResult,
   type WorktreeOperations,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import {
   dedupeNode,
   detectNode,
@@ -38,7 +38,7 @@ import {
   type GitHubOperations,
 } from "./nodes";
 import type { Classifier } from "./classifier";
-import { verifyWithRunner } from "@bug-loop/shared";
+import { verifyWithRunner } from "@bug-loop/core";
 import { resolve } from "node:path";
 
 const TriageAnnotation = Annotation.Root({

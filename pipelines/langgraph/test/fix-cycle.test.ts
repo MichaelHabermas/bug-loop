@@ -14,7 +14,7 @@ import {
   type LogEvent,
   type TriageState,
   type VerifyRunner,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import {
   fixWithDependencies,
   giveUpWithDependencies,

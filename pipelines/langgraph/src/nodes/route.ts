@@ -1,4 +1,4 @@
-import type { IncidentTriage, TriageState } from "@bug-loop/shared";
+import type { IncidentTriage, TriageState } from "@bug-loop/core";
 import { type Classifier, selectClassifier } from "../classifier";
 
 export async function routeWithClassifier(

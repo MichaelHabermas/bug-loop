@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { TriageSummary } from "@bug-loop/shared";
+import type { TriageSummary } from "@bug-loop/core";
 import { createInitialState, createTriageGraph } from "./graph";
 
 interface CliArgs {

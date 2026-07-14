@@ -6,7 +6,7 @@ import {
   type IssueRef,
   type TriageState,
   writeCursor,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import { currentSummary } from "../state";
 
 type IssueCreator = (input: IssueInput) => Promise<IssueRef>;

@@ -8,7 +8,7 @@ import {
   type PRInput,
   type VerifyRunner,
   type WorktreeOperations,
-} from "@bug-loop/shared";
+} from "@bug-loop/core";
 import { runAgentSdkPipeline, type GitHubOperations } from "../src/pipeline";
 import { FakeTriageAgent } from "../src/triage-agent";
 

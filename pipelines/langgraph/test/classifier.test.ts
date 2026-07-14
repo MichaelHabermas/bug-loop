@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { LogEvent } from "@bug-loop/shared";
+import type { LogEvent } from "@bug-loop/core";
 import { HeuristicClassifier } from "../src/classifier";
 
 const classifier = new HeuristicClassifier();
