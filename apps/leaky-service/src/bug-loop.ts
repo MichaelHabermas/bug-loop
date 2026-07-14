@@ -36,6 +36,7 @@ export function createLeakyServicePipelineConfig(
     baseUrl: input.baseUrl,
     cursorPath: input.cursorPath,
     fixScope: ["apps/leaky-service/src"],
+    testScope: ["apps/leaky-service/test"],
     worktreeRoot: ".worktrees",
     maxFixAttempts: 2,
     fixer: input.fixer,

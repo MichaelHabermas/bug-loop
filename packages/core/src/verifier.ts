@@ -18,6 +18,7 @@ export interface VerifyReproInput {
 export interface VerifyRunner {
   verifyRepro(input: VerifyReproInput): Promise<CheckResult>;
   runTests(worktreeDir: string): Promise<CheckResult>;
+  runTestFiles?(worktreeDir: string, files: string[]): Promise<CheckResult>;
   runTypecheck(worktreeDir: string): Promise<CheckResult>;
 }
 
@@ -52,7 +53,15 @@ export class RealVerifyRunner implements VerifyRunner {
   }
 
   async runTests(worktreeDir: string): Promise<CheckResult> {
-    const result = await runProcess(["bun", "test"], {
+    return this.runBunTests(worktreeDir, []);
+  }
+
+  async runTestFiles(worktreeDir: string, files: string[]): Promise<CheckResult> {
+    return this.runBunTests(worktreeDir, files);
+  }
+
+  private async runBunTests(worktreeDir: string, files: string[]): Promise<CheckResult> {
+    const result = await runProcess(["bun", "test", ...files], {
       cwd: worktreeDir,
       env: {
         ...Bun.env,
@@ -101,16 +110,25 @@ export async function verifyWithRunner(
     throw new Error("verify requires activeIncident and worktreeDir");
   }
   const repro = await safeCheck(() => runner.verifyRepro({ worktreeDir, incident }));
+  const regression = state.activeRegressionTest?.status === "established"
+    ? runner.runTestFiles
+      ? await safeCheck(() => runner.runTestFiles!(
+          worktreeDir,
+          state.activeRegressionTest?.filesChanged ?? [],
+        ))
+      : { passes: false, detail: "Verifier cannot run selected regression test files." }
+    : { passes: true, detail: "No established regression test to verify." };
   const tests = await safeCheck(() => runner.runTests(worktreeDir));
   const typecheck = await safeCheck(() => runner.runTypecheck(worktreeDir));
   const filesChanged = state.activeFix?.filesChanged ?? [];
   const scopePasses = filesChanged.length > 0 && filesChanged.every(
     (path) => isPathInFixScope(path, fixScope),
   );
-  const verified = scopePasses && repro.passes && tests.passes && typecheck.passes;
+  const verified = scopePasses && repro.passes && regression.passes && tests.passes && typecheck.passes;
   const detail = [
     `scope: ${scopePasses ? "pass" : "fail"} - ${filesChanged.join(", ") || "no changed files recorded"}`,
     `repro: ${repro.passes ? "pass" : "fail"} - ${repro.detail}`,
+    `regression test: ${regression.passes ? "pass" : "fail"} - ${regression.detail}`,
     `tests: ${tests.passes ? "pass" : "fail"} - ${tests.detail}`,
     `typecheck: ${typecheck.passes ? "pass" : "fail"} - ${typecheck.detail}`,
   ].join("\n");
@@ -120,13 +138,23 @@ export async function verifyWithRunner(
     reproPasses: repro.passes,
     testsPass: tests.passes,
     typecheckPasses: typecheck.passes,
+    regressionTestPasses: regression.passes,
     reproEvidence: repro.detail,
     testSummary: tests.detail,
     typecheckDetail: typecheck.detail,
+    regressionTestDetail: regression.detail,
     detail,
   };
   return {
     activeVerify: result,
+    ...(state.activeRegressionTest?.status === "established"
+      ? {
+          activeRegressionTest: {
+            ...state.activeRegressionTest,
+            ...(regression.passes ? { greenEvidence: regression.detail } : {}),
+          },
+        }
+      : {}),
     verifyResults: [...(state.verifyResults ?? []), result],
     retryCount: verified ? state.retryCount : state.retryCount + 1,
   };

@@ -9,6 +9,10 @@ export type {
   PullRequestRef,
   RouteKind,
   RouteDecision,
+  RegressionTestSpec,
+  RegressionTestAttempt,
+  RegressionTestRecord,
+  RegressionTestStatus,
   IncidentTriage,
   TriageRunConfig,
   TriageSummary,
@@ -17,8 +21,18 @@ export type {
   TriageState,
 } from "./types";
 
-export { definePipelineConfig, isPathInFixScope } from "./config";
-export type { PipelineConfig, PipelineConfigInput, PipelineLabels } from "./config";
+export {
+  definePipelineConfig,
+  isPathInFixScope,
+  isPathInScope,
+  isPathInTestScope,
+} from "./config";
+export type {
+  PipelineConfig,
+  PipelineConfigInput,
+  PipelineLabels,
+  RegressionTestPolicy,
+} from "./config";
 
 export { TraceRecorder, combineCostSamples } from "./trace";
 export type {
@@ -72,6 +86,36 @@ export type {
   FixerKind,
   FakeFixCallback,
 } from "./fixer";
+
+export {
+  FakeTestWriter,
+  CodexTestWriter,
+  GrokTestWriter,
+  buildTestWriterPrompt,
+  createDefaultTestWriter,
+  takeTestWriterCost,
+} from "./test-writer";
+export type {
+  FakeTestWriterCallback,
+  TestWriteInput,
+  TestWriteOutput,
+  TestWriter,
+  TestWriterKind,
+} from "./test-writer";
+
+export {
+  assessRegressionTestEligibility,
+  formatRegressionTestIntent,
+  heuristicRegressionTestSpec,
+  runRegressionTestStage,
+  shouldGenerateRegressionTest,
+} from "./regression";
+export type {
+  RegressionTestEligibility,
+  RegressionTestEligibilityInput,
+  RegressionTestStageInput,
+  RegressionTestStageResult,
+} from "./regression";
 
 export { RealVerifyRunner, reproCheckPasses, verifyWithRunner } from "./verifier";
 export type {

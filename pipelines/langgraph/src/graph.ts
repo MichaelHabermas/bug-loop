@@ -9,6 +9,7 @@ import {
   verifyWithRunner,
   type FixAttempt,
   type Fixer,
+  type TestWriter,
   type Incident,
   type IncidentTriage,
   type IssueInput,
@@ -18,6 +19,8 @@ import {
   type PRInput,
   type PRRef,
   type PullRequestRef,
+  type RegressionTestAttempt,
+  type RegressionTestRecord,
   type ReproResult,
   type ReproStrategy,
   type TicketRef,
@@ -40,6 +43,7 @@ import {
   reproduceNode,
   routeNode,
   ticketNode,
+  testgenWithDependencies,
   type GitHubOperations,
 } from "./nodes";
 
@@ -58,8 +62,10 @@ const TriageAnnotation = Annotation.Root({
   activeRepro: Annotation<ReproResult | undefined>,
   activeTicket: Annotation<TicketRef | undefined>,
   activeFix: Annotation<FixAttempt | undefined>,
+  activeRegressionTest: Annotation<RegressionTestRecord | undefined>,
   activeVerify: Annotation<VerifyResult | undefined>,
   fixAttempts: Annotation<FixAttempt[] | undefined>,
+  regressionTestAttempts: Annotation<RegressionTestAttempt[] | undefined>,
   verifyResults: Annotation<VerifyResult[] | undefined>,
   pullRequests: Annotation<PullRequestRef[] | undefined>,
   retryCount: Annotation<number>,
@@ -80,6 +86,7 @@ export function createInitialState(
     incidents: [],
     triage: [],
     fixAttempts: [],
+    regressionTestAttempts: [],
     verifyResults: [],
     pullRequests: [],
     config: {
@@ -101,6 +108,7 @@ interface PipelineGitHubOperations extends GitHubOperations {
 export interface GraphOptions {
   classifier?: Classifier;
   fixer?: Fixer;
+  testWriter?: TestWriter;
   verifier?: VerifyRunner;
   worktrees?: WorktreeOperations;
   github?: PipelineGitHubOperations;
@@ -112,11 +120,11 @@ export interface GraphOptions {
 export function routeAfterTicket(
   state: TriageState,
   triage = state.triage ?? [],
-): "fix" | "end" {
+): "testgen" | "end" {
   const hasMechanical = triage.some(
     (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
   );
-  return state.config?.fix && hasMechanical ? "fix" : "end";
+  return state.config?.fix && hasMechanical ? "testgen" : "end";
 }
 
 export function routeAfterVerify(state: TriageState): "pr" | "fix" | "give-up" {
@@ -125,8 +133,8 @@ export function routeAfterVerify(state: TriageState): "pr" | "fix" | "give-up" {
   return state.retryCount >= maxAttempts ? "give-up" : "fix";
 }
 
-export function routeAfterIncident(state: TriageState): "fix" | "end" {
-  return state.activeIncident ? "fix" : "end";
+export function routeAfterIncident(state: TriageState): "testgen" | "end" {
+  return state.activeIncident ? "testgen" : "end";
 }
 
 function errorDetail(error: unknown): string {
@@ -165,9 +173,18 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     repoRoot,
     config.worktreeRoot,
     config.fixScope,
+    config.testScope,
   );
   const verifier = options.verifier ?? new RealVerifyRunner(config, reproStrategy);
   let fixer = options.fixer;
+  const testgen = (state: TriageState) => testgenWithDependencies(state, {
+    config,
+    writer: options.testWriter,
+    verifier,
+    worktrees,
+    recorder: options.recorder,
+    repoRoot,
+  });
 
   const ingest = (state: TriageState) => tracedNode(
     options.recorder,
@@ -273,6 +290,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
           scopePasses: result.activeVerify?.scopePasses,
           reproPasses: result.activeVerify?.reproPasses,
           testsPass: result.activeVerify?.testsPass,
+          regressionTestPasses: result.activeVerify?.regressionTestPasses,
           typecheckPasses: result.activeVerify?.typecheckPasses,
         },
       );
@@ -309,6 +327,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     .addNode("reproduce", reproduce)
     .addNode("route", route)
     .addNode("ticket", ticket)
+    .addNode("testgen", testgen)
     .addNode("fix", fix)
     .addNode("verify", verify)
     .addNode("give-up", giveUp)
@@ -325,20 +344,21 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     .addEdge("route", "ticket")
     .addConditionalEdges(
       "ticket",
-      (state) => (routeAfterTicket(state) === "fix" ? "fix" : END),
-      ["fix", END],
+      (state) => (routeAfterTicket(state) === "testgen" ? "testgen" : END),
+      ["testgen", END],
     )
+    .addEdge("testgen", "fix")
     .addEdge("fix", "verify")
     .addConditionalEdges("verify", routeAfterVerify, ["pr", "fix", "give-up"])
     .addConditionalEdges(
       "pr",
-      (state) => (routeAfterIncident(state) === "fix" ? "fix" : END),
-      ["fix", END],
+      (state) => (routeAfterIncident(state) === "testgen" ? "testgen" : END),
+      ["testgen", END],
     )
     .addConditionalEdges(
       "give-up",
-      (state) => (routeAfterIncident(state) === "fix" ? "fix" : END),
-      ["fix", END],
+      (state) => (routeAfterIncident(state) === "testgen" ? "testgen" : END),
+      ["testgen", END],
     )
     .compile({ checkpointer });
 }

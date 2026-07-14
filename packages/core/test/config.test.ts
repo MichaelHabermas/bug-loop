@@ -17,6 +17,7 @@ const config = definePipelineConfig({
   baseUrl: "http://localhost:3000/",
   cursorPath: ".cursor.json",
   fixScope: ["services/api/src/"],
+  testScope: ["services/api/test/"],
   worktreeRoot: ".scratch/worktrees",
   maxFixAttempts: 3,
   fixer: "codex",
@@ -27,6 +28,8 @@ test("PipelineConfig applies defaults and normalizes path-like values", () => {
   expect(config.branchPrefix).toBe("bugloop/fix-");
   expect(config.baseUrl).toBe("http://localhost:3000");
   expect(config.fixScope).toEqual(["services/api/src"]);
+  expect(config.testScope).toEqual(["services/api/test"]);
+  expect(config.regressionTests).toBe("triage-decides");
   expect(isPathInFixScope("services/api/src/handler.ts", config.fixScope)).toBe(true);
   expect(isPathInFixScope("services/api/src-old/handler.ts", config.fixScope)).toBe(false);
 });
@@ -92,6 +95,7 @@ test("fixScope reaches worktree commit pathspecs", async () => {
     "/repo",
     config.worktreeRoot,
     config.fixScope,
+    config.testScope,
     runner,
   );
   await worktrees.commit({ worktreeDir: "/repo/.scratch/worktrees/abc", message: "fix" });
@@ -103,4 +107,25 @@ test("fixScope reaches worktree commit pathspecs", async () => {
     "--",
     "services/api/src",
   ]);
+  await worktrees.commit({
+    worktreeDir: "/repo/.scratch/worktrees/abc",
+    message: "test",
+    scope: "test",
+  });
+  expect(commands[2]).toEqual([
+    "git",
+    "-C",
+    "/repo/.scratch/worktrees/abc",
+    "add",
+    "--",
+    "services/api/test",
+  ]);
+});
+
+test("PipelineConfig rejects overlapping fix and test scopes", () => {
+  expect(() => definePipelineConfig({
+    ...config,
+    fixScope: ["services/api"],
+    testScope: ["services/api/test"],
+  })).toThrow("fixScope and testScope must not overlap");
 });

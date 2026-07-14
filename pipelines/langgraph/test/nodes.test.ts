@@ -162,6 +162,8 @@ describe("routeNode", () => {
     );
     expect(result.triage?.[0]?.route?.kind).toBe("mechanical");
     expect(result.triage?.[1]?.route?.kind).toBe("needs-human");
+    expect(result.triage?.[0]?.route?.regressionTest?.warranted).toBe(true);
+    expect(result.triage?.[1]?.route?.regressionTest?.reason).toStartWith("test.todo(");
   });
 });
 

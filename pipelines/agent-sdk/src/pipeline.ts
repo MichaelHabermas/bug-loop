@@ -3,15 +3,19 @@ import {
   buildIssueInput,
   combineCostSamples,
   createDefaultFixer,
+  createDefaultTestWriter,
+  formatRegressionTestIntent,
   formatPrFilesList,
   GitHubClient,
   GitWorktreeOperations,
   groupIncidents,
+  heuristicRegressionTestSpec,
   isHeuristicallyActionable,
   readCursor,
   readNewEvents,
   RealVerifyRunner,
   reproduceIncident,
+  runRegressionTestStage,
   rewritePathsForPrBody,
   takeFixerCost,
   TraceRecorder,
@@ -19,6 +23,7 @@ import {
   writeCursor,
   type FixAttempt,
   type Fixer,
+  type TestWriter,
   type CostSample,
   type IncidentTriage,
   type IssueDetails,
@@ -61,6 +66,7 @@ export interface GitHubOperations {
 export interface PipelineDependencies {
   triageAgent?: TriageAgent;
   fixer?: Fixer;
+  testWriter?: TestWriter;
   verifier?: VerifyRunner;
   worktrees?: WorktreeOperations;
   github?: GitHubOperations;
@@ -86,6 +92,7 @@ function initialState(
     incidents: [],
     triage: [],
     fixAttempts: [],
+    regressionTestAttempts: [],
     verifyResults: [],
     pullRequests: [],
     config: {
@@ -190,15 +197,30 @@ async function route(state: TriageState, agent: TriageAgent): Promise<CostSample
       command: "",
       evidence: "Reproduction stage did not return a result.",
     };
-    const decision = await agent.triage({ incident: item.incident, repro });
+    const decision = await agent.triage({
+      incident: item.incident,
+      repro,
+      testScope: state.pipelineConfig?.testScope,
+    });
     const cost = takeTriageCost(agent);
     if (cost) costs.push(cost);
+    const route = {
+      kind: decision.decision,
+      reason: decision.reason,
+      fixBrief: decision.fixBrief,
+    };
     triage.push({
       ...item,
       route: {
-        kind: decision.decision,
-        reason: decision.reason,
-        fixBrief: decision.fixBrief,
+        ...route,
+        regressionTest: decision.decision === "needs-human"
+          ? heuristicRegressionTestSpec(
+              route,
+              item.incident,
+              repro,
+              state.pipelineConfig?.testScope[0] ?? "test",
+            )
+          : decision.regressionTest,
       },
     });
   }
@@ -342,13 +364,19 @@ function pullRequestBody(
   verify: NonNullable<TriageState["activeVerify"]>,
   number: number,
   worktreeRoot: string,
+  regressionTest: TriageState["activeRegressionTest"],
 ): string {
   return [
     "## What changed",
     "",
     rewritePathsForPrBody(fix.description, worktreeRoot),
     "",
-    `Files: ${formatPrFilesList(fix.filesChanged, worktreeRoot)}`,
+    `Files: ${formatPrFilesList([
+      ...fix.filesChanged,
+      ...(regressionTest?.filesChanged ?? []),
+    ], worktreeRoot)}`,
+    "",
+    formatRegressionTestIntent(regressionTest),
     "",
     "## Verification",
     "",
@@ -360,6 +388,7 @@ function pullRequestBody(
     "",
     verify.reproEvidence ?? verify.detail,
     "",
+    `- Regression test: ${verify.regressionTestDetail ?? (verify.regressionTestPasses ? "pass" : "fail")}`,
     `- Tests: ${verify.testSummary ?? (verify.testsPass ? "pass" : "fail")}`,
     `- Typecheck: ${verify.typecheckDetail ?? (verify.typecheckPasses ? "pass" : "fail")}`,
     "",
@@ -387,7 +416,14 @@ async function openPullRequest(
     await worktrees.push({ worktreeDir, branch: fix.branch });
     pullRequest = await github.createPullRequest({
       title: `[${config.labels.pipeline}] fix: ${short}`,
-      body: pullRequestBody(item, fix, verify, number, config.worktreeRoot),
+      body: pullRequestBody(
+        item,
+        fix,
+        verify,
+        number,
+        config.worktreeRoot,
+        state.activeRegressionTest,
+      ),
       head: fix.branch,
       base: "main",
       labels: [config.labels.pipeline],
@@ -406,6 +442,7 @@ async function fixIncident(
   state: TriageState,
   item: IncidentTriage,
   fixer: Fixer,
+  testWriter: TestWriter | undefined,
   verifier: VerifyRunner,
   worktrees: WorktreeOperations,
   github: GitHubOperations,
@@ -417,6 +454,26 @@ async function fixIncident(
   const created = await worktrees.create({ branch, fingerprint8 });
   const generatedIssue = buildIssueInput(item, config.labels);
   let previousFailure: string | undefined;
+  const route = item.route;
+  const repro = item.repro;
+  if (!route || !repro) throw new Error("fix requires route and repro evidence");
+  const regression = await runRegressionTestStage({
+    config,
+    worktreeDir: created.worktreeDir,
+    incident: item.incident,
+    repro,
+    route,
+    writer: testWriter,
+    createWriter: () => createDefaultTestWriter(config.testScope),
+    verifier,
+    worktrees,
+    recorder,
+  });
+  state.activeRegressionTest = regression.record;
+  state.regressionTestAttempts = [
+    ...(state.regressionTestAttempts ?? []),
+    ...regression.record.attempts,
+  ];
 
   for (let attempt = 1; attempt <= config.maxFixAttempts; attempt += 1) {
     let issue: IssueDetails | null = null;
@@ -474,6 +531,7 @@ async function fixIncident(
             scopePasses: result.scopePasses,
             reproPasses: result.reproPasses,
             testsPass: result.testsPass,
+            regressionTestPasses: result.regressionTestPasses,
             typecheckPasses: result.typecheckPasses,
           },
         };
@@ -483,6 +541,7 @@ async function fixIncident(
     const result = verified.activeVerify;
     if (!result) throw new Error("verify did not return a result");
     state.verifyResults = verified.verifyResults ?? state.verifyResults;
+    state.activeRegressionTest = verified.activeRegressionTest ?? state.activeRegressionTest;
     console.log(`[verify] fingerprint=${fingerprint8} attempt=${attempt} verified=${result.verified}`);
     if (result.verified) {
       const errorsBefore = state.errors.length;
@@ -587,7 +646,11 @@ export async function runAgentSdkPipeline(
       }),
     );
 
-    const agent = dependencies.triageAgent ?? new ClaudeTriageAgent(repoRoot, config.fixScope);
+    const agent = dependencies.triageAgent ?? new ClaudeTriageAgent(
+      repoRoot,
+      config.fixScope,
+      config.testScope,
+    );
     await runTracedStage(
       recorder,
       "route",
@@ -619,6 +682,7 @@ export async function runAgentSdkPipeline(
         repoRoot,
         config.worktreeRoot,
         config.fixScope,
+        config.testScope,
       );
       const mechanical = (state.triage ?? []).filter(
         (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
@@ -629,6 +693,7 @@ export async function runAgentSdkPipeline(
             state,
             item,
             fixer,
+            dependencies.testWriter,
             verifier,
             worktrees,
             github,

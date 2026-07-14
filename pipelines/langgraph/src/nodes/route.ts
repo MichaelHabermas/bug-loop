@@ -1,4 +1,8 @@
-import type { IncidentTriage, TriageState } from "@bug-loop/core";
+import {
+  heuristicRegressionTestSpec,
+  type IncidentTriage,
+  type TriageState,
+} from "@bug-loop/core";
 import type { Classifier } from "../classifier";
 
 export async function routeWithClassifier(
@@ -12,7 +16,21 @@ export async function routeWithClassifier(
       command: "",
       evidence: "Reproduction stage did not return a result.",
     };
-    triage.push({ ...item, route: await classifier.route(item.incident, repro) });
+    const route = await classifier.route(item.incident, repro);
+    triage.push({
+      ...item,
+      route: {
+        ...route,
+        regressionTest: route.kind === "needs-human" || !route.regressionTest
+          ? heuristicRegressionTestSpec(
+              route,
+              item.incident,
+              repro,
+              state.pipelineConfig?.testScope[0] ?? "test",
+            )
+          : route.regressionTest,
+      },
+    });
   }
   const mechanical = triage.filter((item) => item.route?.kind === "mechanical").length;
   console.log(`[route] mechanical=${mechanical} needs-human=${triage.length - mechanical}`);

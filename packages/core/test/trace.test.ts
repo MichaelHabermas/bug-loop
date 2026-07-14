@@ -23,6 +23,7 @@ test("TraceRecorder accumulates sequenced events and writes the RunTrace shape",
     baseUrl: "http://localhost:3000",
     cursorPath: ".cursor.json",
     fixScope: ["src"],
+    testScope: ["test"],
     worktreeRoot: ".worktrees",
     maxFixAttempts: 2,
     fixer: "codex",
@@ -49,5 +50,7 @@ test("TraceRecorder accumulates sequenced events and writes the RunTrace shape",
   expect(written.runId).toBe("fixture-run");
   expect(written.pipeline).toBe("langgraph");
   expect(written.config.fixScope).toEqual(["src"]);
+  expect(written.config.testScope).toEqual(["test"]);
+  expect(written.config.regressionTests).toBe("triage-decides");
   expect(written.events).toHaveLength(1);
 });

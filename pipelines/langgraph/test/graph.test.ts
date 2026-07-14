@@ -93,7 +93,8 @@ test("compiled graph exposes the fix cycle and only routes fix-enabled mechanica
     classifier: new HeuristicClassifier(config.invariantWarnPrefixes),
   });
   const edges = graph.getGraph().edges.map((edge) => `${edge.source}->${edge.target}`);
-  expect(edges).toContain("ticket->fix");
+  expect(edges).toContain("ticket->testgen");
+  expect(edges).toContain("testgen->fix");
   expect(edges).toContain("fix->verify");
   expect(edges).toContain("verify->fix");
   expect(edges).toContain("verify->pr");
@@ -123,7 +124,7 @@ test("compiled graph exposes the fix cycle and only routes fix-enabled mechanica
     fromStart: true,
     fix: true,
     live: false,
-  }), [mechanical])).toBe("fix");
+  }), [mechanical])).toBe("testgen");
   expect(routeAfterTicket(createInitialState(config, {
     fromStart: true,
     fix: true,

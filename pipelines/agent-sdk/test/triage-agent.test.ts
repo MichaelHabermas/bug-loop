@@ -42,33 +42,52 @@ function input(level: LogEvent["level"] = "error"): TriageAgentInput {
 
 test("parses strict triage JSON", () => {
   expect(parseTriageResult(
-    '{"decision":"mechanical","reason":"reproduced","fixBrief":"Inspect server.ts handleCreate. Add an input guard before dereferencing customer."}',
+    '{"decision":"mechanical","reason":"reproduced","fixBrief":"Inspect server.ts handleCreate. Add an input guard before dereferencing customer.","regressionTest":{"warranted":true,"reason":"missing coverage","mustPin":["non-5xx status","TypeError signature absent"],"mustNotPin":["exact message text","generated IDs"],"suggestedLocation":"apps/leaky-service/test/orders.test.ts"}}',
     input(),
   )).toEqual({
     decision: "mechanical",
     reason: "reproduced",
     fixBrief: "Inspect server.ts handleCreate. Add an input guard before dereferencing customer.",
+    regressionTest: {
+      warranted: true,
+      reason: "missing coverage",
+      mustPin: ["non-5xx status", "TypeError signature absent"],
+      mustNotPin: ["exact message text", "generated IDs"],
+      suggestedLocation: "apps/leaky-service/test/orders.test.ts",
+    },
   });
 });
 
 test("extracts the first JSON object embedded in prose", () => {
   const result = parseTriageResult(
-    'Result follows: {"decision":"needs-human","reason":"policy","fixBrief":"The discount policy is ambiguous. Product input is required before changing server.ts."} trailing text',
+    'Result follows: {"decision":"needs-human","reason":"policy","fixBrief":"The discount policy is ambiguous. Product input is required before changing server.ts.","regressionTest":{"warranted":true,"reason":"pin a guess","mustPin":["negative totals are accepted"],"mustNotPin":[],"suggestedLocation":"apps/leaky-service/test/orders.test.ts"}} trailing text',
     input(),
   );
   expect(result.decision).toBe("needs-human");
   expect(result.reason).toBe("policy");
+  expect(result.regressionTest.warranted).toBe(false);
+  expect(result.regressionTest.reason).toStartWith("test.todo(");
+  expect(result.regressionTest.mustPin).toEqual([]);
 });
 
 test("falls back to the deterministic heuristic for garbage", () => {
   expect(parseTriageResult("not json", input())).toMatchObject({
     decision: "mechanical",
     fixBrief: "",
+    regressionTest: {
+      warranted: true,
+      mustPin: [
+        "the response stays outside the 5xx status-code class",
+        "the TypeError failure signature is absent",
+      ],
+      mustNotPin: expect.arrayContaining(["exact response message text"]),
+    },
   });
-  expect(parseTriageResult("{}", input("warn"))).toMatchObject({
-    decision: "needs-human",
-    fixBrief: "",
-  });
+  const warningFallback = parseTriageResult("{}", input("warn"));
+  expect(warningFallback.decision).toBe("needs-human");
+  expect(warningFallback.fixBrief).toBe("");
+  expect(warningFallback.regressionTest.warranted).toBe(false);
+  expect(warningFallback.regressionTest.reason).toStartWith("test.todo(");
 });
 
 test("captures exact Claude Agent SDK result usage and cost fields", () => {

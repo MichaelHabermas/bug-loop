@@ -32,10 +32,12 @@ export type PipelineConfigSummary = Pick<
   | "baseUrl"
   | "cursorPath"
   | "fixScope"
+  | "testScope"
   | "branchPrefix"
   | "worktreeRoot"
   | "maxFixAttempts"
   | "fixer"
+  | "regressionTests"
   | "invariantWarnPrefixes"
 >;
 
@@ -84,6 +86,7 @@ export class TraceRecorder {
       ...options.config,
       labels: { ...options.config.labels },
       fixScope: [...options.config.fixScope],
+      testScope: [...options.config.testScope],
       invariantWarnPrefixes: [...options.config.invariantWarnPrefixes],
     };
     this.startedAt = this.now().toISOString();

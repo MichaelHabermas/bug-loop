@@ -3,6 +3,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   FakeFixer,
+  FakeTestWriter,
   type FixInput,
   type IssueInput,
   type PRInput,
@@ -40,6 +41,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     logPath: FIXTURE,
   });
   const fixInputs: FixInput[] = [];
+  const redPending = new Set<string>();
   const fixer = new FakeFixer(async (input) => {
     fixInputs.push(input);
     return {
@@ -60,6 +62,13 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     async runTests() {
       return { passes: true, detail: "50 pass, 0 fail" };
     },
+    async runTestFiles(_worktreeDir, files) {
+      const file = files[0] ?? "";
+      if (redPending.delete(file)) {
+        return { passes: false, detail: "expected non-5xx, received 500" };
+      }
+      return { passes: true, detail: "1 pass, 0 fail" };
+    },
     async runTypecheck() {
       return { passes: true, detail: "TypeScript clean" };
     },
@@ -79,6 +88,9 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     },
     async remove(worktreeDir) {
       worktreeCalls.push(`remove:${worktreeDir}`);
+    },
+    async reset(worktreeDir) {
+      worktreeCalls.push(`reset:${worktreeDir}`);
     },
   };
 
@@ -118,6 +130,17 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
       decision: incident.sampleEvents[0]?.level === "warn" ? "needs-human" : "mechanical",
       reason: incident.sampleEvents[0]?.level === "warn" ? "policy ambiguity" : "reproduced crash",
       fixBrief: `Inspect ${incident.fingerprint.topFrame}. Apply the smallest source fix.`,
+      regressionTest: {
+        warranted: incident.sampleEvents[0]?.level !== "warn",
+        reason: incident.sampleEvents[0]?.level === "warn"
+          ? 'test.todo("What discount behavior should be required?")'
+          : "The deterministic crash is missing regression coverage.",
+        mustPin: incident.sampleEvents[0]?.level === "warn"
+          ? []
+          : ["status is outside the 5xx class", `${incident.fingerprint.errName} signature is absent`],
+        mustNotPin: ["exact response message text", "generated IDs"],
+        suggestedLocation: "apps/leaky-service/test",
+      },
     };
   });
 
@@ -147,6 +170,11 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   }, {
     triageAgent,
     fixer,
+    testWriter: new FakeTestWriter(async ({ incident }) => {
+      const path = `apps/leaky-service/test/${incident.fingerprint.hash.slice(0, 8)}.test.ts`;
+      redPending.add(path);
+      return { description: "focused regression", filesChanged: [path] };
+    }),
     verifier,
     worktrees,
     github,
@@ -187,6 +215,10 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   ]);
   expect(trace.events.filter((event) => event.stage === "fix")).toHaveLength(5);
   expect(trace.events.filter((event) => event.stage === "verify")).toHaveLength(5);
+  expect(trace.events.filter((event) => event.stage === "testgen")).toHaveLength(3);
+  expect(trace.events.filter((event) => event.stage === "verify-test-red")).toHaveLength(3);
+  expect(pullRequests.every((pr) => pr.body.includes("## Regression test intent"))).toBe(true);
+  expect(pullRequests.every((pr) => pr.body.includes("### Must pin"))).toBe(true);
 
   const rerun = await runAgentSdkPipeline(config, {
     fromStart: false,

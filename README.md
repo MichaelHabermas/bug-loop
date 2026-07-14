@@ -31,15 +31,19 @@ flowchart TD
   dedupe --> reproduce[reproduce]
   reproduce --> route{route}
   route --> ticket[file or reuse GitHub Issue]
-  ticket -->|mechanical + --fix| fix[delegate fix in worktree]
+  ticket -->|mechanical + --fix| testgen[write one regression test in worktree]
   ticket -->|needs-human or no --fix| done[end]
-  fix --> verify[verify: repro + tests + typecheck]
+  testgen --> red{test fails on base?}
+  red -->|yes| fix[delegate fix in worktree]
+  red -->|retry| testgen
+  red -->|attempts exhausted: fix-only| fix
+  fix --> verify[verify: repro + regression GREEN + suite + typecheck]
   verify -->|pass| pr[open PR]
   verify -->|first failure| fix
   verify -->|second failure| human[comment + needs-human]
   pr --> next{next incident?}
   human --> next
-  next -->|yes| fix
+  next -->|yes| testgen
   next -->|no| done
 ```
 
@@ -50,6 +54,19 @@ flowchart TD
 - **The pipeline never edits application code.** The core `Fixer` interface delegates edits to `GrokFixer` or `CodexFixer`, while tests inject `FakeFixer`.
 - **Isolation is mandatory.** Each incident runs on `bugloop/fix-<fingerprint8>` in `.worktrees/<fingerprint8>` and is cleaned up after PR or give-up.
 - **Failure routes to a human.** A second failed verification comments with evidence and swaps `auto-fix-candidate` for `needs-human`.
+
+### Regression tests - four authorities, red→green enforced
+
+Eligibility is mechanical: the repro must be deterministic and the full suite must pass on the pristine incident worktree.
+The triage planner separately supplies the warrant plus `mustPin`, `mustNotPin`, and a suggested test location.
+Needs-human incidents receive only a `test.todo(...)` ambiguity question and never pin unratified behavior.
+A separate `TestWriter` writes one focused test inside `testScope`; the fixer remains confined to `fixScope`.
+Snapshot tests and exact-message assertions are banned unless message text is explicitly part of `mustPin`.
+The generated test must fail before the source fix, then pass after it alongside the repro check, full suite, and typecheck.
+The RED check runs directly in the still-unfixed incident worktree, then the proven test is committed before the fixer runs.
+If RED cannot be established within `maxFixAttempts`, the pipeline resets the rejected test changes and continues with a fix-only PR.
+`regressionTests` selects `always`, `triage-decides` (default), or `never`; `BUGLOOP_TESTWRITER=grok|codex` selects the writer.
+Every PR quotes the assertion specification under `## Regression test intent` so review ratifies the intended contract.
 
 ## Two implementations, one pipeline
 

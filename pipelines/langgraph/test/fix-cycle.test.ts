@@ -3,6 +3,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   FakeFixer,
+  FakeTestWriter,
   buildFixPrompt,
   fingerprintEvent,
   parseChangedFiles,
@@ -21,6 +22,7 @@ import {
   giveUpWithDependencies,
   initializeFixQueue,
   prWithDependencies,
+  testgenWithDependencies,
   type GitHubOperations,
   type WorktreeOperations,
 } from "../src/nodes";
@@ -68,7 +70,11 @@ function triage(active = incident()): IncidentTriage {
       command: "curl -sS -X POST http://localhost:3000/orders",
       evidence: "HTTP 500\ninternal server error",
     },
-    route: { kind: "mechanical", reason: "Crash reproduced." },
+    route: {
+      kind: "mechanical",
+      reason: "Crash reproduced.",
+      fixBrief: "Guard missing customer input in handleCreate.",
+    },
     ticket: { issueNumber: 1, url: "https://example.test/issues/1" },
   };
 }
@@ -116,10 +122,47 @@ function worktrees(calls: string[]): WorktreeOperations {
     async remove(worktreeDir) {
       calls.push(`remove:${worktreeDir}`);
     },
+    async reset(worktreeDir) {
+      calls.push(`reset:${worktreeDir}`);
+    },
   };
 }
 
 describe("fix node", () => {
+  test("testgen establishes RED before the fix node runs", async () => {
+    const calls: string[] = [];
+    const verifier: VerifyRunner = {
+      async verifyRepro() {
+        return { passes: true, detail: "unused" };
+      },
+      async runTests() {
+        return { passes: true, detail: "suite green" };
+      },
+      async runTestFiles() {
+        return { passes: false, detail: "expected non-5xx, received 500" };
+      },
+      async runTypecheck() {
+        return { passes: true, detail: "unused" };
+      },
+    };
+    const result = await testgenWithDependencies(state({
+      activeIncident: null,
+      fixQueue: undefined,
+      worktreeDir: null,
+    }), {
+      config: PIPELINE_CONFIG,
+      writer: new FakeTestWriter(async () => ({
+        description: "missing customer regression",
+        filesChanged: ["apps/leaky-service/test/missing-customer.test.ts"],
+      })),
+      verifier,
+      worktrees: worktrees(calls),
+    });
+    expect(result.activeRegressionTest?.status).toBe("established");
+    expect(result.activeRegressionTest?.redEvidence).toContain("received 500");
+    expect(calls).toContain("commit:test: reproduce TypeError regression");
+  });
+
   test("parses modified and untracked porcelain paths without dropping characters", () => {
     expect(parseChangedFiles(
       " M apps/leaky-service/src/server.ts\n?? apps/leaky-service/src/new.ts\n",
@@ -210,6 +253,7 @@ describe("fix node", () => {
         reproPasses: false,
         testsPass: true,
         typecheckPasses: true,
+        regressionTestPasses: true,
         detail: "signature still present\nexact evidence",
       },
     }), {
@@ -222,6 +266,7 @@ describe("fix node", () => {
     });
 
     expect(inputs[1]?.attempt).toBe(2);
+    expect(inputs[1]?.fixBrief).toBe("Guard missing customer input in handleCreate.");
     expect(inputs[1]?.previousFailure).toBe("signature still present\nexact evidence");
     rmSync(FIXER_TMP, { recursive: true, force: true });
   });
@@ -254,6 +299,7 @@ describe("verify node", () => {
       reproPasses: true,
       testsPass: true,
       typecheckPasses: true,
+      regressionTestPasses: true,
       verified: true,
     });
   });
@@ -319,6 +365,7 @@ describe("give-up and PR nodes", () => {
         reproPasses: false,
         testsPass: true,
         typecheckPasses: true,
+        regressionTestPasses: true,
         detail: "first failure",
       },
     }))).toBe("fix");
@@ -330,6 +377,7 @@ describe("give-up and PR nodes", () => {
         reproPasses: false,
         testsPass: true,
         typecheckPasses: true,
+        regressionTestPasses: true,
         detail: "second failure",
       },
     }))).toBe("give-up");
@@ -361,6 +409,7 @@ describe("give-up and PR nodes", () => {
         reproPasses: false,
         testsPass: true,
         typecheckPasses: true,
+        regressionTestPasses: true,
         detail: "failure detail",
       },
     }), { config: PIPELINE_CONFIG, github, worktrees: worktrees(calls) });
@@ -395,6 +444,7 @@ describe("give-up and PR nodes", () => {
         reproPasses: false,
         testsPass: true,
         typecheckPasses: true,
+        regressionTestPasses: true,
         detail: "failure detail",
       },
     }), { config: PIPELINE_CONFIG, github, worktrees: worktrees(calls) });
@@ -447,10 +497,26 @@ describe("give-up and PR nodes", () => {
         reproPasses: true,
         testsPass: true,
         typecheckPasses: true,
+        regressionTestPasses: true,
         reproEvidence: "HTTP 500 before; HTTP 400 after",
         testSummary: "12 pass, 0 fail",
         typecheckDetail: "TypeScript clean",
         detail: "all verification checks passed",
+      },
+      activeRegressionTest: {
+        spec: {
+          warranted: true,
+          reason: "missing durable coverage",
+          mustPin: ["status is outside the 5xx class", "TypeError signature is absent"],
+          mustNotPin: ["exact response message text"],
+          suggestedLocation: "apps/leaky-service/test/orders.test.ts",
+        },
+        status: "established",
+        detail: "red established",
+        filesChanged: ["apps/leaky-service/test/orders.test.ts"],
+        attempts: [],
+        redEvidence: "received 500",
+        greenEvidence: "1 pass",
       },
     }), { config: PIPELINE_CONFIG, github, worktrees: worktrees(calls) });
     const captured = calls.join("\n");
@@ -458,6 +524,9 @@ describe("give-up and PR nodes", () => {
     expect(captured).toContain("Fixes #1");
     expect(captured).toContain("HTTP 500 before; HTTP 400 after");
     expect(captured).toContain("12 pass, 0 fail");
+    expect(captured).toContain("## Regression test intent");
+    expect(captured).toContain("status is outside the 5xx class");
+    expect(captured).toContain("exact response message text");
     expect(captured).toContain('"labels":["bug-loop"]');
     expect(captured).toContain(
       "commit:fix: TypeError on POST /orders (bug-loop pipeline)\n\nFixes #1",
@@ -506,6 +575,7 @@ describe("give-up and PR nodes", () => {
         reproPasses: true,
         testsPass: true,
         typecheckPasses: true,
+        regressionTestPasses: true,
         reproEvidence: "HTTP 400 after",
         testSummary: "12 pass, 0 fail",
         typecheckDetail: "TypeScript clean",

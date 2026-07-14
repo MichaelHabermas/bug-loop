@@ -11,6 +11,8 @@
     "./process": "./src/process.ts",
     "./worktree": "./src/worktree.ts",
     "./fixer": "./src/fixer.ts",
+    "./test-writer": "./src/test-writer.ts",
+    "./regression": "./src/regression.ts",
     "./verifier": "./src/verifier.ts",
     "./cursor": "./src/cursor.ts",
     "./triage": "./src/triage.ts",

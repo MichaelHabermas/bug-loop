@@ -25,7 +25,7 @@ function mechanicalQueue(triage: IncidentTriage[]): Incident[] {
     .map((item) => item.incident);
 }
 
-function activeItem(state: TriageState, incident: Incident): IncidentTriage {
+export function activeItem(state: TriageState, incident: Incident): IncidentTriage {
   const item = state.triage?.find(
     (candidate) => candidate.incident.fingerprint.hash === incident.fingerprint.hash,
   );
@@ -58,6 +58,7 @@ export async function fixWithDependencies(
     dependencies.repoRoot ?? process.cwd(),
     dependencies.config.worktreeRoot,
     dependencies.config.fixScope,
+    dependencies.config.testScope,
   );
   const fixer = dependencies.fixer ?? createDefaultFixer(
     dependencies.config.fixScope,
@@ -86,6 +87,7 @@ export async function fixWithDependencies(
       issueTitle: issue?.title ?? generatedIssue.title,
       issueBody: issue?.body ?? generatedIssue.body,
       attempt,
+      fixBrief: item.route?.fixBrief ?? "",
       ...(attempt > 1 ? { previousFailure: state.activeVerify?.detail ?? "" } : {}),
     });
     console.log(`[fix] fingerprint=${fingerprint8} attempt=${attempt} files=${output.filesChanged.length}`);

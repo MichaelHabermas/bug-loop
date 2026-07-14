@@ -49,10 +49,19 @@ export interface TicketRef {
 
 export type RouteKind = "mechanical" | "needs-human";
 
+export interface RegressionTestSpec {
+  warranted: boolean;
+  reason: string;
+  mustPin: string[];
+  mustNotPin: string[];
+  suggestedLocation: string;
+}
+
 export interface RouteDecision {
   kind: RouteKind;
   reason: string;
   fixBrief?: string;
+  regressionTest?: RegressionTestSpec;
 }
 
 /** Result of running the reproducibility, routing, and ticket stages for one incident. */
@@ -93,15 +102,36 @@ export interface FixAttempt {
   filesChanged: string[];
 }
 
+export interface RegressionTestAttempt {
+  attempt: number;
+  description: string;
+  filesChanged: string[];
+}
+
+export type RegressionTestStatus = "established" | "failed" | "skipped";
+
+export interface RegressionTestRecord {
+  spec: RegressionTestSpec;
+  status: RegressionTestStatus;
+  detail: string;
+  filesChanged: string[];
+  attempts: RegressionTestAttempt[];
+  baselineEvidence?: string;
+  redEvidence?: string;
+  greenEvidence?: string;
+}
+
 export interface VerifyResult {
   verified: boolean;
   scopePasses: boolean;
   reproPasses: boolean;
   testsPass: boolean;
   typecheckPasses: boolean;
+  regressionTestPasses: boolean;
   reproEvidence?: string;
   testSummary?: string;
   typecheckDetail?: string;
+  regressionTestDetail?: string;
   detail: string;
 }
 
@@ -124,8 +154,10 @@ export interface TriageState {
   activeRepro?: ReproResult;
   activeTicket?: TicketRef;
   activeFix?: FixAttempt;
+  activeRegressionTest?: RegressionTestRecord;
   activeVerify?: VerifyResult;
   fixAttempts?: FixAttempt[];
+  regressionTestAttempts?: RegressionTestAttempt[];
   verifyResults?: VerifyResult[];
   pullRequests?: PullRequestRef[];
   retryCount: number;

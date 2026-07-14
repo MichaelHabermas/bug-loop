@@ -1,5 +1,6 @@
 import {
   formatPrFilesList,
+  formatRegressionTestIntent,
   rewritePathsForPrBody,
   GitWorktreeOperations,
   GitHubClient,
@@ -35,6 +36,7 @@ function dependencies(input: LifecycleDependencies): {
       input.repoRoot ?? process.cwd(),
       input.config.worktreeRoot,
       input.config.fixScope,
+      input.config.testScope,
     ),
   };
 }
@@ -54,6 +56,7 @@ function advance(state: TriageState): Partial<TriageState> {
     retryCount: 0,
     activeFix: undefined,
     activeVerify: undefined,
+    activeRegressionTest: undefined,
     activeTicket: undefined,
     activeRepro: undefined,
   };
@@ -111,7 +114,12 @@ function pullRequestBody(state: TriageState, number: number, worktreeRoot: strin
     "",
     rewritePathsForPrBody(fix.description, worktreeRoot),
     "",
-    `Files: ${formatPrFilesList(fix.filesChanged, worktreeRoot)}`,
+    `Files: ${formatPrFilesList([
+      ...fix.filesChanged,
+      ...(state.activeRegressionTest?.filesChanged ?? []),
+    ], worktreeRoot)}`,
+    "",
+    formatRegressionTestIntent(state.activeRegressionTest),
     "",
     "## Verification",
     "",
@@ -123,6 +131,7 @@ function pullRequestBody(state: TriageState, number: number, worktreeRoot: strin
     "",
     verify.reproEvidence ?? verify.detail,
     "",
+    `- Regression test: ${verify.regressionTestDetail ?? (verify.regressionTestPasses ? "pass" : "fail")}`,
     `- Tests: ${verify.testSummary ?? (verify.testsPass ? "pass" : "fail")}`,
     `- Typecheck: ${verify.typecheckDetail ?? (verify.typecheckPasses ? "pass" : "fail")}`,
     "",

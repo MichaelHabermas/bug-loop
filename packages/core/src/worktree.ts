@@ -11,6 +11,7 @@ export interface WorktreeCreateInput {
 export interface WorktreeCommitInput {
   worktreeDir: string;
   message: string;
+  scope?: "fix" | "test";
 }
 
 export interface WorktreePushInput {
@@ -23,6 +24,7 @@ export interface WorktreeOperations {
   commit(input: WorktreeCommitInput): Promise<void>;
   push(input: WorktreePushInput): Promise<void>;
   remove(worktreeDir: string): Promise<void>;
+  reset(worktreeDir: string): Promise<void>;
 }
 
 function isDryRun(): boolean {
@@ -34,6 +36,7 @@ export class GitWorktreeOperations implements WorktreeOperations {
     private readonly repoRoot: string,
     private readonly worktreeRoot: string,
     private readonly fixScope: string[],
+    private readonly testScope: string[],
     private readonly runner: ProcessRunner = runProcess,
   ) {}
 
@@ -62,13 +65,14 @@ export class GitWorktreeOperations implements WorktreeOperations {
   }
 
   async commit(input: WorktreeCommitInput): Promise<void> {
+    const scope = input.scope === "test" ? this.testScope : this.fixScope;
     const addCommand = [
       "git",
       "-C",
       input.worktreeDir,
       "add",
       "--",
-      ...this.fixScope,
+      ...scope,
     ];
     const add = await this.runner(addCommand, { cwd: input.worktreeDir });
     requireSuccess(addCommand, add);
@@ -99,5 +103,14 @@ export class GitWorktreeOperations implements WorktreeOperations {
     const command = ["git", "worktree", "remove", "--force", worktreeDir];
     const result = await this.runner(command, { cwd: this.repoRoot });
     requireSuccess(command, result);
+  }
+
+  async reset(worktreeDir: string): Promise<void> {
+    const resetCommand = ["git", "-C", worktreeDir, "reset", "--hard", "HEAD"];
+    const reset = await this.runner(resetCommand, { cwd: worktreeDir });
+    requireSuccess(resetCommand, reset);
+    const cleanCommand = ["git", "-C", worktreeDir, "clean", "-fd"];
+    const clean = await this.runner(cleanCommand, { cwd: worktreeDir });
+    requireSuccess(cleanCommand, clean);
   }
 }

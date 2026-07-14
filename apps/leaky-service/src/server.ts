@@ -121,7 +121,13 @@ async function handleGet(id: string, orderId: string): Promise<Response> {
   return json(order);
 }
 
-async function handleShip(id: string, orderId: string): Promise<Response> {
+type ShippingProvider = (orderId: string) => Promise<{ trackingNumber: string }>;
+
+async function handleShip(
+  id: string,
+  orderId: string,
+  shippingProvider: ShippingProvider,
+): Promise<Response> {
   const route = `POST /orders/${orderId}/ship`;
   const order = getOrder(orderId);
   if (!order) {
@@ -135,10 +141,7 @@ async function handleShip(id: string, orderId: string): Promise<Response> {
 
   // Fire-and-forget: tight client budget vs slower provider path.
   // Success is logged via .then; the timeout path is left to settle on its own.
-  const trackingPromise = callShippingProvider(orderId, {
-    timeoutMs: 15,
-    latencyMs: 80,
-  });
+  const trackingPromise = shippingProvider(orderId);
 
   const updated = markShipped(orderId);
   trackingPromise.then((result) => {
@@ -154,7 +157,11 @@ async function handleShip(id: string, orderId: string): Promise<Response> {
   return json(updated);
 }
 
-async function routeRequest(req: Request, id: string): Promise<Response> {
+async function routeRequest(
+  req: Request,
+  id: string,
+  shippingProvider: ShippingProvider,
+): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
   const method = req.method;
@@ -174,7 +181,7 @@ async function routeRequest(req: Request, id: string): Promise<Response> {
 
   const shipMatch = path.match(/^\/orders\/([^/]+)\/ship$/);
   if (method === "POST" && shipMatch?.[1]) {
-    return handleShip(id, shipMatch[1]);
+    return handleShip(id, shipMatch[1], shippingProvider);
   }
 
   if (method === "GET" && path === "/health") {
@@ -185,28 +192,38 @@ async function routeRequest(req: Request, id: string): Promise<Response> {
   return json({ error: "not found" }, 404);
 }
 
-const server = Bun.serve({
-  port: PORT,
-  async fetch(req) {
-    const id = reqId();
-    try {
-      return await routeRequest(req, id);
-    } catch (err) {
-      const url = new URL(req.url);
-      const route = `${req.method} ${url.pathname}`;
-      logError("handler error", {
-        reqId: id,
-        route,
-        status: 500,
-        err: toLogErr(err),
-      });
-      return json({ error: "internal server error" }, 500);
-    }
-  },
-});
+export interface HandleRequestDependencies {
+  shippingProvider?: ShippingProvider;
+}
 
-logInfo("leaky-service listening", {
-  route: `http://localhost:${server.port}`,
-});
+export async function handleRequest(
+  req: Request,
+  dependencies: HandleRequestDependencies = {},
+): Promise<Response> {
+  const id = reqId();
+  try {
+    const shippingProvider = dependencies.shippingProvider ?? ((orderId) =>
+      callShippingProvider(orderId, { timeoutMs: 15, latencyMs: 80 }));
+    return await routeRequest(req, id, shippingProvider);
+  } catch (err) {
+    const url = new URL(req.url);
+    const route = `${req.method} ${url.pathname}`;
+    logError("handler error", {
+      reqId: id,
+      route,
+      status: 500,
+      err: toLogErr(err),
+    });
+    return json({ error: "internal server error" }, 500);
+  }
+}
+
+let server: ReturnType<typeof Bun.serve> | undefined;
+if (import.meta.main) {
+  server = Bun.serve({ port: PORT, fetch: (request) => handleRequest(request) });
+  logInfo("leaky-service listening", {
+    route: `http://localhost:${server.port}`,
+  });
+}
 
 export { server, callShippingProvider };

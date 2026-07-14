@@ -26,6 +26,7 @@ const config = definePipelineConfig({
   baseUrl: "http://127.0.0.1:3000",
   cursorPath: "pipelines/langgraph/.cursor.json",
   fixScope: ["apps/leaky-service/src"],
+  testScope: ["apps/leaky-service/test"],
   worktreeRoot: ".worktrees",
   maxFixAttempts: 2,
   fixer: "codex",

@@ -2,49 +2,36 @@ import { describe, expect, test, beforeAll, afterAll } from "bun:test";
 import { join } from "node:path";
 import { rmSync } from "node:fs";
 
-const PORT = 3456;
-const BASE = `http://127.0.0.1:${PORT}`;
+const BASE = "http://leaky-service.test";
 const LOG_PATH = join(import.meta.dir, ".tmp-test-logs", "happy.jsonl");
+const originalLogPath = process.env["LOG_PATH"];
 
-let proc: ReturnType<typeof Bun.spawn> | null = null;
+let handleRequest: (
+  request: Request,
+  dependencies?: { shippingProvider?: (orderId: string) => Promise<{ trackingNumber: string }> },
+) => Promise<Response>;
 
-async function waitForHealth(timeoutMs = 5000): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(`${BASE}/health`);
-      if (res.ok) return;
-    } catch {
-      // not up yet
-    }
-    await Bun.sleep(50);
-  }
-  throw new Error("service did not become healthy");
+function appFetch(path: string, init?: RequestInit): Promise<Response> {
+  return handleRequest(new Request(`${BASE}${path}`, init), {
+    shippingProvider: async (orderId) => ({ trackingNumber: `TEST-${orderId}` }),
+  });
 }
 
 beforeAll(async () => {
   rmSync(join(import.meta.dir, ".tmp-test-logs"), { recursive: true, force: true });
-  proc = Bun.spawn(["bun", "run", "src/server.ts"], {
-    cwd: join(import.meta.dir, ".."),
-    env: {
-      ...process.env,
-      PORT: String(PORT),
-      LOG_PATH,
-    },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  await waitForHealth();
+  process.env["LOG_PATH"] = LOG_PATH;
+  ({ handleRequest } = await import("../src/server"));
 });
 
 afterAll(() => {
-  proc?.kill();
+  if (originalLogPath === undefined) delete process.env["LOG_PATH"];
+  else process.env["LOG_PATH"] = originalLogPath;
   rmSync(join(import.meta.dir, ".tmp-test-logs"), { recursive: true, force: true });
 });
 
 describe("leaky-service happy path", () => {
   test("POST /orders creates an order and returns id + totalCents", async () => {
-    const res = await fetch(`${BASE}/orders`, {
+    const res = await appFetch("/orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -64,7 +51,7 @@ describe("leaky-service happy path", () => {
   });
 
   test("GET /orders lists orders", async () => {
-    const res = await fetch(`${BASE}/orders?page=1`);
+    const res = await appFetch("/orders?page=1");
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       orders: unknown[];
@@ -77,7 +64,7 @@ describe("leaky-service happy path", () => {
   });
 
   test("GET /orders/:id returns the order", async () => {
-    const create = await fetch(`${BASE}/orders`, {
+    const create = await appFetch("/orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -87,7 +74,7 @@ describe("leaky-service happy path", () => {
     });
     const { id } = (await create.json()) as { id: string };
 
-    const res = await fetch(`${BASE}/orders/${id}`);
+    const res = await appFetch(`/orders/${id}`);
     expect(res.status).toBe(200);
     const order = (await res.json()) as { id: string; customer: { name: string } };
     expect(order.id).toBe(id);
@@ -96,12 +83,12 @@ describe("leaky-service happy path", () => {
 
   test("GET /orders?since= valid ISO filters without error", async () => {
     const since = new Date(Date.now() - 60_000).toISOString();
-    const res = await fetch(`${BASE}/orders?since=${encodeURIComponent(since)}`);
+    const res = await appFetch(`/orders?since=${encodeURIComponent(since)}`);
     expect(res.status).toBe(200);
   });
 
   test("POST /orders/:id/ship marks order shipped", async () => {
-    const create = await fetch(`${BASE}/orders`, {
+    const create = await appFetch("/orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -111,17 +98,14 @@ describe("leaky-service happy path", () => {
     });
     const { id } = (await create.json()) as { id: string };
 
-    const res = await fetch(`${BASE}/orders/${id}/ship`, { method: "POST" });
+    const res = await appFetch(`/orders/${id}/ship`, { method: "POST" });
     expect(res.status).toBe(200);
     const order = (await res.json()) as { status: string };
     expect(order.status).toBe("shipped");
-
-    // Allow any async shipping callbacks to settle without failing the suite
-    await Bun.sleep(100);
   });
 
   test("modest discount does not produce negative total", async () => {
-    const res = await fetch(`${BASE}/orders`, {
+    const res = await appFetch("/orders", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
