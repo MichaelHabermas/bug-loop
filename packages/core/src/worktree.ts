@@ -67,6 +67,7 @@ export class GitWorktreeOperations implements WorktreeOperations {
       "-C",
       input.worktreeDir,
       "add",
+      "--",
       ...this.fixScope,
     ];
     const add = await this.runner(addCommand, { cwd: input.worktreeDir });

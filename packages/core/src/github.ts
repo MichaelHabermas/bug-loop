@@ -156,10 +156,21 @@ export class GitHubClient {
   }
 }
 
-export function toRepoRelativePath(filePath: string): string {
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizedWorktreeRoot(worktreeRoot: string): string {
+  return worktreeRoot.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
+}
+
+export function toRepoRelativePath(filePath: string, worktreeRoot = ".worktrees"): string {
   const normalized = filePath.replace(/\\/g, "/").trim();
   if (!normalized) return normalized;
-  const worktreeMatch = normalized.match(/(?:^|\/)\.worktrees\/[^/]+\/(.+)$/);
+  const root = normalizedWorktreeRoot(worktreeRoot);
+  const worktreeMatch = root
+    ? normalized.match(new RegExp(`(?:^|/)${escapeRegExp(root)}/[^/]+/(.+)$`))
+    : null;
   if (worktreeMatch?.[1]) return worktreeMatch[1];
   if (normalized.startsWith("/")) {
     for (const root of ["apps/", "packages/", "pipelines/"] as const) {
@@ -170,25 +181,33 @@ export function toRepoRelativePath(filePath: string): string {
   return normalized.replace(/^\.\//, "");
 }
 
-export function rewritePathsForPrBody(text: string): string {
+export function rewritePathsForPrBody(text: string, worktreeRoot = ".worktrees"): string {
+  const root = normalizedWorktreeRoot(worktreeRoot);
   let out = text.replace(
     /\[([^\]]*)\]\(([^)\s]+)\)/g,
     (full, _label: string, href: string) => {
       if (/^https?:\/\//i.test(href)) return full;
-      if (!(href.startsWith("/") || href.includes(".worktrees/"))) return full;
-      return toRepoRelativePath(href);
+      if (!(href.startsWith("/") || (root && href.includes(`${root}/`)))) return full;
+      return toRepoRelativePath(href, worktreeRoot);
     },
   );
-  out = out.replace(
-    /\/[^\s)\]`'"]*?\.worktrees\/[^\s)\]`'"]+/g,
-    (match) => toRepoRelativePath(match),
-  );
+  if (root) {
+    const pathCharacter = "[^\\s)\\]`'\"]";
+    const worktreePath = new RegExp(
+      `/${pathCharacter}*?${escapeRegExp(root)}/${pathCharacter}+`,
+      "g",
+    );
+    out = out.replace(worktreePath, (match) => toRepoRelativePath(match, worktreeRoot));
+  }
   return out;
 }
 
-export function formatPrFilesList(filesChanged: string[]): string {
+export function formatPrFilesList(
+  filesChanged: string[],
+  worktreeRoot = ".worktrees",
+): string {
   if (filesChanged.length === 0) return "none recorded";
-  return filesChanged.map(toRepoRelativePath).join(", ");
+  return filesChanged.map((path) => toRepoRelativePath(path, worktreeRoot)).join(", ");
 }
 
 export { FINGERPRINT_MARKER };

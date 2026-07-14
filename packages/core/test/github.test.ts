@@ -63,9 +63,13 @@ describe("PR body path rewriting", () => {
     expect(toRepoRelativePath(worktreeAbs)).toBe(
       "apps/leaky-service/src/server.ts:60",
     );
-    expect(toRepoRelativePath("apps/leaky-service/src/server.ts")).toBe(
-      "apps/leaky-service/src/server.ts",
-    );
+  expect(toRepoRelativePath("apps/leaky-service/src/server.ts")).toBe(
+    "apps/leaky-service/src/server.ts",
+  );
+  expect(toRepoRelativePath(
+    "/tmp/worktrees/custom/45b905d3/src/server.ts",
+    "worktrees/custom",
+  )).toBe("src/server.ts");
   });
 
   test("rewritePathsForPrBody converts markdown absolute links to repo-relative plain text", () => {

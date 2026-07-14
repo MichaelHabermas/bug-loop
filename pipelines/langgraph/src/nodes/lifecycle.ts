@@ -102,16 +102,16 @@ export async function giveUpWithDependencies(
   return { ...advance(state), errors };
 }
 
-function pullRequestBody(state: TriageState, number: number): string {
+function pullRequestBody(state: TriageState, number: number, worktreeRoot: string): string {
   const fix = state.activeFix;
   const verify = state.activeVerify;
   if (!fix || !verify) throw new Error("pr requires fix and verify results");
   return [
     "## What changed",
     "",
-    rewritePathsForPrBody(fix.description),
+    rewritePathsForPrBody(fix.description, worktreeRoot),
     "",
-    `Files: ${formatPrFilesList(fix.filesChanged)}`,
+    `Files: ${formatPrFilesList(fix.filesChanged, worktreeRoot)}`,
     "",
     "## Verification",
     "",
@@ -151,7 +151,7 @@ export async function prWithDependencies(
     await worktrees.push({ worktreeDir, branch: fix.branch });
     pullRequest = await github.createPullRequest({
       title: `[${input.config.labels.pipeline}] fix: ${short}`,
-      body: pullRequestBody(state, number),
+      body: pullRequestBody(state, number, input.config.worktreeRoot),
       head: fix.branch,
       base: "main",
       labels: [input.config.labels.pipeline],

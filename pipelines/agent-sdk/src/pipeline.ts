@@ -263,6 +263,31 @@ function errorDetail(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+interface StageTraceSummary {
+  outcome: string;
+  detail?: Record<string, unknown>;
+  cost?: CostSample;
+}
+
+async function runTracedStage<T>(
+  recorder: TraceRecorder,
+  stage: string,
+  action: () => Promise<T>,
+  summarize: (result: T) => StageTraceSummary,
+  fingerprint?: string,
+): Promise<T> {
+  const event = recorder.start(stage, fingerprint);
+  try {
+    const result = await action();
+    const summary = summarize(result);
+    event.finish(summary.outcome, summary.detail, summary.cost);
+    return result;
+  } catch (error: unknown) {
+    event.finish("error", { error: errorDetail(error) });
+    throw error;
+  }
+}
+
 async function removeWorktree(
   state: TriageState,
   worktrees: WorktreeOperations,
@@ -316,13 +341,14 @@ function pullRequestBody(
   fix: FixAttempt,
   verify: NonNullable<TriageState["activeVerify"]>,
   number: number,
+  worktreeRoot: string,
 ): string {
   return [
     "## What changed",
     "",
-    rewritePathsForPrBody(fix.description),
+    rewritePathsForPrBody(fix.description, worktreeRoot),
     "",
-    `Files: ${formatPrFilesList(fix.filesChanged)}`,
+    `Files: ${formatPrFilesList(fix.filesChanged, worktreeRoot)}`,
     "",
     "## Verification",
     "",
@@ -361,7 +387,7 @@ async function openPullRequest(
     await worktrees.push({ worktreeDir, branch: fix.branch });
     pullRequest = await github.createPullRequest({
       title: `[${config.labels.pipeline}] fix: ${short}`,
-      body: pullRequestBody(item, fix, verify, number),
+      body: pullRequestBody(item, fix, verify, number, config.worktreeRoot),
       head: fix.branch,
       base: "main",
       labels: [config.labels.pipeline],
@@ -434,56 +460,79 @@ async function fixIncident(
     console.log(`[fix] fingerprint=${fingerprint8} attempt=${attempt} files=${fix.filesChanged.length}`);
 
     const verifyState = activeState(state, item, created.worktreeDir, fix, attempt - 1);
-    const verifyEvent = recorder.start("verify", item.incident.fingerprint.hash);
-    const verified = await verifyWithRunner(verifyState, verifier, config.fixScope);
+    const verified = await runTracedStage(
+      recorder,
+      "verify",
+      () => verifyWithRunner(verifyState, verifier, config.fixScope),
+      (verifyResult) => {
+        const result = verifyResult.activeVerify;
+        if (!result) throw new Error("verify did not return a result");
+        return {
+          outcome: result.verified ? "verified" : "failed",
+          detail: {
+            attempt,
+            scopePasses: result.scopePasses,
+            reproPasses: result.reproPasses,
+            testsPass: result.testsPass,
+            typecheckPasses: result.typecheckPasses,
+          },
+        };
+      },
+      item.incident.fingerprint.hash,
+    );
     const result = verified.activeVerify;
     if (!result) throw new Error("verify did not return a result");
     state.verifyResults = verified.verifyResults ?? state.verifyResults;
     console.log(`[verify] fingerprint=${fingerprint8} attempt=${attempt} verified=${result.verified}`);
-    verifyEvent.finish(result.verified ? "verified" : "failed", {
-      attempt,
-      scopePasses: result.scopePasses,
-      reproPasses: result.reproPasses,
-      testsPass: result.testsPass,
-      typecheckPasses: result.typecheckPasses,
-    });
     if (result.verified) {
-      const prEvent = recorder.start("pr", item.incident.fingerprint.hash);
       const errorsBefore = state.errors.length;
-      await openPullRequest(
-        state,
-        github,
-        worktrees,
-        item,
-        created.worktreeDir,
-        fix,
-        result,
-        config,
+      await runTracedStage(
+        recorder,
+        "pr",
+        () => openPullRequest(
+          state,
+          github,
+          worktrees,
+          item,
+          created.worktreeDir,
+          fix,
+          result,
+          config,
+        ),
+        () => ({
+          outcome: state.errors.length === errorsBefore ? "completed" : "error",
+          detail: { issueNumber: item.ticket?.issueNumber },
+        }),
+        item.incident.fingerprint.hash,
       );
-      prEvent.finish(state.errors.length === errorsBefore ? "completed" : "error", {
-        issueNumber: item.ticket?.issueNumber,
-      });
       return;
     }
     previousFailure = result.detail;
   }
 
-  const giveUpEvent = recorder.start("give-up", item.incident.fingerprint.hash);
   const errorsBefore = state.errors.length;
-  await giveUp(
-    state,
-    github,
-    worktrees,
-    item,
-    created.worktreeDir,
-    config.maxFixAttempts,
-    previousFailure ?? "Verification did not provide details.",
-    config,
+  await runTracedStage(
+    recorder,
+    "give-up",
+    () => giveUp(
+      state,
+      github,
+      worktrees,
+      item,
+      created.worktreeDir,
+      config.maxFixAttempts,
+      previousFailure ?? "Verification did not provide details.",
+      config,
+    ),
+    () => ({
+      outcome: state.errors.length === errorsBefore ? "needs human" : "error",
+      detail: {
+        attempts: config.maxFixAttempts,
+        issueNumber: item.ticket?.issueNumber,
+      },
+    }),
+    item.incident.fingerprint.hash,
   );
-  giveUpEvent.finish(state.errors.length === errorsBefore ? "needs human" : "error", {
-    attempts: config.maxFixAttempts,
-    issueNumber: item.ticket?.issueNumber,
-  });
 }
 
 export async function runAgentSdkPipeline(
@@ -502,54 +551,66 @@ export async function runAgentSdkPipeline(
   const state = initialState(config, options);
 
   try {
-    const ingestEvent = recorder.start("ingest");
-    await ingest(state);
-    ingestEvent.finish(`${state.summary?.eventsRead ?? 0} events`, {
-      events: state.summary?.eventsRead ?? 0,
-    });
+    await runTracedStage(recorder, "ingest", () => ingest(state), () => ({
+      outcome: `${state.summary?.eventsRead ?? 0} events`,
+      detail: { events: state.summary?.eventsRead ?? 0 },
+    }));
 
-    const detectEvent = recorder.start("detect");
-    detect(state, config, dependencies.reproStrategy);
-    detectEvent.finish(`${state.summary?.actionable ?? 0} actionable`, {
-      actionable: state.summary?.actionable ?? 0,
-    });
+    await runTracedStage(
+      recorder,
+      "detect",
+      async () => detect(state, config, dependencies.reproStrategy),
+      () => ({
+        outcome: `${state.summary?.actionable ?? 0} actionable`,
+        detail: { actionable: state.summary?.actionable ?? 0 },
+      }),
+    );
 
-    const dedupeEvent = recorder.start("dedupe");
-    await dedupe(state, github);
-    dedupeEvent.finish(`${state.summary?.newIncidents ?? 0} new incidents`, {
-      incidents: state.summary?.incidents ?? 0,
-      newIncidents: state.summary?.newIncidents ?? 0,
-    });
+    await runTracedStage(recorder, "dedupe", () => dedupe(state, github), () => ({
+      outcome: `${state.summary?.newIncidents ?? 0} new incidents`,
+      detail: {
+        incidents: state.summary?.incidents ?? 0,
+        newIncidents: state.summary?.newIncidents ?? 0,
+      },
+    }));
     if (state.incidents.length === 0) {
       return { state, summary: state.summary ?? EMPTY_SUMMARY };
     }
 
-    const reproduceEvent = recorder.start("reproduce");
-    await reproduce(state, dependencies.reproStrategy);
-    reproduceEvent.finish(`${state.summary?.reproduced ?? 0} reproduced`, {
-      reproduced: state.summary?.reproduced ?? 0,
-    });
-
-    const agent = dependencies.triageAgent ?? new ClaudeTriageAgent(repoRoot, config.fixScope);
-    const routeEvent = recorder.start("route");
-    const routeCosts = await route(state, agent);
-    const mechanicalCount = (state.triage ?? []).filter(
-      (item) => item.route?.kind === "mechanical",
-    ).length;
-    routeEvent.finish(
-      `${mechanicalCount} mechanical`,
-      {
-        mechanical: mechanicalCount,
-        needsHuman: (state.triage?.length ?? 0) - mechanicalCount,
-      },
-      combineCostSamples(routeCosts),
+    await runTracedStage(
+      recorder,
+      "reproduce",
+      () => reproduce(state, dependencies.reproStrategy),
+      () => ({
+        outcome: `${state.summary?.reproduced ?? 0} reproduced`,
+        detail: { reproduced: state.summary?.reproduced ?? 0 },
+      }),
     );
 
-    const ticketEvent = recorder.start("ticket");
-    await ticket(state, github, config);
-    ticketEvent.finish(`${state.summary?.issuesFiled ?? 0} issues`, {
-      issuesFiled: state.summary?.issuesFiled ?? 0,
-    });
+    const agent = dependencies.triageAgent ?? new ClaudeTriageAgent(repoRoot, config.fixScope);
+    await runTracedStage(
+      recorder,
+      "route",
+      () => route(state, agent),
+      (routeCosts) => {
+        const mechanicalCount = (state.triage ?? []).filter(
+          (item) => item.route?.kind === "mechanical",
+        ).length;
+        return {
+          outcome: `${mechanicalCount} mechanical`,
+          detail: {
+            mechanical: mechanicalCount,
+            needsHuman: (state.triage?.length ?? 0) - mechanicalCount,
+          },
+          cost: combineCostSamples(routeCosts),
+        };
+      },
+    );
+
+    await runTracedStage(recorder, "ticket", () => ticket(state, github, config), () => ({
+      outcome: `${state.summary?.issuesFiled ?? 0} issues`,
+      detail: { issuesFiled: state.summary?.issuesFiled ?? 0 },
+    }));
 
     if (state.config?.fix) {
       const fixer = dependencies.fixer ?? createDefaultFixer(config.fixScope, config.fixer);

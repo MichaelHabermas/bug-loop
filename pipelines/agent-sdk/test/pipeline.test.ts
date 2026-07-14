@@ -198,3 +198,44 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(rerun.summary.newIncidents).toBe(0);
   expect(triageCalls).toBe(4);
 });
+
+test("records a failed stage before finalizing the trace", async () => {
+  const tracePath = join(TMP, "failed-trace.json");
+  const config = createLeakyServicePipelineConfig({
+    cursorPath: join(TMP, "cursor.json"),
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath: FIXTURE,
+  });
+  const github: GitHubOperations = {
+    async findOpenIssueByMarker() {
+      throw new Error("lookup failed");
+    },
+    async createIssue() {
+      throw new Error("unused");
+    },
+    async readIssue() {
+      return null;
+    },
+    async commentIssue() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("unused");
+    },
+  };
+
+  await expect(runAgentSdkPipeline(config, {
+    fromStart: true,
+    fix: false,
+    live: false,
+    tracePath,
+  }, { github, repoRoot: TMP })).rejects.toThrow("lookup failed");
+
+  const trace = await Bun.file(tracePath).json() as RunTrace;
+  expect(trace.events.map((event) => [event.stage, event.outcome])).toEqual([
+    ["ingest", "4 events"],
+    ["detect", "4 actionable"],
+    ["dedupe", "error"],
+  ]);
+  expect(trace.events[2]?.detail).toEqual({ error: "lookup failed" });
+});

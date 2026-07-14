@@ -1,4 +1,4 @@
-/** Parsed structured log line from leaky-service. */
+/** Parsed structured log line supplied by a consumer application. */
 import type { PipelineConfig } from "./config";
 
 export type LogLevel = "info" | "warn" | "error";

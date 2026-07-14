@@ -110,6 +110,12 @@ function parseInteger(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function parseDecimal(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function parseCliCost(
   stdout: string,
   harness: "codex" | "grok",
@@ -122,6 +128,7 @@ export function parseCliCost(
   );
   const totalMatch = stdout.match(/\btokens used\s*[:=]?\s*(?:\r?\n\s*)?([\d,]+)/i);
   const usdMatch = stdout.match(/(?:\btotal cost|\bcost)\s*[:=]?\s*\$?([\d.]+)/i);
+  const usd = parseDecimal(usdMatch?.[1]);
   const model = stdout.match(/\bmodel\s*[:=]\s*([^\s,]+)/i)?.[1];
   const relevant = stdout.split("\n").filter((line, index, lines) =>
     /\b(input[ _-]?tokens|output[ _-]?tokens|tokens used|total cost|cost\s*[:=]|model\s*[:=])/i.test(line) ||
@@ -136,7 +143,7 @@ export function parseCliCost(
     ...(model === undefined ? {} : { model }),
     ...(inputTokens === undefined ? {} : { inputTokens }),
     ...(outputTokens === undefined ? {} : { outputTokens }),
-    ...(usdMatch?.[1] === undefined ? {} : { usd: Number(usdMatch[1]) }),
+    ...(usd === undefined ? {} : { usd }),
     raw: relevant.join("\n").trim() || totalMatch?.[0] || stdout.trim(),
   };
 }
@@ -174,8 +181,8 @@ abstract class CliFixer implements Fixer {
   async fix(input: FixInput): Promise<FixOutput> {
     const command = this.command(input);
     const result = await this.runner(command, { cwd: input.worktreeDir });
-    requireSuccess(this.displayCommand(input), result);
     this.cost = parseCliCost(result.stdout, this.harness);
+    requireSuccess(this.displayCommand(input), result);
     const statusCommand = ["git", "-C", input.worktreeDir, "status", "--porcelain"];
     const status = await this.runner(statusCommand, { cwd: input.worktreeDir });
     requireSuccess(statusCommand, status);

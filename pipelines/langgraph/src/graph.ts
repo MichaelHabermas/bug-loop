@@ -243,10 +243,15 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
         repoRoot,
       });
       const activeFix = result.activeFix;
+      const fixerFailed = activeFix?.description.startsWith("Fixer failed:") ?? false;
       event?.finish(
-        activeFix ? `attempt ${activeFix.attempt}` : "no fix",
+        fixerFailed ? "error" : activeFix ? `attempt ${activeFix.attempt}` : "no fix",
         activeFix
-          ? { attempt: activeFix.attempt, filesChanged: activeFix.filesChanged }
+          ? {
+              attempt: activeFix.attempt,
+              filesChanged: activeFix.filesChanged,
+              ...(fixerFailed ? { error: activeFix.description } : {}),
+            }
           : undefined,
         takeFixerCost(fixer),
       );
@@ -281,14 +286,19 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     options.recorder,
     "give-up",
     () => giveUpWithDependencies(state, { config, github, worktrees, repoRoot }),
-    () => ({ outcome: "needs human", detail: { attempts: state.retryCount } }),
+    (result) => ({
+      outcome: (result.errors?.length ?? 0) > state.errors.length ? "error" : "needs human",
+      detail: { attempts: state.retryCount },
+    }),
     state.activeIncident?.fingerprint.hash,
   );
   const pr = (state: TriageState) => tracedNode(
     options.recorder,
     "pr",
     () => prWithDependencies(state, { config, github, worktrees, repoRoot }),
-    () => ({ outcome: "completed" }),
+    (result) => ({
+      outcome: (result.errors?.length ?? 0) > state.errors.length ? "error" : "completed",
+    }),
     state.activeIncident?.fingerprint.hash,
   );
 

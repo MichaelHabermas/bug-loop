@@ -100,6 +100,7 @@ test("fixScope reaches worktree commit pathspecs", async () => {
     "-C",
     "/repo/.scratch/worktrees/abc",
     "add",
+    "--",
     "services/api/src",
   ]);
 });

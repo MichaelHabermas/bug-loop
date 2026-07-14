@@ -41,7 +41,7 @@ export function heuristicRoute(
   if (incident.sampleEvents[0]?.level === "warn") {
     return {
       kind: "needs-human",
-      reason: "Negative totals expose an ambiguous discount policy, not a mechanical fix.",
+      reason: "Warning-level invariants require product-policy review, not a mechanical fix.",
     };
   }
   if (repro.reproduced) {
