@@ -2,6 +2,20 @@
 
 An agent-pipeline demo: **logs → tickets → verified fixes**, built twice on the same contracts - once with **LangGraph JS** and once with the **Claude Agent SDK**.
 
+## The 60-second answer
+
+*This repo exists to answer "how would you set up your agent pipeline?" with something runnable.*
+
+Most agent systems are pipeline-shaped - a router plus specialists covers the large majority of cases. Reach for a graph framework (LangGraph) when you need **cycles, conditional routing, shared state, or human-in-the-loop interrupts**; below that, a pipeline is typed functions + routing + state, and the framework buys you resumability, not intelligence. This repo is that claim, built both ways.
+
+Three principles drive the design:
+
+1. **Verification is the load-bearing layer.** Every stage that writes has a verifier in front of it: reproduction before the ticket, repro-gone + tests + typecheck before the PR. The fix→verify edge is a bounded retry cycle - exactly the thing a graph expresses that a chain can't.
+2. **Route to the right capability.** Deterministic stages use no model. Cheap classification where judgment is thin, an agent (Claude Agent SDK, read-only tools) where judgment is real, and a coding agent (Codex or Grok, behind one `Fixer` interface) only in the fix stage. The harness is swappable because the contract is the boundary.
+3. **Failure routes to a human, by design.** One seeded bug is a product-policy ambiguity; the pipeline reproduces it, documents it, and *declines to fix it*. Auto-PRs that waste review time burn trust faster than they save toil.
+
+For review agents specifically: same shape, fan-out instead of a chain - parallel specialist reviewers, then dedupe and rank findings, with a confidence gate before anything reaches a human.
+
 The toy target is `apps/leaky-service`, a small order API that writes structured JSONL logs and ships with a handful of seeded failure modes.
 Shared types and helpers live in `shared/`.
 Pipelines consume those contracts; they do not re-invent fingerprinting, log reading, or GitHub ticket shape.
@@ -106,6 +120,27 @@ Run the dry fix command and live fix command as separate demos only after resett
 The verifier assigns a free service port and an isolated log path inside the worktree.
 The service's default log path also resolves inside its checkout through `import.meta.dir`; the verifier sets `LOG_PATH` explicitly so each check starts from a fresh file.
 
+## Field notes from the live runs
+
+This ran for real (see [issues #1–#4](https://github.com/MichaelHabermas/bug-loop/issues?q=is%3Aissue) and [PRs #5–#7](https://github.com/MichaelHabermas/bug-loop/pulls)). The failures along the way are the best part of the story:
+
+- **Run against a dead service** → 0 reproduced → everything routed `needs-human`. The pipeline never fixes what it can't reproduce.
+- **Correct fixes, rejected.** Fresh git worktrees didn't get their own `bun install`, so verification failed on resolution errors unrelated to the fixes. All three fixes had *passed their repros* - and the pipeline still refused to open PRs it couldn't verify, leaving evidence comments and swapping labels to `needs-human` instead. Verification-as-load-bearing-layer, demonstrated by the system choosing trust over throughput.
+- **Triage agent auth expiry** → heuristic fallback carried the run; the fix loop continued degraded rather than dying.
+- Working runs: codex fixed 3/3 through the LangGraph pipeline (real PRs with before/after evidence); the SDK-plans-grok-executes pipeline fixed 3/3 first-attempt in dry mode, with the SDK's fix briefs deriving root causes from actual source reading (e.g. `timeoutMs: 15 < latencyMs: 80` ⇒ the ship promise always rejects).
+
+## Production gaps (known, deliberate)
+
+Demo-sized simplifications you'd close before trusting this at work - kept honest here because reciting them beats pretending the happy path is the system:
+
+- **Backpressure**: a 50-fingerprint log storm means 50 issues and 50 fix attempts; needs per-run caps and a cost budget.
+- **Concurrency**: no run lock; racing instances would duplicate issues and clobber worktrees.
+- **Dedupe edges**: only *open* issues are marker-searched (recurrence after close files fresh, unlinked); GitHub search indexing lag is a small race window; fingerprints can drift (same cause, changed message) or collide (distinct bugs, same name+frame+route).
+- **Intermittent bugs**: repro is one-shot, so flaky bugs route `needs-human` - safe but low recall.
+- **Observability**: no per-incident token/cost tracking across the three harnesses.
+
+Efficiency roadmap in the same spirit: one dedupe query per run instead of one per fingerprint; parallel fix fan-out (worktrees already isolate); verify fast-path (repro check before the full suite); a "seen again, count N" heartbeat on open issues; batch triage in one SDK session.
+
 ## Reset the demo
 
 Stop the service before resetting.
@@ -120,7 +155,7 @@ done
 gh pr list -R MichaelHabermas/bug-loop --state open --label bug-loop --json number --jq '.[].number' |
   while read -r number; do gh pr close "$number" -R MichaelHabermas/bug-loop; done
 
-for branch in bugloop/fix-2239a31d bugloop/fix-8c3afcf4 bugloop/fix-923763aa; do
+for branch in bugloop/fix-45b905d3 bugloop/fix-9ac0e1f8 bugloop/fix-fd024683; do
   git branch -D "$branch" 2>/dev/null || true
   git push origin --delete "$branch" 2>/dev/null || true
 done
