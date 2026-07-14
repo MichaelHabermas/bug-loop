@@ -45,6 +45,12 @@ export class GitWorktreeOperations implements WorktreeOperations {
     ];
     const result = await runProcess(command, { cwd: this.repoRoot });
     requireSuccess(command, result);
+    // Worktrees don't share node_modules; without a local install, Bun and
+    // tsc resolve workspace packages against the parent checkout and the
+    // verifier fails on errors unrelated to the fix.
+    const installCommand = ["bun", "install"];
+    const install = await runProcess(installCommand, { cwd: worktreeDir });
+    requireSuccess(installCommand, install);
     return { worktreeDir, branch: input.branch };
   }
 
