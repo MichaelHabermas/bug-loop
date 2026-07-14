@@ -5,6 +5,7 @@
   "scripts": {
     "typecheck": "tsc -b",
     "test": "bun test",
+    "pipeline:langgraph": "bun run pipelines/langgraph/src/index.ts",
     "service": "bun run apps/leaky-service/src/server.ts",
     "traffic": "bun run apps/leaky-service/scripts/traffic.ts"
   },

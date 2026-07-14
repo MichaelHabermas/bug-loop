@@ -52,6 +52,32 @@ export interface RouteDecision {
   reason: string;
 }
 
+/** Result of running the reproducibility, routing, and ticket stages for one incident. */
+export interface IncidentTriage {
+  incident: Incident;
+  repro?: ReproResult;
+  route?: RouteDecision;
+  ticket?: TicketRef;
+}
+
+/** Runtime inputs shared by one-shot triage implementations. */
+export interface TriageRunConfig {
+  cursorPath: string;
+  fromStart: boolean;
+  baseUrl: string;
+  nextCursorOffset?: number;
+}
+
+/** Stable aggregate counters printed by pipeline implementations. */
+export interface TriageSummary {
+  eventsRead: number;
+  actionable: number;
+  incidents: number;
+  newIncidents: number;
+  reproduced: number;
+  issuesFiled: number;
+}
+
 export interface FixAttempt {
   branch: string;
   description: string;
@@ -71,7 +97,11 @@ export interface VerifyResult {
 export interface TriageState {
   logPath: string;
   events: LogEvent[];
+  actionableEvents?: LogEvent[];
   incidents: Incident[];
+  triage?: IncidentTriage[];
+  config?: TriageRunConfig;
+  summary?: TriageSummary;
   activeIncident?: Incident;
   repro?: ReproResult;
   ticket?: TicketRef;
