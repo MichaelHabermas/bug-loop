@@ -12,6 +12,7 @@ import { FINGERPRINT_MARKER, fingerprintEvent } from "@bug-loop/shared";
 import {
   buildIssueInput,
   dedupeEvents,
+  dedupeWithLookup,
   detectWithClassifier,
   routeWithClassifier,
   ticketNode,
@@ -93,6 +94,36 @@ describe("dedupeEvents", () => {
     }));
     expect(result.all).toHaveLength(1);
     expect(result.fresh).toHaveLength(0);
+  });
+
+  test("retains an existing ticket in the fix queue only when fix mode is enabled", async () => {
+    const sample = errorEvent("existing", 1);
+    const existing = async () => ({
+      number: 3,
+      url: "https://example.test/issues/3",
+    });
+    const fixResult = await dedupeWithLookup(state({
+      actionableEvents: [sample],
+      config: {
+        cursorPath: ".cursor.json",
+        fromStart: true,
+        baseUrl: "http://localhost:3000",
+        fix: true,
+      },
+    }), existing);
+    expect(fixResult.incidents).toHaveLength(1);
+    expect(fixResult.triage?.[0]?.ticket?.issueNumber).toBe(3);
+
+    const triageOnly = await dedupeWithLookup(state({
+      actionableEvents: [sample],
+      config: {
+        cursorPath: ".cursor.json",
+        fromStart: true,
+        baseUrl: "http://localhost:3000",
+        fix: false,
+      },
+    }), existing);
+    expect(triageOnly.incidents).toHaveLength(0);
   });
 });
 

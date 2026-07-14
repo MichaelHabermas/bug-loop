@@ -71,6 +71,10 @@ export async function ticketWithCreator(
   let issuesFiled = 0;
   let ticketFailed = false;
   for (const item of state.triage ?? []) {
+    if (item.ticket) {
+      triage.push(item);
+      continue;
+    }
     try {
       const issue = await issueCreator(buildIssueInput(item));
       triage.push({

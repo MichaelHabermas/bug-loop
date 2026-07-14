@@ -12,6 +12,12 @@ export interface PRInput {
   body: string;
   head: string;
   base?: string;
+  labels?: string[];
+}
+
+export interface IssueDetails {
+  title: string;
+  body: string;
 }
 
 export interface IssueRef {
@@ -145,6 +151,9 @@ export async function createPullRequest(input: PRInput): Promise<PRRef> {
     "--base",
     base,
   ];
+  for (const label of input.labels ?? []) {
+    args.push("--label", label);
+  }
 
   if (isDryRun()) {
     console.log(`[DRY_RUN] gh ${args.join(" ")}`);
@@ -185,6 +194,80 @@ export async function addLabels(number: number, labels: string[]): Promise<void>
   const { stdout, stderr, exitCode } = await runGh(args);
   if (exitCode !== 0) {
     throw new Error(`gh issue edit (labels) failed: ${stderr || stdout}`);
+  }
+}
+
+/** Read an issue's title and body for a self-contained fixer prompt. */
+export async function readIssue(number: number): Promise<IssueDetails | null> {
+  if (isDryRun()) {
+    console.log(`[DRY_RUN] gh issue view ${number} --repo ${REPO} --json title,body`);
+    return null;
+  }
+  const { stdout, stderr, exitCode } = await runGh([
+    "issue",
+    "view",
+    String(number),
+    "--repo",
+    REPO,
+    "--json",
+    "title,body",
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(`gh issue view failed: ${stderr || stdout}`);
+  }
+  const value: unknown = JSON.parse(stdout);
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  return typeof record["title"] === "string" && typeof record["body"] === "string"
+    ? { title: record["title"], body: record["body"] }
+    : null;
+}
+
+/** Comment on an issue. */
+export async function commentIssue(number: number, body: string): Promise<void> {
+  const args = [
+    "issue",
+    "comment",
+    String(number),
+    "--repo",
+    REPO,
+    "--body",
+    body,
+  ];
+  if (isDryRun()) {
+    console.log(`[DRY_RUN] gh ${args.join(" ")}`);
+    return;
+  }
+  const { stdout, stderr, exitCode } = await runGh(args);
+  if (exitCode !== 0) {
+    throw new Error(`gh issue comment failed: ${stderr || stdout}`);
+  }
+}
+
+/** Atomically remove one issue label and add another. */
+export async function replaceIssueLabel(
+  number: number,
+  remove: string,
+  add: string,
+): Promise<void> {
+  const args = [
+    "issue",
+    "edit",
+    String(number),
+    "--repo",
+    REPO,
+    "--remove-label",
+    remove,
+    "--add-label",
+    add,
+  ];
+  if (isDryRun()) {
+    console.log(`[DRY_RUN] gh ${args.join(" ")}`);
+    return;
+  }
+  const { stdout, stderr, exitCode } = await runGh(args);
+  if (exitCode !== 0) {
+    throw new Error(`gh issue edit (label swap) failed: ${stderr || stdout}`);
   }
 }
 

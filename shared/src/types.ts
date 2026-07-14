@@ -60,12 +60,19 @@ export interface IncidentTriage {
   ticket?: TicketRef;
 }
 
+export interface PullRequestRef {
+  number: number;
+  url: string;
+}
+
 /** Runtime inputs shared by one-shot triage implementations. */
 export interface TriageRunConfig {
   cursorPath: string;
   fromStart: boolean;
   baseUrl: string;
   nextCursorOffset?: number;
+  fix?: boolean;
+  live?: boolean;
 }
 
 /** Stable aggregate counters printed by pipeline implementations. */
@@ -79,14 +86,21 @@ export interface TriageSummary {
 }
 
 export interface FixAttempt {
+  attempt: number;
   branch: string;
   description: string;
   filesChanged: string[];
 }
 
 export interface VerifyResult {
+  verified: boolean;
+  scopePasses: boolean;
   reproPasses: boolean;
   testsPass: boolean;
+  typecheckPasses: boolean;
+  reproEvidence?: string;
+  testSummary?: string;
+  typecheckDetail?: string;
   detail: string;
 }
 
@@ -102,12 +116,16 @@ export interface TriageState {
   triage?: IncidentTriage[];
   config?: TriageRunConfig;
   summary?: TriageSummary;
-  activeIncident?: Incident;
-  repro?: ReproResult;
-  ticket?: TicketRef;
-  route?: RouteDecision;
-  fix?: FixAttempt;
-  verify?: VerifyResult;
+  activeIncident?: Incident | null;
+  fixQueue?: Incident[];
+  worktreeDir?: string | null;
+  activeRepro?: ReproResult;
+  activeTicket?: TicketRef;
+  activeFix?: FixAttempt;
+  activeVerify?: VerifyResult;
+  fixAttempts?: FixAttempt[];
+  verifyResults?: VerifyResult[];
+  pullRequests?: PullRequestRef[];
   retryCount: number;
   errors: string[];
 }

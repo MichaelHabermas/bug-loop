@@ -1,6 +1,11 @@
 export { ingestNode } from "./ingest";
 export { detectNode, detectWithClassifier } from "./detect";
-export { dedupeEvents, dedupeNode } from "./dedupe";
+export { dedupeEvents, dedupeNode, dedupeWithLookup } from "./dedupe";
 export { reproduceNode } from "./reproduce";
 export { routeNode, routeWithClassifier } from "./route";
 export { buildIssueInput, ticketNode, ticketWithCreator } from "./ticket";
+export { fixWithDependencies, initializeFixQueue } from "./fix";
+export type { FixDependencies } from "./fix";
+export { giveUpWithDependencies, prWithDependencies } from "./lifecycle";
+export type { GitHubOperations, LifecycleDependencies } from "./lifecycle";
+export type { WorktreeOperations } from "../worktree";

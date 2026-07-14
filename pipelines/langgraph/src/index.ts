@@ -5,12 +5,14 @@ import { createInitialState, createTriageGraph } from "./graph";
 interface CliArgs {
   fromStart: boolean;
   live: boolean;
+  fix: boolean;
   baseUrl: string;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   let fromStart = false;
   let live = false;
+  let fix = false;
   let baseUrl = process.env["BUGLOOP_BASE_URL"] ?? "http://localhost:3000";
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -18,6 +20,8 @@ function parseArgs(argv: string[]): CliArgs {
       fromStart = true;
     } else if (arg === "--live") {
       live = true;
+    } else if (arg === "--fix") {
+      fix = true;
     } else if (arg === "--base") {
       const value = argv[index + 1];
       if (!value) throw new Error("--base requires a URL");
@@ -27,7 +31,7 @@ function parseArgs(argv: string[]): CliArgs {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
-  return { fromStart, live, baseUrl: baseUrl.replace(/\/$/, "") };
+  return { fromStart, live, fix, baseUrl: baseUrl.replace(/\/$/, "") };
 }
 
 function printSummary(summary: TriageSummary): void {
@@ -58,6 +62,8 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     cursorPath: join(import.meta.dir, "../.cursor.json"),
     fromStart: args.fromStart,
     baseUrl: args.baseUrl,
+    fix: args.fix,
+    live: args.live,
   });
   const result = await graph.invoke(state, {
     configurable: { thread_id: crypto.randomUUID() },
@@ -73,7 +79,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     },
   );
   if (result.errors.length > 0) {
-    console.error(`Pipeline completed with ${result.errors.length} ticket error(s).`);
+    console.error(`Pipeline completed with ${result.errors.length} error(s).`);
     for (const error of result.errors) console.error(`- ${error}`);
     process.exitCode = 1;
   }

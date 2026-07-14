@@ -6,6 +6,7 @@ export type {
   Incident,
   ReproResult,
   TicketRef,
+  PullRequestRef,
   RouteKind,
   RouteDecision,
   IncidentTriage,
@@ -30,7 +31,10 @@ export {
   findOpenIssueByMarker,
   createPullRequest,
   addLabels,
+  readIssue,
+  commentIssue,
+  replaceIssueLabel,
   FINGERPRINT_MARKER,
   REPO,
 } from "./github";
-export type { IssueInput, PRInput, IssueRef, PRRef } from "./github";
+export type { IssueInput, PRInput, IssueRef, PRRef, IssueDetails } from "./github";

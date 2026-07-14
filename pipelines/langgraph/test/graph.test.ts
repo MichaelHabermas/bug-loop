@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { createInitialState, createTriageGraph } from "../src/graph";
+import { routeAfterTicket } from "../src/graph";
 import { HeuristicClassifier } from "../src/classifier";
 
 const TMP = join(import.meta.dir, ".tmp-graph");
@@ -54,4 +55,59 @@ test("graph processes all four signatures and tolerates an unreachable service",
   );
   expect(rerun.summary?.eventsRead).toBe(0);
   expect(rerun.summary?.newIncidents).toBe(0);
+});
+
+test("compiled graph exposes the fix cycle and only routes fix-enabled mechanical work into it", () => {
+  const graph = createTriageGraph({ classifier: new HeuristicClassifier() });
+  const edges = graph.getGraph().edges.map((edge) => `${edge.source}->${edge.target}`);
+  expect(edges).toContain("ticket->fix");
+  expect(edges).toContain("fix->verify");
+  expect(edges).toContain("verify->fix");
+  expect(edges).toContain("verify->pr");
+
+  const active = {
+    fingerprint: {
+      hash: "abcdef0123456789",
+      errName: "TypeError",
+      topFrame: "at handleCreate (apps/leaky-service/src/server.ts)",
+      route: "POST /orders",
+    },
+    sampleEvents: [],
+    count: 1,
+    firstSeen: "2026-07-13T12:00:00.000Z",
+    lastSeen: "2026-07-13T12:00:00.000Z",
+  };
+  const mechanical = {
+    incident: active,
+    route: { kind: "mechanical" as const, reason: "reproduced" },
+    ticket: { issueNumber: 1, url: "https://example.test/issues/1" },
+  };
+  const needsHuman = {
+    ...mechanical,
+    route: { kind: "needs-human" as const, reason: "ambiguous" },
+  };
+  expect(routeAfterTicket(createInitialState({
+    logPath: "fixture",
+    cursorPath: "cursor",
+    fromStart: true,
+    baseUrl: "http://localhost:3000",
+    fix: true,
+    live: false,
+  }), [mechanical])).toBe("fix");
+  expect(routeAfterTicket(createInitialState({
+    logPath: "fixture",
+    cursorPath: "cursor",
+    fromStart: true,
+    baseUrl: "http://localhost:3000",
+    fix: true,
+    live: false,
+  }), [needsHuman])).toBe("end");
+  expect(routeAfterTicket(createInitialState({
+    logPath: "fixture",
+    cursorPath: "cursor",
+    fromStart: true,
+    baseUrl: "http://localhost:3000",
+    fix: false,
+    live: false,
+  }), [mechanical])).toBe("end");
 });
