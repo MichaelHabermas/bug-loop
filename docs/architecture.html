@@ -1,0 +1,1439 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>bug-loop | Operating Architecture</title>
+  <script>
+    try {
+      const savedTheme = localStorage.getItem("bug-loop-theme");
+      if (savedTheme === "light" || savedTheme === "dark") document.documentElement.dataset.theme = savedTheme;
+    } catch {}
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f2efe6;
+      --paper-raised: #fbf8ef;
+      --ink: #171816;
+      --ink-soft: #4f514c;
+      --ink-faint: #797b73;
+      --rule: #b9b6aa;
+      --rule-strong: #6d6d67;
+      --code: #0b6e82;
+      --code-soft: #d7ebec;
+      --agent: #d44a2f;
+      --agent-soft: #f6d9ce;
+      --human: #9a3f73;
+      --human-soft: #eed9e5;
+      --signal: #ff5a36;
+      --focus: #126cce;
+      --grid: rgba(23, 24, 22, 0.052);
+      --serif: "Iowan Old Style", "Baskerville", "Palatino Linotype", Georgia, serif;
+      --sans: "Avenir Next", Avenir, "Century Gothic", "Trebuchet MS", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --paper: #101310;
+        --paper-raised: #181c18;
+        --ink: #edf0e8;
+        --ink-soft: #bdc2b8;
+        --ink-faint: #858b82;
+        --rule: #3c433d;
+        --rule-strong: #70786f;
+        --code: #55bfd0;
+        --code-soft: #16383d;
+        --agent: #ff6c4d;
+        --agent-soft: #4c251d;
+        --human: #ee8fc3;
+        --human-soft: #452538;
+        --signal: #ff7558;
+        --focus: #71b7ff;
+        --grid: rgba(237, 240, 232, 0.045);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --paper: #101310;
+      --paper-raised: #181c18;
+      --ink: #edf0e8;
+      --ink-soft: #bdc2b8;
+      --ink-faint: #858b82;
+      --rule: #3c433d;
+      --rule-strong: #70786f;
+      --code: #55bfd0;
+      --code-soft: #16383d;
+      --agent: #ff6c4d;
+      --agent-soft: #4c251d;
+      --human: #ee8fc3;
+      --human-soft: #452538;
+      --signal: #ff7558;
+      --focus: #71b7ff;
+      --grid: rgba(237, 240, 232, 0.045);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      color: var(--ink);
+      background-color: var(--paper);
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 24px 24px;
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    button, input { font: inherit; }
+
+    button, .file-label, .event-row { -webkit-tap-highlight-color: transparent; }
+
+    button:focus-visible, input:focus-visible, a:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+    a:hover { color: var(--agent); }
+
+    .shell {
+      width: min(1440px, calc(100% - 48px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 56px;
+      border-bottom: 1px solid var(--rule-strong);
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .topbar-mark { display: flex; align-items: center; gap: 10px; }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      background: var(--signal);
+      border-radius: 50%;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 16%, transparent);
+    }
+
+    .theme-toggle, .control-button, .file-label {
+      border: 1px solid var(--rule-strong);
+      border-radius: 0;
+      color: var(--ink);
+      background: var(--paper-raised);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      line-height: 1;
+      text-transform: uppercase;
+      transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+    }
+
+    .theme-toggle { padding: 9px 11px; }
+
+    .theme-toggle:hover, .control-button:hover:not(:disabled), .file-label:hover {
+      border-color: var(--ink);
+      color: var(--paper);
+      background: var(--ink);
+    }
+
+    .hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(250px, 0.55fr);
+      gap: 6vw;
+      align-items: end;
+      min-height: 540px;
+      padding: 80px 0 68px;
+      border-bottom: 4px solid var(--ink);
+    }
+
+    .hero::after {
+      content: "01 / OPERATING SYSTEM";
+      position: absolute;
+      right: 0;
+      top: 34px;
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.15em;
+    }
+
+    .eyebrow, .section-kicker, .mini-label {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow { color: var(--agent); }
+
+    h1 {
+      max-width: 900px;
+      margin: 18px 0 28px;
+      font-family: var(--serif);
+      font-size: clamp(4.7rem, 11vw, 10.5rem);
+      font-weight: 400;
+      letter-spacing: -0.075em;
+      line-height: 0.77;
+    }
+
+    .hero-thesis {
+      max-width: 820px;
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(1.45rem, 3vw, 2.65rem);
+      font-style: italic;
+      line-height: 1.13;
+    }
+
+    .hero-aside {
+      padding: 24px 0 4px 22px;
+      border-left: 1px solid var(--rule-strong);
+    }
+
+    .hero-aside p { margin: 0; }
+
+    .transformation {
+      display: grid;
+      gap: 7px;
+      margin: 14px 0 28px;
+      font-family: var(--mono);
+      font-size: 0.93rem;
+      font-weight: 700;
+    }
+
+    .transformation span::before {
+      content: "→";
+      display: inline-block;
+      width: 26px;
+      color: var(--agent);
+    }
+
+    .hero-note { color: var(--ink-soft); font-size: 0.94rem; }
+
+    .section {
+      padding: 104px 0;
+      border-bottom: 1px solid var(--rule-strong);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr);
+      gap: 32px;
+      align-items: start;
+      margin-bottom: 52px;
+    }
+
+    .section-number {
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+    }
+
+    .section-title {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(2.5rem, 6vw, 5.4rem);
+      font-weight: 400;
+      letter-spacing: -0.048em;
+      line-height: 0.95;
+    }
+
+    .section-intro {
+      max-width: 700px;
+      margin: 18px 0 0;
+      color: var(--ink-soft);
+      font-size: 1.03rem;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: -24px 0 32px 182px;
+    }
+
+    .type-badge, .harness-badge, .fingerprint-chip, .cost-chip, .outcome-chip {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      border: 1px solid currentColor;
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.055em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .type-badge { padding: 7px 9px; }
+    .type-badge.code { color: var(--code); background: var(--code-soft); }
+    .type-badge.agent { color: var(--agent); background: var(--agent-soft); }
+
+    .pieces-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-top: 1px solid var(--rule-strong);
+      border-left: 1px solid var(--rule-strong);
+    }
+
+    .piece-card {
+      position: relative;
+      display: flex;
+      min-height: 350px;
+      flex-direction: column;
+      padding: 24px;
+      border-right: 1px solid var(--rule-strong);
+      border-bottom: 1px solid var(--rule-strong);
+      background: color-mix(in srgb, var(--paper-raised) 82%, transparent);
+      overflow: hidden;
+    }
+
+    .piece-card.code { box-shadow: inset 0 5px 0 var(--code); }
+
+    .piece-card.agent {
+      background: color-mix(in srgb, var(--agent-soft) 52%, var(--paper-raised));
+      box-shadow: inset 8px 0 0 var(--agent);
+    }
+
+    .piece-card.agent::after {
+      content: "JUDGMENT";
+      position: absolute;
+      right: -27px;
+      top: 47px;
+      padding: 5px 31px;
+      color: var(--paper-raised);
+      background: var(--agent);
+      font-family: var(--mono);
+      font-size: 0.55rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      transform: rotate(45deg);
+    }
+
+    .card-index {
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.66rem;
+    }
+
+    .piece-card h3 {
+      margin: 24px 0 10px;
+      font-family: var(--mono);
+      font-size: clamp(1.2rem, 2vw, 1.7rem);
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    .piece-job {
+      min-height: 58px;
+      margin: 0 0 18px;
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+    }
+
+    .piece-card dl {
+      display: grid;
+      gap: 13px;
+      margin: auto 0 0;
+      padding-top: 18px;
+      border-top: 1px solid var(--rule);
+    }
+
+    .piece-card dl div { display: grid; gap: 3px; }
+
+    .piece-card dt {
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .piece-card dd { margin: 0; font-size: 0.78rem; line-height: 1.4; }
+
+    .diagram-wrap {
+      width: 100%;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      border: 1px solid var(--rule-strong);
+      background: var(--paper-raised);
+      scrollbar-color: var(--agent) var(--paper);
+    }
+
+    .diagram-wrap svg {
+      display: block;
+      width: max(100%, 1340px);
+      min-height: 620px;
+    }
+
+    .flow-line {
+      fill: none;
+      stroke: var(--ink-faint);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .flow-line.retry { stroke: var(--agent); stroke-dasharray: 7 5; }
+    .flow-line.human-edge { stroke: var(--human); }
+
+    .edge-label {
+      fill: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .stage-node .node-box {
+      fill: var(--paper-raised);
+      stroke: var(--rule-strong);
+      stroke-width: 2;
+      transition: fill 160ms ease, stroke 160ms ease, stroke-width 160ms ease;
+    }
+
+    .stage-node.judgment .node-box { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 3; }
+    .stage-node.human .node-box { fill: var(--human-soft); stroke: var(--human); }
+    .stage-node.end .node-box { stroke-dasharray: 7 5; }
+
+    .stage-node .node-title {
+      fill: var(--ink);
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .stage-node .node-subtitle {
+      fill: var(--ink-soft);
+      font-family: var(--sans);
+      font-size: 11px;
+    }
+
+    .stage-node .svg-badge { fill: var(--ink); }
+    .stage-node.judgment .svg-badge { fill: var(--agent); }
+    .stage-node.human .svg-badge { fill: var(--human); }
+
+    .stage-node .svg-badge-text {
+      fill: var(--paper-raised);
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .stage-node .node-corner { fill: var(--rule-strong); }
+
+    .stage-node.is-active .node-box {
+      fill: color-mix(in srgb, var(--signal) 18%, var(--paper-raised));
+      stroke: var(--signal);
+      stroke-width: 6;
+      animation: node-pulse 800ms ease-out;
+    }
+
+    .stage-node.is-active .node-corner { fill: var(--signal); }
+
+    @keyframes node-pulse {
+      0% { stroke-width: 11; }
+      100% { stroke-width: 6; }
+    }
+
+    .diagram-caption {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin: 14px 0 0;
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.69rem;
+    }
+
+    .diagram-caption strong { color: var(--agent); font-weight: 800; }
+
+    .implementation-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--rule-strong);
+    }
+
+    .implementation {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      padding: 36px;
+      background: var(--paper-raised);
+    }
+
+    .implementation + .implementation { border-left: 1px solid var(--rule-strong); }
+
+    .implementation h3 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      font-weight: 400;
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    .implementation-sub {
+      margin: 9px 0 31px;
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.69rem;
+      text-transform: uppercase;
+    }
+
+    .implementation dl { margin: 0; }
+
+    .implementation dl div {
+      display: grid;
+      grid-template-columns: 128px 1fr;
+      gap: 20px;
+      padding: 16px 0;
+      border-top: 1px solid var(--rule);
+    }
+
+    .implementation dt {
+      font-family: var(--mono);
+      font-size: 0.67rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .implementation dd { margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
+
+    .shared-core {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 24px;
+      align-items: center;
+      margin-top: 20px;
+      color: var(--code);
+      font-family: var(--mono);
+      font-size: 0.73rem;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .shared-core::before, .shared-core::after { content: ""; height: 1px; background: var(--code); }
+
+    .replay-console {
+      border: 1px solid var(--rule-strong);
+      background: var(--paper-raised);
+    }
+
+    .trace-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      align-items: center;
+      padding: 14px;
+      border-bottom: 1px solid var(--rule-strong);
+    }
+
+    .file-label, .control-button { min-height: 38px; padding: 0 13px; }
+    .file-label { display: inline-flex; align-items: center; }
+    .file-label input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .control-button:disabled { cursor: not-allowed; opacity: 0.42; }
+    .control-button.primary { color: var(--paper-raised); border-color: var(--ink); background: var(--ink); }
+    .control-button.primary:hover:not(:disabled) { color: var(--ink); background: var(--agent-soft); border-color: var(--agent); }
+
+    .trace-message {
+      flex: 1 1 260px;
+      min-width: 0;
+      margin: 0 0 0 8px;
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      text-align: right;
+    }
+
+    .trace-message.error { color: var(--agent); font-weight: 700; }
+
+    .run-header {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      border-bottom: 1px solid var(--rule-strong);
+    }
+
+    .run-stat { min-width: 0; padding: 19px 22px; }
+    .run-stat + .run-stat { border-left: 1px solid var(--rule); }
+    .run-stat dt { color: var(--ink-faint); font-family: var(--mono); font-size: 0.59rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .run-stat dd { margin: 5px 0 0; overflow: hidden; font-family: var(--mono); font-size: 0.86rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+    .playback-readout {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--rule);
+      color: var(--ink-soft);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+
+    .playback-progress { flex: 1; height: 3px; background: var(--rule); }
+    .playback-progress span { display: block; width: 0; height: 100%; background: var(--signal); transition: width 160ms ease; }
+
+    .timeline { padding: 7px 14px 19px; }
+
+    .event-group { --incident-color: var(--ink-faint); margin-top: 18px; }
+
+    .group-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 8px;
+      color: var(--incident-color);
+      font-family: var(--mono);
+      font-size: 0.63rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .group-label::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.45; }
+
+    .event-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 52px minmax(90px, 0.8fr) minmax(145px, 1.25fr) 94px minmax(120px, 1.6fr) minmax(150px, 1.2fr);
+      gap: 12px;
+      align-items: center;
+      width: 100%;
+      min-height: 58px;
+      padding: 9px 12px 9px 17px;
+      border: 0;
+      border-bottom: 1px solid var(--rule);
+      color: var(--ink);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .event-row::before {
+      content: "";
+      position: absolute;
+      inset: 8px auto 8px 0;
+      width: 4px;
+      background: var(--incident-color);
+    }
+
+    .event-row:hover { background: color-mix(in srgb, var(--incident-color) 8%, transparent); }
+
+    .event-row.is-current {
+      background: color-mix(in srgb, var(--incident-color) 14%, var(--paper-raised));
+      outline: 2px solid var(--incident-color);
+      outline-offset: -2px;
+    }
+
+    .event-seq, .event-stage, .event-duration { font-family: var(--mono); }
+    .event-seq { color: var(--ink-faint); font-size: 0.67rem; }
+    .event-stage { font-weight: 800; letter-spacing: -0.025em; }
+    .event-duration { color: var(--ink-soft); font-size: 0.73rem; }
+    .event-outcome { font-size: 0.82rem; }
+
+    .fingerprint-chip { max-width: 100%; padding: 6px 7px; color: var(--incident-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fingerprint-chip.global { color: var(--ink-faint); }
+    .cost-chip { padding: 7px 8px; color: var(--agent); line-height: 1.35; text-transform: none; }
+
+    .empty-timeline { margin: 0; padding: 34px 20px; color: var(--ink-faint); font-family: var(--mono); font-size: 0.78rem; text-align: center; }
+
+    footer { padding: 32px 0 48px; }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      gap: 28px;
+      align-items: flex-start;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    .footer-inner p { max-width: 670px; margin: 0; color: var(--ink-soft); }
+
+    @media (max-width: 1120px) {
+      .pieces-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .event-row { grid-template-columns: 44px 100px minmax(130px, 1fr) 76px minmax(110px, 1fr); }
+      .event-row .cost-chip { grid-column: 3 / -1; }
+    }
+
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 28px, 1440px); }
+      .hero { grid-template-columns: 1fr; gap: 48px; min-height: auto; padding-top: 110px; }
+      .hero-aside { max-width: 520px; }
+      .section { padding: 76px 0; }
+      .section-head { grid-template-columns: 90px minmax(0, 1fr); gap: 18px; }
+      .legend { margin-left: 108px; }
+      .implementation-grid { grid-template-columns: 1fr; }
+      .implementation + .implementation { border-top: 1px solid var(--rule-strong); border-left: 0; }
+      .diagram-caption { display: block; }
+      .diagram-caption span { display: block; margin-top: 5px; }
+      .run-header { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .run-stat:nth-child(3) { border-top: 1px solid var(--rule); border-left: 0; }
+      .run-stat:nth-child(4) { border-top: 1px solid var(--rule); }
+      .trace-message { flex-basis: 100%; margin: 4px 0 0; text-align: left; }
+    }
+
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 20px, 1440px); }
+      .topbar-copy { display: none; }
+      h1 { font-size: clamp(4.2rem, 25vw, 7rem); }
+      .section-head { display: block; }
+      .section-number { display: block; margin-bottom: 16px; }
+      .legend { margin: -24px 0 28px; }
+      .pieces-grid { grid-template-columns: 1fr; }
+      .piece-card { min-height: 315px; }
+      .implementation { padding: 27px 20px; }
+      .implementation dl div { grid-template-columns: 1fr; gap: 5px; }
+      .run-header { grid-template-columns: 1fr; }
+      .run-stat + .run-stat, .run-stat:nth-child(3), .run-stat:nth-child(4) { border-top: 1px solid var(--rule); border-left: 0; }
+      .event-row { grid-template-columns: 38px 82px minmax(0, 1fr); gap: 8px; }
+      .event-row .event-duration { grid-column: 2; }
+      .event-row .event-outcome { grid-column: 3; }
+      .event-row .cost-chip { grid-column: 2 / -1; }
+      .footer-inner { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <div class="topbar">
+      <div class="topbar-mark"><span class="status-dot" aria-hidden="true"></span><span class="topbar-copy">bug-loop / architecture plate B</span></div>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">Theme: auto</button>
+    </div>
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Verified agent infrastructure</p>
+        <h1>bug-loop</h1>
+        <p class="hero-thesis">Not one agent - a small institution. Independent pieces with individual jobs, composed into a pipeline.</p>
+      </div>
+      <aside class="hero-aside" aria-label="System summary">
+        <p class="mini-label">Transformation</p>
+        <div class="transformation" aria-label="logs to tickets to verified fixes">
+          <span>logs</span>
+          <span>tickets</span>
+          <span>verified fixes</span>
+        </div>
+        <p class="hero-note">Built twice: LangGraph and plain TypeScript with the Claude Agent SDK. One set of contracts underneath.</p>
+      </aside>
+    </div>
+  </header>
+
+  <main>
+    <section class="section shell" id="pieces" aria-labelledby="pieces-title">
+      <div class="section-head">
+        <span class="section-number">02 / COMPONENT REGISTER</span>
+        <div>
+          <h2 class="section-title" id="pieces-title">The pieces</h2>
+          <p class="section-intro">Judgment is expensive and narrow. Everything else is machinery with explicit permissions.</p>
+        </div>
+      </div>
+      <div class="legend" aria-label="Component type legend">
+        <span class="type-badge code">Deterministic code</span>
+        <span class="type-badge agent">Agent</span>
+      </div>
+      <div class="pieces-grid">
+        <article class="piece-card code">
+          <span class="card-index">C-01</span>
+          <h3>ingest</h3>
+          <p class="piece-job">Read new structured JSONL events from the configured cursor.</p>
+          <span class="type-badge code">Deterministic code</span>
+          <dl><div><dt>May write</dt><dd>Cursor checkpoint and run trace only.</dd></div><div><dt>Harness / model</dt><dd>none / none</dd></div></dl>
+        </article>
+        <article class="piece-card code">
+          <span class="card-index">C-02</span>
+          <h3>detect</h3>
+          <p class="piece-job">Apply the heuristic classifier and normalize actionable events.</p>
+          <span class="type-badge code">Deterministic code</span>
+          <dl><div><dt>May write</dt><dd>Run state and trace only.</dd></div><div><dt>Harness / model</dt><dd>heuristics / none</dd></div></dl>
+        </article>
+        <article class="piece-card code">
+          <span class="card-index">C-03</span>
+          <h3>dedupe</h3>
+          <p class="piece-job">Group failures by stable fingerprint and reuse open issues.</p>
+          <span class="type-badge code">Deterministic code</span>
+          <dl><div><dt>May write</dt><dd>Cursor when nothing is new; no application code.</dd></div><div><dt>Harness / model</dt><dd>fingerprints + gh lookup / none</dd></div></dl>
+        </article>
+        <article class="piece-card code">
+          <span class="card-index">C-04</span>
+          <h3>reproduce</h3>
+          <p class="piece-job">Turn an incident into before-fix evidence through a ReproStrategy adapter.</p>
+          <span class="type-badge code">Deterministic code</span>
+          <dl><div><dt>May write</dt><dd>Configured repro scratch and logs; no source edits.</dd></div><div><dt>Harness / model</dt><dd>ReproStrategy / none</dd></div></dl>
+        </article>
+        <article class="piece-card agent">
+          <span class="card-index">A-01</span>
+          <h3>triage planner</h3>
+          <p class="piece-job">Read evidence and source, then return a route plus a root-cause fix brief.</p>
+          <span class="type-badge agent">Agent</span>
+          <dl><div><dt>May write</dt><dd>Nothing. Read, Grep, and Glob are read-only and fix-scope bounded.</dd></div><div><dt>Harness / model</dt><dd>Claude Agent SDK / configured triage model (default: sonnet)</dd></div></dl>
+        </article>
+        <article class="piece-card agent">
+          <span class="card-index">A-02</span>
+          <h3>fixer</h3>
+          <p class="piece-job">Execute one fix brief behind the shared Fixer interface.</p>
+          <span class="type-badge agent">Agent</span>
+          <dl><div><dt>May write</dt><dd>Configured src scope only, inside an isolated worktree.</dd></div><div><dt>Harness / model</dt><dd>Grok or Codex CLI / selected by PipelineConfig</dd></div></dl>
+        </article>
+        <article class="piece-card code">
+          <span class="card-index">C-05</span>
+          <h3>verifier</h3>
+          <p class="piece-job">Demand repro-gone, scoped changes, tests, and typecheck. Trust no agent.</p>
+          <span class="type-badge code">Deterministic code</span>
+          <dl><div><dt>May write</dt><dd>Fresh verification logs and process artifacts; no fix edits.</dd></div><div><dt>Harness / model</dt><dd>test runners + TypeScript / none</dd></div></dl>
+        </article>
+        <article class="piece-card code">
+          <span class="card-index">C-06</span>
+          <h3>ticket / PR lifecycle</h3>
+          <p class="piece-job">Reuse or file issues, label failures, and open only verified pull requests.</p>
+          <span class="type-badge code">Deterministic code</span>
+          <dl><div><dt>May write</dt><dd>Git branches, issues, comments, labels, and PRs behind the DRY_RUN gate.</dd></div><div><dt>Harness / model</dt><dd>gh + git / none</dd></div></dl>
+        </article>
+      </div>
+    </section>
+
+    <section class="section shell" id="pipeline" aria-labelledby="pipeline-title">
+      <div class="section-head">
+        <span class="section-number">03 / CONTROL FLOW</span>
+        <div>
+          <h2 class="section-title" id="pipeline-title">The pipeline</h2>
+          <p class="section-intro">The graph owns control flow. Agents get bounded jobs. Verification owns the right to advance.</p>
+        </div>
+      </div>
+      <div class="diagram-wrap" id="diagram-wrap" tabindex="0" aria-label="Scrollable pipeline flow diagram">
+        <svg viewBox="0 0 1400 650" role="img" aria-labelledby="flow-title flow-desc">
+          <title id="flow-title">bug-loop stage graph</title>
+          <desc id="flow-desc">Logs move through ingest, detect, dedupe, reproduce, route, and ticket. Mechanical incidents enter a fix and verify retry loop, then open a pull request or exit to a human.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker>
+            <pattern id="diagram-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="var(--grid)" stroke-width="1"></path></pattern>
+          </defs>
+          <rect width="1400" height="650" fill="url(#diagram-grid)"></rect>
+
+          <path class="flow-line" d="M 180 155 H 210"></path>
+          <path class="flow-line" d="M 350 155 H 380"></path>
+          <path class="flow-line" d="M 520 155 H 550"></path>
+          <path class="flow-line" d="M 690 155 H 720"></path>
+          <path class="flow-line" d="M 890 155 H 930"></path>
+          <path class="flow-line" d="M 1000 200 C 1000 258 910 262 910 315"></path>
+          <text class="edge-label" x="906" y="261">mechanical + --fix</text>
+          <path class="flow-line human-edge" d="M 1045 175 C 1135 180 1205 370 1240 410"></path>
+          <text class="edge-label" x="1083" y="229">needs-human</text>
+          <path class="flow-line" d="M 980 360 H 1050"></path>
+          <path class="flow-line retry" d="M 1120 315 C 1120 255 910 255 910 315"></path>
+          <text class="edge-label" x="963" y="241">first failure / retry</text>
+          <path class="flow-line" d="M 1190 342 C 1220 316 1246 285 1270 250"></path>
+          <text class="edge-label" x="1215" y="303">pass</text>
+          <path class="flow-line human-edge" d="M 1190 382 C 1210 400 1220 422 1240 437"></path>
+          <text class="edge-label" x="1170" y="423">second failure</text>
+          <path class="flow-line" d="M 1310 290 C 1310 425 1175 495 1145 535"></path>
+          <path class="flow-line human-edge" d="M 1240 455 C 1200 468 1165 495 1145 535"></path>
+          <path class="flow-line" d="M 1050 575 H 920"></path>
+          <text class="edge-label" x="972" y="563">no</text>
+          <path class="flow-line" d="M 1080 535 C 1040 480 920 460 900 405"></path>
+          <text class="edge-label" x="987" y="469">yes / next incident</text>
+
+          <g class="stage-node" data-stage-node="ingest" transform="translate(40 110)">
+            <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">INGEST</text><text class="node-subtitle" x="16" y="48">read JSONL</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node" data-stage-node="detect" transform="translate(210 110)">
+            <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">DETECT</text><text class="node-subtitle" x="16" y="48">classify</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node" data-stage-node="dedupe" transform="translate(380 110)">
+            <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">DEDUPE</text><text class="node-subtitle" x="16" y="48">fingerprint</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node" data-stage-node="reproduce" transform="translate(550 110)">
+            <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">REPRODUCE</text><text class="node-subtitle" x="16" y="48">prove failure</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node judgment" data-stage-node="route" transform="translate(720 105)">
+            <rect class="node-box" width="170" height="100"></rect><rect class="node-corner" x="154" width="16" height="16"></rect>
+            <text class="node-title" x="16" y="30">TRIAGE / ROUTE</text><text class="node-subtitle" x="16" y="50">judgment seam</text>
+            <rect class="svg-badge" x="16" y="66" width="31" height="17"></rect><text class="svg-badge-text" x="24" y="78">SDK</text>
+            <rect class="svg-badge" x="53" y="66" width="39" height="17"></rect><text class="svg-badge-text" x="61" y="78">NONE</text>
+          </g>
+          <g class="stage-node" data-stage-node="ticket" transform="translate(930 110)">
+            <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">TICKET</text><text class="node-subtitle" x="16" y="48">file or reuse</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node" data-stage-node="fix" transform="translate(840 315)">
+            <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">FIX</text><text class="node-subtitle" x="16" y="48">isolated worktree</text>
+            <rect class="svg-badge" x="16" y="61" width="41" height="17"></rect><text class="svg-badge-text" x="24" y="73">GROK</text>
+            <rect class="svg-badge" x="63" y="61" width="48" height="17"></rect><text class="svg-badge-text" x="71" y="73">CODEX</text>
+          </g>
+          <g class="stage-node" data-stage-node="verify" transform="translate(1050 315)">
+            <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">VERIFY</text><text class="node-subtitle" x="16" y="48">trust no agent</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node" data-stage-node="pr" transform="translate(1240 200)">
+            <rect class="node-box" width="130" height="90"></rect><rect class="node-corner" x="116" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">OPEN PR</text><text class="node-subtitle" x="16" y="48">verified only</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node human" data-stage-node="human" transform="translate(1240 410)">
+            <rect class="node-box" width="130" height="90"></rect><rect class="node-corner" x="116" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">NEEDS HUMAN</text><text class="node-subtitle" x="16" y="48">evidence attached</text>
+            <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
+          </g>
+          <g class="stage-node" data-stage-node="next" transform="translate(1050 535)">
+            <rect class="node-box" width="140" height="80"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">NEXT?</text><text class="node-subtitle" x="16" y="48">incident queue</text>
+            <rect class="svg-badge" x="16" y="56" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="68">NONE</text>
+          </g>
+          <g class="stage-node end" data-stage-node="end" transform="translate(780 535)">
+            <rect class="node-box" width="140" height="80"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
+            <text class="node-title" x="16" y="29">END</text><text class="node-subtitle" x="16" y="48">run complete</text>
+            <rect class="svg-badge" x="16" y="56" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="68">NONE</text>
+          </g>
+        </svg>
+      </div>
+      <p class="diagram-caption"><span><strong>Orange register:</strong> the only planning judgment seam.</span><span>Dashed edge: bounded retry. Magenta exit: automation stops and leaves evidence.</span></p>
+    </section>
+
+    <section class="section shell" id="implementations" aria-labelledby="implementations-title">
+      <div class="section-head">
+        <span class="section-number">04 / HARNESS COMPARISON</span>
+        <div>
+          <h2 class="section-title" id="implementations-title">Two implementations, one pipeline</h2>
+          <p class="section-intro">The framework changes how state resumes and branches. It does not change the contracts or create intelligence.</p>
+        </div>
+      </div>
+      <div class="implementation-grid">
+        <article class="implementation">
+          <header><h3>LangGraph</h3><p class="implementation-sub">Framework makes control flow explicit</p></header>
+          <dl>
+            <div><dt>Orchestration</dt><dd>StateGraph and conditional edges make the fix/verify cycle visible.</dd></div>
+            <div><dt>State</dt><dd>MemorySaver checkpoints shared graph state for resumability.</dd></div>
+            <div><dt>Triage</dt><dd>Classifier sits behind the route node.</dd></div>
+            <div><dt>Default fixer</dt><dd>Codex, still behind the same Fixer contract.</dd></div>
+          </dl>
+        </article>
+        <article class="implementation">
+          <header><h3>Plain TypeScript</h3><p class="implementation-sub">Control flow is ordinary code</p></header>
+          <dl>
+            <div><dt>Orchestration</dt><dd>Typed functions, mutable run state, for loops, and explicit branches.</dd></div>
+            <div><dt>State</dt><dd>Readable values moving through ordinary control flow.</dd></div>
+            <div><dt>Triage</dt><dd>Claude Agent SDK reads source and returns route plus fix brief.</dd></div>
+            <div><dt>Default fixer</dt><dd>Grok, still behind the same Fixer contract.</dd></div>
+          </dl>
+        </article>
+      </div>
+      <div class="shared-core">Same @bug-loop/core verifier, worktrees, GitHub lifecycle, config, and trace contract</div>
+    </section>
+
+    <section class="section shell" id="replay" aria-labelledby="replay-title">
+      <div class="section-head">
+        <span class="section-number">05 / RUN TELEMETRY</span>
+        <div>
+          <h2 class="section-title" id="replay-title">Watch the pipeline think.</h2>
+          <p class="section-intro">A trace is the institution’s audit trail. Step through it and the stage graph becomes a replay canvas.</p>
+        </div>
+      </div>
+      <div class="replay-console">
+        <div class="trace-toolbar" aria-label="Trace replay controls">
+          <label class="file-label">Load trace<input id="trace-file" type="file" accept="application/json,.json"></label>
+          <button class="control-button" id="demo-button" type="button">Built-in demo</button>
+          <button class="control-button" id="prev-button" type="button" aria-label="Previous trace event">← Prev</button>
+          <button class="control-button" id="next-button" type="button" aria-label="Next trace event">Next →</button>
+          <button class="control-button primary" id="play-button" type="button" aria-label="Play trace events">Play</button>
+          <p class="trace-message" id="trace-message" role="status" aria-live="polite">Embedded demo ready.</p>
+        </div>
+        <dl class="run-header" id="run-header" aria-label="Run summary"></dl>
+        <div class="playback-readout">
+          <span id="step-label">No events</span>
+          <div class="playback-progress" aria-hidden="true"><span id="progress-bar"></span></div>
+          <span id="active-stage">stage: none</span>
+        </div>
+        <div class="timeline" id="timeline" aria-label="Trace event timeline"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <div class="footer-inner">
+      <a href="https://github.com/MichaelHabermas/bug-loop">github.com/MichaelHabermas/bug-loop</a>
+      <p>The kit lives in <strong>@bug-loop/core</strong> - bring your own <strong>PipelineConfig</strong> + <strong>ReproStrategy</strong>.</p>
+    </div>
+  </footer>
+
+  <script id="demo-trace" type="application/json">
+{
+  "runId": "example-langgraph-run",
+  "startedAt": "2026-07-14T12:00:00.000Z",
+  "finishedAt": "2026-07-14T12:00:00.323Z",
+  "pipeline": "langgraph",
+  "config": {
+    "repo": "MichaelHabermas/bug-loop",
+    "labels": {
+      "pipeline": "bug-loop",
+      "mechanical": "auto-fix-candidate",
+      "needsHuman": "needs-human"
+    },
+    "logPath": "logs/leaky-service.jsonl",
+    "baseUrl": "http://127.0.0.1:3000",
+    "cursorPath": "pipelines/langgraph/.cursor.json",
+    "fixScope": [
+      "apps/leaky-service/src"
+    ],
+    "worktreeRoot": ".worktrees",
+    "maxFixAttempts": 2,
+    "fixer": "codex",
+    "invariantWarnPrefixes": [
+      "order total negative"
+    ],
+    "branchPrefix": "bugloop/fix-"
+  },
+  "events": [
+    {
+      "seq": 1,
+      "stage": "ingest",
+      "startedAt": "2026-07-14T12:00:00.017Z",
+      "durationMs": 17,
+      "outcome": "4 events",
+      "detail": {
+        "events": 4
+      }
+    },
+    {
+      "seq": 2,
+      "stage": "detect",
+      "startedAt": "2026-07-14T12:00:00.051Z",
+      "durationMs": 17,
+      "outcome": "4 actionable",
+      "detail": {
+        "actionable": 4
+      }
+    },
+    {
+      "seq": 3,
+      "stage": "dedupe",
+      "startedAt": "2026-07-14T12:00:00.085Z",
+      "durationMs": 17,
+      "outcome": "4 new incidents",
+      "detail": {
+        "incidents": 4,
+        "newIncidents": 4
+      }
+    },
+    {
+      "seq": 4,
+      "stage": "reproduce",
+      "startedAt": "2026-07-14T12:00:00.119Z",
+      "durationMs": 17,
+      "outcome": "3 reproduced",
+      "detail": {
+        "reproduced": 3
+      }
+    },
+    {
+      "seq": 5,
+      "stage": "route",
+      "startedAt": "2026-07-14T12:00:00.153Z",
+      "durationMs": 17,
+      "outcome": "3 mechanical",
+      "detail": {
+        "mechanical": 3,
+        "needsHuman": 1
+      }
+    },
+    {
+      "seq": 6,
+      "stage": "ticket",
+      "startedAt": "2026-07-14T12:00:00.187Z",
+      "durationMs": 17,
+      "outcome": "4 issues",
+      "detail": {
+        "issuesFiled": 4
+      }
+    },
+    {
+      "seq": 7,
+      "stage": "fix",
+      "fingerprint": "2239a31d3dda8339",
+      "startedAt": "2026-07-14T12:00:00.221Z",
+      "durationMs": 17,
+      "outcome": "attempt 1",
+      "detail": {
+        "attempt": 1,
+        "filesChanged": [
+          "apps/leaky-service/src/server.ts"
+        ]
+      },
+      "cost": {
+        "harness": "codex",
+        "model": "gpt-5.5-codex",
+        "inputTokens": 12345,
+        "outputTokens": 678,
+        "raw": "model: gpt-5.5-codex\ninput tokens: 12,345\noutput tokens: 678\ntokens used\n13,023"
+      }
+    },
+    {
+      "seq": 8,
+      "stage": "verify",
+      "fingerprint": "2239a31d3dda8339",
+      "startedAt": "2026-07-14T12:00:00.255Z",
+      "durationMs": 17,
+      "outcome": "verified",
+      "detail": {
+        "attempt": 1,
+        "scopePasses": true,
+        "reproPasses": true,
+        "testsPass": true,
+        "typecheckPasses": true
+      }
+    },
+    {
+      "seq": 9,
+      "stage": "pr",
+      "fingerprint": "2239a31d3dda8339",
+      "startedAt": "2026-07-14T12:00:00.289Z",
+      "durationMs": 17,
+      "outcome": "completed",
+      "detail": {
+        "issueNumber": 1,
+        "pullRequestNumber": 5
+      }
+    }
+  ]
+}
+  </script>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const $ = (selector) => document.querySelector(selector);
+      const timeline = $("#timeline");
+      const runHeader = $("#run-header");
+      const traceMessage = $("#trace-message");
+      const prevButton = $("#prev-button");
+      const nextButton = $("#next-button");
+      const playButton = $("#play-button");
+      const fileInput = $("#trace-file");
+      const progressBar = $("#progress-bar");
+      const stepLabel = $("#step-label");
+      const activeStage = $("#active-stage");
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+      const stageMap = { ingest: "ingest", detect: "detect", dedupe: "dedupe", reproduce: "reproduce", route: "route", ticket: "ticket", fix: "fix", verify: "verify", pr: "pr", "give-up": "human", human: "human" };
+      const incidentColors = ["#d44a2f", "#0b7f8f", "#a46a00", "#8d4ca5", "#36713f", "#bd3f69"];
+      let trace = null;
+      let currentIndex = -1;
+      let timer = null;
+
+      const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+      const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
+      const requireString = (value, path) => { if (typeof value !== "string") throw new Error(`${path} must be a string`); };
+      const requireStringArray = (value, path) => { if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw new Error(`${path} must be an array of strings`); };
+
+      function validateTrace(candidate) {
+        if (!isObject(candidate)) throw new Error("Trace root must be an object");
+        requireString(candidate.runId, "runId");
+        requireString(candidate.startedAt, "startedAt");
+        requireString(candidate.finishedAt, "finishedAt");
+        if (!Number.isFinite(Date.parse(candidate.startedAt)) || !Number.isFinite(Date.parse(candidate.finishedAt))) throw new Error("startedAt and finishedAt must be ISO date strings");
+        if (!["langgraph", "agent-sdk"].includes(candidate.pipeline)) throw new Error("pipeline must be langgraph or agent-sdk");
+        if (!isObject(candidate.config)) throw new Error("config must be an object");
+        ["repo", "logPath", "baseUrl", "cursorPath", "branchPrefix", "worktreeRoot", "fixer"].forEach((key) => requireString(candidate.config[key], `config.${key}`));
+        if (!["codex", "grok"].includes(candidate.config.fixer)) throw new Error("config.fixer must be codex or grok");
+        if (!isObject(candidate.config.labels)) throw new Error("config.labels must be an object");
+        ["pipeline", "mechanical", "needsHuman"].forEach((key) => requireString(candidate.config.labels[key], `config.labels.${key}`));
+        requireStringArray(candidate.config.fixScope, "config.fixScope");
+        requireStringArray(candidate.config.invariantWarnPrefixes, "config.invariantWarnPrefixes");
+        if (!Number.isInteger(candidate.config.maxFixAttempts) || candidate.config.maxFixAttempts < 1) throw new Error("config.maxFixAttempts must be a positive integer");
+        if (!Array.isArray(candidate.events)) throw new Error("events must be an array");
+        candidate.events.forEach((event, index) => {
+          const path = `events[${index}]`;
+          if (!isObject(event)) throw new Error(`${path} must be an object`);
+          if (!Number.isInteger(event.seq)) throw new Error(`${path}.seq must be an integer`);
+          requireString(event.stage, `${path}.stage`);
+          requireString(event.startedAt, `${path}.startedAt`);
+          if (!Number.isFinite(Date.parse(event.startedAt))) throw new Error(`${path}.startedAt must be an ISO date string`);
+          if (!isFiniteNumber(event.durationMs) || event.durationMs < 0) throw new Error(`${path}.durationMs must be a non-negative number`);
+          requireString(event.outcome, `${path}.outcome`);
+          if (event.fingerprint !== undefined) requireString(event.fingerprint, `${path}.fingerprint`);
+          if (event.detail !== undefined && !isObject(event.detail)) throw new Error(`${path}.detail must be an object when present`);
+          if (event.cost !== undefined) {
+            if (!isObject(event.cost)) throw new Error(`${path}.cost must be an object`);
+            if (!["claude-agent-sdk", "codex", "grok"].includes(event.cost.harness)) throw new Error(`${path}.cost.harness is invalid`);
+            ["model", "raw"].forEach((key) => { if (event.cost[key] !== undefined) requireString(event.cost[key], `${path}.cost.${key}`); });
+            ["inputTokens", "outputTokens", "usd"].forEach((key) => { if (event.cost[key] !== undefined && !isFiniteNumber(event.cost[key])) throw new Error(`${path}.cost.${key} must be a number`); });
+          }
+        });
+        return candidate;
+      }
+
+      function formatDuration(ms) {
+        if (ms < 1000) return `${Math.round(ms)} ms`;
+        if (ms < 60000) return `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
+        const minutes = Math.floor(ms / 60000);
+        return `${minutes}m ${Math.round((ms % 60000) / 1000)}s`;
+      }
+
+      function formatMoney(value) {
+        return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+      }
+
+      function totalCost(events) {
+        const samples = events.map((event) => event.cost).filter(Boolean);
+        if (samples.length === 0 || samples.some((sample) => sample.usd === undefined)) return "n/a";
+        return formatMoney(samples.reduce((sum, sample) => sum + sample.usd, 0));
+      }
+
+      function costLabel(cost) {
+        const model = cost.model ? ` · ${cost.model}` : " · model n/a";
+        const usd = cost.usd === undefined ? "USD n/a" : formatMoney(cost.usd);
+        const tokens = cost.inputTokens === undefined && cost.outputTokens === undefined
+          ? "tokens n/a"
+          : `in ${cost.inputTokens === undefined ? "n/a" : cost.inputTokens.toLocaleString()} · out ${cost.outputTokens === undefined ? "n/a" : cost.outputTokens.toLocaleString()}`;
+        return `${cost.harness}${model} · ${usd} · ${tokens}`;
+      }
+
+      function addStat(label, value) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "run-stat";
+        const term = document.createElement("dt");
+        const definition = document.createElement("dd");
+        term.textContent = label;
+        definition.textContent = value;
+        definition.title = value;
+        wrapper.append(term, definition);
+        runHeader.append(wrapper);
+      }
+
+      function renderRunHeader(run) {
+        runHeader.replaceChildren();
+        addStat("pipeline", run.pipeline);
+        addStat("run id", run.runId);
+        addStat("duration", formatDuration(Math.max(0, Date.parse(run.finishedAt) - Date.parse(run.startedAt))));
+        addStat("total USD cost", totalCost(run.events));
+      }
+
+      function fingerprintGroups(events) {
+        const groups = new Map();
+        events.forEach((event, index) => {
+          const key = event.fingerprint || "__global__";
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push({ event, index });
+        });
+        return groups;
+      }
+
+      function makeSpan(className, text) {
+        const span = document.createElement("span");
+        span.className = className;
+        span.textContent = text;
+        return span;
+      }
+
+      function renderTimeline(run) {
+        timeline.replaceChildren();
+        if (run.events.length === 0) {
+          const empty = document.createElement("p");
+          empty.className = "empty-timeline";
+          empty.textContent = "This valid trace contains no events.";
+          timeline.append(empty);
+          return;
+        }
+        let incidentIndex = 0;
+        fingerprintGroups(run.events).forEach((entries, fingerprint) => {
+          const group = document.createElement("section");
+          group.className = "event-group";
+          const isGlobal = fingerprint === "__global__";
+          group.style.setProperty("--incident-color", isGlobal ? "var(--ink-faint)" : incidentColors[incidentIndex++ % incidentColors.length]);
+          const heading = document.createElement("h3");
+          heading.className = "group-label";
+          heading.textContent = isGlobal ? "run-level stages" : `incident ${fingerprint}`;
+          group.append(heading);
+          entries.forEach(({ event, index }) => {
+            const row = document.createElement("button");
+            row.type = "button";
+            row.className = "event-row";
+            row.dataset.eventIndex = String(index);
+            row.setAttribute("aria-label", `Event ${event.seq}: ${event.stage}, ${event.outcome}`);
+            row.append(
+              makeSpan("event-seq", `#${String(event.seq).padStart(2, "0")}`),
+              makeSpan("event-stage", event.stage),
+              makeSpan(`fingerprint-chip${isGlobal ? " global" : ""}`, isGlobal ? "run" : fingerprint),
+              makeSpan("event-duration", formatDuration(event.durationMs)),
+              makeSpan("event-outcome", event.outcome),
+            );
+            if (event.cost) row.append(makeSpan("cost-chip", costLabel(event.cost)));
+            row.addEventListener("click", () => setCurrent(index, true));
+            group.append(row);
+          });
+          timeline.append(group);
+        });
+      }
+
+      function clearDiagram() {
+        document.querySelectorAll("[data-stage-node].is-active").forEach((node) => node.classList.remove("is-active"));
+      }
+
+      function setCurrent(index, shouldScroll = false) {
+        if (!trace || trace.events.length === 0) return;
+        currentIndex = Math.max(0, Math.min(index, trace.events.length - 1));
+        document.querySelectorAll(".event-row.is-current").forEach((row) => row.classList.remove("is-current"));
+        const row = document.querySelector(`[data-event-index="${currentIndex}"]`);
+        row?.classList.add("is-current");
+        row?.setAttribute("aria-current", "step");
+        document.querySelectorAll(".event-row:not(.is-current)[aria-current]").forEach((item) => item.removeAttribute("aria-current"));
+        clearDiagram();
+        const event = trace.events[currentIndex];
+        const nodeKey = stageMap[event.stage];
+        const node = nodeKey ? document.querySelector(`[data-stage-node="${nodeKey}"]`) : null;
+        node?.classList.add("is-active");
+        stepLabel.textContent = `event ${currentIndex + 1} / ${trace.events.length}`;
+        activeStage.textContent = nodeKey ? `stage: ${event.stage}` : `stage: ${event.stage} (unmapped)`;
+        progressBar.style.width = `${((currentIndex + 1) / trace.events.length) * 100}%`;
+        prevButton.disabled = currentIndex === 0;
+        nextButton.disabled = currentIndex === trace.events.length - 1;
+        if (shouldScroll) row?.scrollIntoView({ behavior: reducedMotion.matches ? "auto" : "smooth", block: "nearest" });
+      }
+
+      function stopPlayback() {
+        if (timer !== null) window.clearInterval(timer);
+        timer = null;
+        playButton.textContent = reducedMotion.matches ? "Reduced motion" : "Play";
+        playButton.setAttribute("aria-label", "Play trace events");
+      }
+
+      function togglePlayback() {
+        if (!trace || trace.events.length < 2 || reducedMotion.matches) return;
+        if (timer !== null) { stopPlayback(); return; }
+        if (currentIndex >= trace.events.length - 1) setCurrent(0, true);
+        playButton.textContent = "Pause";
+        playButton.setAttribute("aria-label", "Pause trace events");
+        timer = window.setInterval(() => {
+          if (currentIndex >= trace.events.length - 1) { stopPlayback(); return; }
+          setCurrent(currentIndex + 1, true);
+        }, 800);
+      }
+
+      function setMessage(message, isError = false) {
+        traceMessage.textContent = message;
+        traceMessage.classList.toggle("error", isError);
+      }
+
+      function loadTrace(candidate, sourceLabel) {
+        const validated = validateTrace(candidate);
+        stopPlayback();
+        trace = validated;
+        renderRunHeader(trace);
+        renderTimeline(trace);
+        currentIndex = -1;
+        if (trace.events.length > 0) setCurrent(0);
+        else {
+          clearDiagram();
+          stepLabel.textContent = "0 events";
+          activeStage.textContent = "stage: none";
+          progressBar.style.width = "0";
+        }
+        const canPlay = trace.events.length > 1 && !reducedMotion.matches;
+        playButton.disabled = !canPlay;
+        prevButton.disabled = trace.events.length < 2 || currentIndex === 0;
+        nextButton.disabled = trace.events.length < 2;
+        setMessage(`${sourceLabel}: ${trace.events.length} events validated.`);
+      }
+
+      function loadDemo() {
+        try {
+          const embedded = JSON.parse($("#demo-trace").textContent);
+          loadTrace(embedded, "Built-in demo");
+          fileInput.value = "";
+        } catch (error) {
+          setMessage(`Demo trace error: ${error instanceof Error ? error.message : String(error)}`, true);
+        }
+      }
+
+      fileInput.addEventListener("change", async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        try {
+          const candidate = JSON.parse(await file.text());
+          loadTrace(candidate, file.name);
+        } catch (error) {
+          setMessage(`Could not load ${file.name}: ${error instanceof Error ? error.message : String(error)}`, true);
+        }
+      });
+
+      $("#demo-button").addEventListener("click", loadDemo);
+      prevButton.addEventListener("click", () => { stopPlayback(); setCurrent(currentIndex - 1, true); });
+      nextButton.addEventListener("click", () => { stopPlayback(); setCurrent(currentIndex + 1, true); });
+      playButton.addEventListener("click", togglePlayback);
+
+      document.addEventListener("keydown", (event) => {
+        const tag = event.target instanceof Element ? event.target.tagName : "";
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || (tag === "BUTTON" && event.key === " ")) return;
+        if (event.key === "ArrowLeft") { event.preventDefault(); stopPlayback(); setCurrent(currentIndex - 1, true); }
+        if (event.key === "ArrowRight") { event.preventDefault(); stopPlayback(); setCurrent(currentIndex + 1, true); }
+        if (event.key === " ") { event.preventDefault(); togglePlayback(); }
+      });
+
+      const themeToggle = $("#theme-toggle");
+      const systemDark = matchMedia("(prefers-color-scheme: dark)");
+      function effectiveTheme() { return document.documentElement.dataset.theme || (systemDark.matches ? "dark" : "light"); }
+      function renderThemeButton() { themeToggle.textContent = `Theme: ${effectiveTheme()}`; themeToggle.setAttribute("aria-pressed", String(effectiveTheme() === "dark")); }
+      themeToggle.addEventListener("click", () => {
+        const next = effectiveTheme() === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem("bug-loop-theme", next); } catch {}
+        renderThemeButton();
+      });
+      systemDark.addEventListener?.("change", renderThemeButton);
+      reducedMotion.addEventListener?.("change", () => { stopPlayback(); playButton.disabled = reducedMotion.matches || !trace || trace.events.length < 2; });
+
+      renderThemeButton();
+      loadDemo();
+    })();
+  </script>
+</body>
+</html>

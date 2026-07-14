@@ -20,6 +20,8 @@ The toy target is `apps/leaky-service`, a small order API that writes structured
 The reusable kit lives in `packages/core/` and is published as `@bug-loop/core`.
 Pipelines consume those contracts; they do not re-invent fingerprinting, log reading, or GitHub ticket shape.
 
+Open [docs/architecture.html](docs/architecture.html) locally for the interactive version - the architecture as independent pieces, plus a replay player that steps through a real run trace.
+
 ## Stage graph
 
 ```mermaid
