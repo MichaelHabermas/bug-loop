@@ -17,6 +17,8 @@
     "./triage": "./src/triage.ts",
     "./reproduction": "./src/reproduction.ts",
     "./ticket": "./src/ticket.ts"
+    ,"./config": "./src/config.ts"
+    ,"./trace": "./src/trace.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

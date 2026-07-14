@@ -68,9 +68,7 @@ export interface PullRequestRef {
 
 /** Runtime inputs shared by one-shot triage implementations. */
 export interface TriageRunConfig {
-  cursorPath: string;
   fromStart: boolean;
-  baseUrl: string;
   nextCursorOffset?: number;
   fix?: boolean;
   live?: boolean;

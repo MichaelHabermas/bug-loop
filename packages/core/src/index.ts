@@ -17,6 +17,20 @@ export type {
   TriageState,
 } from "./types";
 
+export { definePipelineConfig, isPathInFixScope } from "./config";
+export type { PipelineConfig, PipelineConfigInput, PipelineLabels } from "./config";
+
+export { TraceRecorder, combineCostSamples } from "./trace";
+export type {
+  CostSample,
+  PipelineConfigSummary,
+  PipelineKind,
+  RunTrace,
+  TraceEvent,
+  TraceEventHandle,
+  TraceRecorderOptions,
+} from "./trace";
+
 export {
   normalizeFrame,
   topAppFrame,
