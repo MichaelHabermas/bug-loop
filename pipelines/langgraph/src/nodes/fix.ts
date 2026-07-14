@@ -1,10 +1,14 @@
-import type { Incident, IncidentTriage, TriageState } from "@bug-loop/shared";
-import { readIssue, type IssueDetails } from "@bug-loop/shared";
-import { createDefaultFixer, type Fixer } from "../fixer";
 import {
+  createDefaultFixer,
   GitWorktreeOperations,
+  readIssue,
+  type Fixer,
+  type Incident,
+  type IncidentTriage,
+  type IssueDetails,
+  type TriageState,
   type WorktreeOperations,
-} from "../worktree";
+} from "@bug-loop/shared";
 import { buildIssueInput } from "./ticket";
 
 export interface FixDependencies {

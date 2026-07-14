@@ -1,11 +1,8 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  readNewEvents,
-  type Incident,
-  type TriageState,
-} from "@bug-loop/shared";
+import { readNewEvents } from "./logtail";
 import { runProcess } from "./process";
+import type { Incident, TriageState } from "./types";
 
 export interface CheckResult {
   passes: boolean;
@@ -244,16 +241,16 @@ export async function verifyWithRunner(
     `typecheck: ${typecheck.passes ? "pass" : "fail"} - ${typecheck.detail}`,
   ].join("\n");
   const result = {
-      verified,
-      scopePasses,
-      reproPasses: repro.passes,
-      testsPass: tests.passes,
-      typecheckPasses: typecheck.passes,
-      reproEvidence: repro.detail,
-      testSummary: tests.detail,
-      typecheckDetail: typecheck.detail,
-      detail,
-    };
+    verified,
+    scopePasses,
+    reproPasses: repro.passes,
+    testsPass: tests.passes,
+    typecheckPasses: typecheck.passes,
+    reproEvidence: repro.detail,
+    testSummary: tests.detail,
+    typecheckDetail: typecheck.detail,
+    detail,
+  };
   return {
     activeVerify: result,
     verifyResults: [...(state.verifyResults ?? []), result],

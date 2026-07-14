@@ -1,19 +1,8 @@
-import type { LogEvent, TriageState } from "@bug-loop/shared";
+import { enrichActionableEvent, type TriageState } from "@bug-loop/shared";
 import { type Classifier, selectClassifier } from "../classifier";
 import { currentSummary } from "../state";
 
 const CLASSIFICATION_CONCURRENCY = 8;
-
-function enrichActionableEvent(event: LogEvent): LogEvent {
-  if (
-    event.route === undefined &&
-    event.msg === "unhandledRejection" &&
-    event.err?.message.startsWith("shipping provider timeout")
-  ) {
-    return { ...event, route: "POST /orders/:id/ship" };
-  }
-  return event;
-}
 
 export async function detectWithClassifier(
   state: TriageState,

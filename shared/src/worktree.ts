@@ -1,5 +1,5 @@
-import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import { requireSuccess, runProcess } from "./process";
 
 export interface WorktreeCreateInput {
@@ -34,8 +34,7 @@ export class GitWorktreeOperations implements WorktreeOperations {
   async create(input: WorktreeCreateInput): Promise<{ worktreeDir: string; branch: string }> {
     const worktreeDir = join(this.repoRoot, ".worktrees", input.fingerprint8);
     await mkdir(join(this.repoRoot, ".worktrees"), { recursive: true });
-    // -B (create-or-reset): fix branches are pipeline-owned scratch; a stale
-    // one left by an earlier failed run must not block the next attempt.
+    // Fix branches are pipeline-owned scratch, so reset stale branches from failed runs.
     const command = [
       "git",
       "worktree",
@@ -47,9 +46,8 @@ export class GitWorktreeOperations implements WorktreeOperations {
     ];
     const result = await runProcess(command, { cwd: this.repoRoot });
     requireSuccess(command, result);
-    // Worktrees don't share node_modules; without a local install, Bun and
-    // tsc resolve workspace packages against the parent checkout and the
-    // verifier fails on errors unrelated to the fix.
+
+    // Worktrees need local workspace links for tests and typecheck to resolve correctly.
     const installCommand = ["bun", "install"];
     const install = await runProcess(installCommand, { cwd: worktreeDir });
     requireSuccess(installCommand, install);

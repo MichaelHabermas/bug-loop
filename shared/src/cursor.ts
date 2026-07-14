@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { Cursor } from "@bug-loop/shared";
+import type { Cursor } from "./logtail";
 
 export async function readCursor(path: string): Promise<Cursor> {
   const file = Bun.file(path);

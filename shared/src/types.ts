@@ -50,6 +50,7 @@ export type RouteKind = "mechanical" | "needs-human";
 export interface RouteDecision {
   kind: RouteKind;
   reason: string;
+  fixBrief?: string;
 }
 
 /** Result of running the reproducibility, routing, and ticket stages for one incident. */

@@ -3,15 +3,13 @@ import {
   createPullRequest,
   readIssue,
   replaceIssueLabel,
+  GitWorktreeOperations,
   type IssueDetails,
   type PRInput,
   type PRRef,
   type TriageState,
-} from "@bug-loop/shared";
-import {
-  GitWorktreeOperations,
   type WorktreeOperations,
-} from "../worktree";
+} from "@bug-loop/shared";
 
 export interface GitHubOperations {
   readIssue(number: number): Promise<IssueDetails | null>;

@@ -4,10 +4,17 @@ export interface ProcessResult {
   stderr: string;
 }
 
-export async function runProcess(
+export interface ProcessOptions {
+  cwd: string;
+  env?: Record<string, string | undefined>;
+}
+
+export type ProcessRunner = (
   command: string[],
-  options: { cwd: string; env?: Record<string, string | undefined> },
-): Promise<ProcessResult> {
+  options: ProcessOptions,
+) => Promise<ProcessResult>;
+
+export const runProcess: ProcessRunner = async (command, options) => {
   const process = Bun.spawn(command, {
     cwd: options.cwd,
     env: options.env ?? Bun.env,
@@ -21,7 +28,7 @@ export async function runProcess(
     process.exited,
   ]);
   return { exitCode, stdout, stderr };
-}
+};
 
 export function requireSuccess(command: string[], result: ProcessResult): void {
   if (result.exitCode === 0) return;

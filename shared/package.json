@@ -8,7 +8,15 @@
     "./types": "./src/types.ts",
     "./fingerprint": "./src/fingerprint.ts",
     "./logtail": "./src/logtail.ts",
-    "./github": "./src/github.ts"
+    "./github": "./src/github.ts",
+    "./process": "./src/process.ts",
+    "./worktree": "./src/worktree.ts",
+    "./fixer": "./src/fixer.ts",
+    "./verifier": "./src/verifier.ts",
+    "./cursor": "./src/cursor.ts",
+    "./triage": "./src/triage.ts",
+    "./reproduction": "./src/reproduction.ts",
+    "./ticket": "./src/ticket.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -1,11 +1,11 @@
-import type {
-  Incident,
-  LogEvent,
-  ReproResult,
-  RouteDecision,
+import {
+  heuristicRoute,
+  isHeuristicallyActionable,
+  type Incident,
+  type LogEvent,
+  type ReproResult,
+  type RouteDecision,
 } from "@bug-loop/shared";
-
-const NEGATIVE_TOTAL_PREFIX = "order total negative";
 
 export interface Classifier {
   classify(event: LogEvent): Promise<boolean>;
@@ -13,32 +13,16 @@ export interface Classifier {
 }
 
 export function isNegativeTotalInvariant(event: LogEvent): boolean {
-  return event.level === "warn" && event.msg.startsWith(NEGATIVE_TOTAL_PREFIX);
+  return event.level === "warn" && isHeuristicallyActionable(event);
 }
 
 export class HeuristicClassifier implements Classifier {
   async classify(event: LogEvent): Promise<boolean> {
-    return event.level === "error" || isNegativeTotalInvariant(event);
+    return isHeuristicallyActionable(event);
   }
 
   async route(incident: Incident, repro: ReproResult): Promise<RouteDecision> {
-    const sample = incident.sampleEvents[0];
-    if (sample?.level === "warn") {
-      return {
-        kind: "needs-human",
-        reason: "Negative totals expose an ambiguous discount policy, not a mechanical fix.",
-      };
-    }
-    if (repro.reproduced) {
-      return {
-        kind: "mechanical",
-        reason: "The crash has a deterministic request-level reproduction.",
-      };
-    }
-    return {
-      kind: "needs-human",
-      reason: "The crash was not reproduced, so an automatic fix would be speculative.",
-    };
+    return heuristicRoute(incident, repro);
   }
 }
 

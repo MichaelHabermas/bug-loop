@@ -1,5 +1,4 @@
-import { readNewEvents, type TriageState } from "@bug-loop/shared";
-import { readCursor } from "../cursor";
+import { readCursor, readNewEvents, type TriageState } from "@bug-loop/shared";
 import { EMPTY_SUMMARY } from "../state";
 
 export async function ingestNode(state: TriageState): Promise<Partial<TriageState>> {

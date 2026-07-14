@@ -5,8 +5,12 @@
     "outDir": "./dist",
     "composite": true,
     "noEmit": false,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "baseUrl": ".",
+    "paths": {
+      "@bug-loop/shared": ["../../shared/src/index.ts"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "test/**/*"],
   "references": [{ "path": "../../shared" }]
 }

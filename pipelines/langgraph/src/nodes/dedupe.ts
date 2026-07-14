@@ -1,13 +1,13 @@
 import {
   findOpenIssueByMarker,
-  fingerprintEvent,
+  groupIncidents,
   type Incident,
   type IssueRef,
   type LogEvent,
   type TriageState,
+  writeCursor,
 } from "@bug-loop/shared";
 import { currentSummary } from "../state";
-import { writeCursor } from "../cursor";
 
 type IssueLookup = (hash: string) => Promise<IssueRef | null>;
 
@@ -15,27 +15,7 @@ export async function dedupeEvents(
   events: LogEvent[],
   lookup: IssueLookup = findOpenIssueByMarker,
 ): Promise<{ all: Incident[]; fresh: Incident[]; existingIssues: Array<IssueRef | null> }> {
-  const grouped = new Map<string, Incident>();
-  for (const event of events) {
-    const fingerprint = fingerprintEvent(event);
-    const existing = grouped.get(fingerprint.hash);
-    if (existing) {
-      existing.count += 1;
-      if (event.ts < existing.firstSeen) existing.firstSeen = event.ts;
-      if (event.ts > existing.lastSeen) existing.lastSeen = event.ts;
-      existing.sampleEvents = [...existing.sampleEvents, event].slice(-3);
-      continue;
-    }
-    grouped.set(fingerprint.hash, {
-      fingerprint,
-      sampleEvents: [event],
-      count: 1,
-      firstSeen: event.ts,
-      lastSeen: event.ts,
-    });
-  }
-
-  const all = [...grouped.values()];
+  const all = groupIncidents(events);
   const existingIssues = await Promise.all(
     all.map((incident) => lookup(incident.fingerprint.hash)),
   );

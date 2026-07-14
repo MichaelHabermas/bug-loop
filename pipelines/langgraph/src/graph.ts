@@ -5,18 +5,23 @@ import {
   START,
   StateGraph,
 } from "@langchain/langgraph";
-import type {
-  Incident,
-  IncidentTriage,
-  LogEvent,
-  TriageRunConfig,
-  TriageState,
-  TriageSummary,
-  FixAttempt,
-  ReproResult,
-  TicketRef,
-  VerifyResult,
-  PullRequestRef,
+import {
+  GitWorktreeOperations,
+  RealVerifyRunner,
+  type Fixer,
+  type FixAttempt,
+  type Incident,
+  type IncidentTriage,
+  type LogEvent,
+  type PullRequestRef,
+  type ReproResult,
+  type TicketRef,
+  type TriageRunConfig,
+  type TriageState,
+  type TriageSummary,
+  type VerifyRunner,
+  type VerifyResult,
+  type WorktreeOperations,
 } from "@bug-loop/shared";
 import {
   dedupeNode,
@@ -33,9 +38,7 @@ import {
   type GitHubOperations,
 } from "./nodes";
 import type { Classifier } from "./classifier";
-import type { Fixer } from "./fixer";
-import { RealVerifyRunner, verifyWithRunner, type VerifyRunner } from "./verifier";
-import { GitWorktreeOperations, type WorktreeOperations } from "./worktree";
+import { verifyWithRunner } from "@bug-loop/shared";
 import { resolve } from "node:path";
 
 const TriageAnnotation = Annotation.Root({

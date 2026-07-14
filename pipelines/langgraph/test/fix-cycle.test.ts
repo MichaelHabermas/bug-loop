@@ -1,19 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import type {
-  Incident,
-  IncidentTriage,
-  LogEvent,
-  TriageState,
-} from "@bug-loop/shared";
-import { fingerprintEvent } from "@bug-loop/shared";
 import {
   FakeFixer,
   buildFixPrompt,
+  fingerprintEvent,
   parseChangedFiles,
+  reproCheckPasses,
+  verifyWithRunner,
   type FixInput,
-} from "../src/fixer";
+  type Incident,
+  type IncidentTriage,
+  type LogEvent,
+  type TriageState,
+  type VerifyRunner,
+} from "@bug-loop/shared";
 import {
   fixWithDependencies,
   giveUpWithDependencies,
@@ -22,11 +23,6 @@ import {
   type GitHubOperations,
   type WorktreeOperations,
 } from "../src/nodes";
-import {
-  verifyWithRunner,
-  reproCheckPasses,
-  type VerifyRunner,
-} from "../src/verifier";
 import { routeAfterVerify } from "../src/graph";
 
 const FIXER_TMP = join(import.meta.dir, ".tmp-fixer");
