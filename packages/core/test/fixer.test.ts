@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
 import {
+  CodexFixer,
+  configuredCodexModel,
+  configuredGrokEffort,
   extractFixSummary,
   FIX_SUMMARY_MARKER,
   GrokFixer,
@@ -50,6 +53,93 @@ test("GrokFixer passes the prompt as -p and reports git porcelain changes", asyn
     description: "Guarded missing customer input.",
     filesChanged: ["apps/leaky-service/src/server.ts"],
   });
+});
+
+test("GrokFixer passes --effort when configured", async () => {
+  const calls: Array<{ command: string[] }> = [];
+  const runner: ProcessRunner = async (command): Promise<ProcessResult> => {
+    calls.push({ command });
+    if (command[0] === "grok") {
+      return { exitCode: 0, stdout: "Fixed.", stderr: "" };
+    }
+    return { exitCode: 0, stdout: " M apps/leaky-service/src/server.ts\n", stderr: "" };
+  };
+  const fixer = new GrokFixer(["apps/leaky-service/src"], runner, "low");
+  await fixer.fix({
+    worktreeDir: "/tmp/bug-loop-worktree",
+    issueTitle: "bug",
+    issueBody: "body",
+    attempt: 1,
+  });
+  expect(calls[0]?.command.slice(0, 4)).toEqual(["grok", "--effort", "low", "-p"]);
+});
+
+test("CodexFixer passes -m when model is configured", async () => {
+  const calls: Array<{ command: string[] }> = [];
+  const runner: ProcessRunner = async (command): Promise<ProcessResult> => {
+    calls.push({ command });
+    if (command[0] === "codex") {
+      return { exitCode: 0, stdout: "Fixed.", stderr: "" };
+    }
+    return { exitCode: 0, stdout: " M apps/leaky-service/src/server.ts\n", stderr: "" };
+  };
+  const fixer = new CodexFixer(["apps/leaky-service/src"], runner, "gpt-5.6-luna");
+  await fixer.fix({
+    worktreeDir: "/tmp/bug-loop-worktree",
+    issueTitle: "bug",
+    issueBody: "body",
+    attempt: 1,
+  });
+  expect(calls[0]?.command.slice(0, 6)).toEqual([
+    "codex",
+    "exec",
+    "--full-auto",
+    "-m",
+    "gpt-5.6-luna",
+    "-C",
+  ]);
+  expect(calls[0]?.command[6]).toBe("/tmp/bug-loop-worktree");
+});
+
+test("CodexFixer omits -m when model is undefined", async () => {
+  const calls: Array<{ command: string[] }> = [];
+  const runner: ProcessRunner = async (command): Promise<ProcessResult> => {
+    calls.push({ command });
+    if (command[0] === "codex") {
+      return { exitCode: 0, stdout: "Fixed.", stderr: "" };
+    }
+    return { exitCode: 0, stdout: " M apps/leaky-service/src/server.ts\n", stderr: "" };
+  };
+  const fixer = new CodexFixer(["apps/leaky-service/src"], runner, undefined);
+  await fixer.fix({
+    worktreeDir: "/tmp/bug-loop-worktree",
+    issueTitle: "bug",
+    issueBody: "body",
+    attempt: 1,
+  });
+  expect(calls[0]?.command.slice(0, 5)).toEqual([
+    "codex",
+    "exec",
+    "--full-auto",
+    "-C",
+    "/tmp/bug-loop-worktree",
+  ]);
+});
+
+test("configuredGrokEffort reads and validates BUGLOOP_GROK_EFFORT", () => {
+  expect(configuredGrokEffort({})).toBeUndefined();
+  expect(configuredGrokEffort({ BUGLOOP_GROK_EFFORT: "" })).toBeUndefined();
+  expect(configuredGrokEffort({ BUGLOOP_GROK_EFFORT: "low" })).toBe("low");
+  expect(configuredGrokEffort({ BUGLOOP_GROK_EFFORT: "max" })).toBe("max");
+  expect(() => configuredGrokEffort({ BUGLOOP_GROK_EFFORT: "turbo" })).toThrow(
+    /BUGLOOP_GROK_EFFORT must be one of/,
+  );
+});
+
+test("configuredCodexModel reads BUGLOOP_CODEX_MODEL", () => {
+  expect(configuredCodexModel({})).toBeUndefined();
+  expect(configuredCodexModel({ BUGLOOP_CODEX_MODEL: "" })).toBeUndefined();
+  expect(configuredCodexModel({ BUGLOOP_CODEX_MODEL: "gpt-5.6-luna" })).toBe("gpt-5.6-luna");
 });
 
 test("extractFixSummary strips narration before the marker", () => {

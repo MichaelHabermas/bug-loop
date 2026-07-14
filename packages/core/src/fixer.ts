@@ -193,23 +193,61 @@ abstract class CliFixer implements Fixer {
   }
 }
 
+export type GrokEffort = "low" | "medium" | "high" | "xhigh" | "max";
+
+const GROK_EFFORTS: readonly GrokEffort[] = ["low", "medium", "high", "xhigh", "max"];
+
+function isGrokEffort(value: string): value is GrokEffort {
+  return (GROK_EFFORTS as readonly string[]).includes(value);
+}
+
+/** Read BUGLOOP_GROK_EFFORT (optional). Throws on unrecognized values. */
+export function configuredGrokEffort(
+  env: Record<string, string | undefined> = Bun.env,
+): GrokEffort | undefined {
+  const value = env["BUGLOOP_GROK_EFFORT"];
+  if (value === undefined || value === "") return undefined;
+  if (!isGrokEffort(value)) {
+    throw new Error(
+      `BUGLOOP_GROK_EFFORT must be one of ${GROK_EFFORTS.join("|")}, received ${value}`,
+    );
+  }
+  return value;
+}
+
+/** Read BUGLOOP_CODEX_MODEL (optional non-empty model id for `codex -m`). */
+export function configuredCodexModel(
+  env: Record<string, string | undefined> = Bun.env,
+): string | undefined {
+  const value = env["BUGLOOP_CODEX_MODEL"];
+  if (value === undefined || value === "") return undefined;
+  return value;
+}
+
 export class CodexFixer extends CliFixer {
   protected fallbackDescription = "Codex completed without a textual summary.";
   protected harness = "codex" as const;
 
+  constructor(
+    fixScope: string[],
+    runner: ProcessRunner = runProcess,
+    private readonly model?: string,
+  ) {
+    super(fixScope, runner);
+  }
+
   protected command(input: FixInput): string[] {
-    return [
-      "codex",
-      "exec",
-      "--full-auto",
-      "-C",
-      input.worktreeDir,
-      buildFixPrompt(input, this.fixScope),
-    ];
+    const command = ["codex", "exec", "--full-auto"];
+    if (this.model !== undefined) command.push("-m", this.model);
+    command.push("-C", input.worktreeDir, buildFixPrompt(input, this.fixScope));
+    return command;
   }
 
   protected displayCommand(input: FixInput): string[] {
-    return ["codex", "exec", "--full-auto", "-C", input.worktreeDir, "<prompt>"];
+    const command = ["codex", "exec", "--full-auto"];
+    if (this.model !== undefined) command.push("-m", this.model);
+    command.push("-C", input.worktreeDir, "<prompt>");
+    return command;
   }
 }
 
@@ -217,12 +255,26 @@ export class GrokFixer extends CliFixer {
   protected fallbackDescription = "Grok completed without a textual summary.";
   protected harness = "grok" as const;
 
+  constructor(
+    fixScope: string[],
+    runner: ProcessRunner = runProcess,
+    private readonly effort?: GrokEffort,
+  ) {
+    super(fixScope, runner);
+  }
+
   protected command(input: FixInput): string[] {
-    return ["grok", "-p", buildFixPrompt(input, this.fixScope)];
+    const command = ["grok"];
+    if (this.effort !== undefined) command.push("--effort", this.effort);
+    command.push("-p", buildFixPrompt(input, this.fixScope));
+    return command;
   }
 
   protected displayCommand(): string[] {
-    return ["grok", "-p", "<prompt>"];
+    const command = ["grok"];
+    if (this.effort !== undefined) command.push("--effort", this.effort);
+    command.push("-p", "<prompt>");
+    return command;
   }
 }
 
@@ -242,7 +294,9 @@ export function createDefaultFixer(
   if (Bun.which(kind) === null) {
     throw new Error(`--fix requires the ${kind} CLI on PATH`);
   }
-  return kind === "grok" ? new GrokFixer(fixScope) : new CodexFixer(fixScope);
+  return kind === "grok"
+    ? new GrokFixer(fixScope, runProcess, configuredGrokEffort())
+    : new CodexFixer(fixScope, runProcess, configuredCodexModel());
 }
 
 export function takeFixerCost(fixer: Fixer): CostSample | undefined {

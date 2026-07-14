@@ -76,6 +76,8 @@ export {
   buildFixPrompt,
   parseCliCost,
   parseChangedFiles,
+  configuredGrokEffort,
+  configuredCodexModel,
   createDefaultFixer,
   takeFixerCost,
 } from "./fixer";
@@ -85,6 +87,7 @@ export type {
   Fixer,
   FixerKind,
   FakeFixCallback,
+  GrokEffort,
 } from "./fixer";
 
 export {
