@@ -1,7 +1,6 @@
 {
   "name": "@bug-loop/core",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -16,13 +15,14 @@
     "./cursor": "./src/cursor.ts",
     "./triage": "./src/triage.ts",
     "./reproduction": "./src/reproduction.ts",
-    "./ticket": "./src/ticket.ts"
-    ,"./config": "./src/config.ts"
-    ,"./trace": "./src/trace.ts"
+    "./ticket": "./src/ticket.ts",
+    "./config": "./src/config.ts",
+    "./trace": "./src/trace.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "trace:example": "bun run scripts/generate-example-trace.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

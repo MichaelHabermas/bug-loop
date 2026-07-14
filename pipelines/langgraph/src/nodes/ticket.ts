@@ -1,11 +1,11 @@
 import {
   buildIssueInput,
-  createIssue,
   type IncidentTriage,
   type IssueInput,
   type IssueRef,
   type TriageState,
   writeCursor,
+  type PipelineLabels,
 } from "@bug-loop/core";
 import { currentSummary } from "../state";
 
@@ -14,6 +14,7 @@ type IssueCreator = (input: IssueInput) => Promise<IssueRef>;
 export async function ticketWithCreator(
   state: TriageState,
   issueCreator: IssueCreator,
+  labels: PipelineLabels,
 ): Promise<Partial<TriageState>> {
   const triage: IncidentTriage[] = [];
   const errors = [...state.errors];
@@ -25,7 +26,7 @@ export async function ticketWithCreator(
       continue;
     }
     try {
-      const issue = await issueCreator(buildIssueInput(item));
+      const issue = await issueCreator(buildIssueInput(item, labels));
       triage.push({
         ...item,
         ticket: { issueNumber: issue.number, url: issue.url },
@@ -41,7 +42,9 @@ export async function ticketWithCreator(
   const config = state.config;
   if (!ticketFailed && config) {
     // Successful reproductions emit logs; commit at EOF so the next run sees only external traffic.
-    await writeCursor(config.cursorPath, { offset: Bun.file(state.logPath).size });
+    const cursorPath = state.pipelineConfig?.cursorPath;
+    if (!cursorPath) throw new Error("ticket requires pipelineConfig.cursorPath");
+    await writeCursor(cursorPath, { offset: Bun.file(state.logPath).size });
   }
   console.log(`[ticket] issues=${issuesFiled}`);
   return {
@@ -51,8 +54,12 @@ export async function ticketWithCreator(
   };
 }
 
-export async function ticketNode(state: TriageState): Promise<Partial<TriageState>> {
-  return ticketWithCreator(state, createIssue);
+export async function ticketNode(
+  state: TriageState,
+  issueCreator: IssueCreator,
+  labels: PipelineLabels,
+): Promise<Partial<TriageState>> {
+  return ticketWithCreator(state, issueCreator, labels);
 }
 
 export { buildIssueInput };

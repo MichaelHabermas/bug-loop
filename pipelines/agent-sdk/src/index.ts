@@ -1,5 +1,6 @@
-import { join } from "node:path";
 import type { TriageSummary } from "@bug-loop/core";
+import { leakyServiceReproStrategy } from "@bug-loop/leaky-service/bug-loop";
+import { createAgentSdkConfig } from "./config";
 import { runAgentSdkPipeline } from "./pipeline";
 
 interface CliArgs {
@@ -7,6 +8,7 @@ interface CliArgs {
   live: boolean;
   fix: boolean;
   baseUrl: string;
+  tracePath?: string;
 }
 
 export function parseArgs(argv: string[]): CliArgs {
@@ -14,6 +16,7 @@ export function parseArgs(argv: string[]): CliArgs {
   let live = false;
   let fix = false;
   let baseUrl = process.env["BUGLOOP_BASE_URL"] ?? "http://localhost:3000";
+  let tracePath: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--from-start") fromStart = true;
@@ -24,11 +27,22 @@ export function parseArgs(argv: string[]): CliArgs {
       if (!value) throw new Error("--base requires a URL");
       baseUrl = value;
       index += 1;
+    } else if (arg === "--trace") {
+      const value = argv[index + 1];
+      if (!value) throw new Error("--trace requires a path");
+      tracePath = value;
+      index += 1;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
-  return { fromStart, live, fix, baseUrl: baseUrl.replace(/\/$/, "") };
+  return {
+    fromStart,
+    live,
+    fix,
+    baseUrl: baseUrl.replace(/\/$/, ""),
+    ...(tracePath === undefined ? {} : { tracePath }),
+  };
 }
 
 export function printSummary(summary: TriageSummary): void {
@@ -51,13 +65,14 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   if (args.live) delete process.env["DRY_RUN"];
   else process.env["DRY_RUN"] = "1";
 
-  const result = await runAgentSdkPipeline({
-    logPath: join(import.meta.dir, "../../../logs/leaky-service.jsonl"),
-    cursorPath: join(import.meta.dir, "../.cursor.json"),
+  const config = createAgentSdkConfig(args.baseUrl);
+  const result = await runAgentSdkPipeline(config, {
     fromStart: args.fromStart,
-    baseUrl: args.baseUrl,
     fix: args.fix,
     live: args.live,
+    ...(args.tracePath === undefined ? {} : { tracePath: args.tracePath }),
+  }, {
+    reproStrategy: leakyServiceReproStrategy,
   });
   printSummary(result.summary);
   if (result.state.errors.length > 0) {

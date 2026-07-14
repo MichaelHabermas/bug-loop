@@ -5,6 +5,7 @@
   "scripts": {
     "typecheck": "tsc -b",
     "test": "bun test",
+    "trace:example": "bun run packages/core/scripts/generate-example-trace.ts",
     "pipeline:langgraph": "bun run pipelines/langgraph/src/index.ts",
     "pipeline:agent-sdk": "bun run pipelines/agent-sdk/src/index.ts",
     "service": "bun run apps/leaky-service/src/server.ts",

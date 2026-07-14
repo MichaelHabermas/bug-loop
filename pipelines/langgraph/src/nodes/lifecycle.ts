@@ -1,16 +1,14 @@
 import {
-  commentIssue,
-  createPullRequest,
   formatPrFilesList,
-  readIssue,
-  replaceIssueLabel,
   rewritePathsForPrBody,
   GitWorktreeOperations,
+  GitHubClient,
   type IssueDetails,
   type PRInput,
   type PRRef,
   type TriageState,
   type WorktreeOperations,
+  type PipelineConfig,
 } from "@bug-loop/core";
 
 export interface GitHubOperations {
@@ -21,25 +19,23 @@ export interface GitHubOperations {
 }
 
 export interface LifecycleDependencies {
+  config: PipelineConfig;
   github?: GitHubOperations;
   worktrees?: WorktreeOperations;
   repoRoot?: string;
 }
-
-const defaultGitHub: GitHubOperations = {
-  readIssue,
-  commentIssue,
-  replaceIssueLabel,
-  createPullRequest,
-};
 
 function dependencies(input: LifecycleDependencies): {
   github: GitHubOperations;
   worktrees: WorktreeOperations;
 } {
   return {
-    github: input.github ?? defaultGitHub,
-    worktrees: input.worktrees ?? new GitWorktreeOperations(input.repoRoot ?? process.cwd()),
+    github: input.github ?? new GitHubClient(input.config.repo),
+    worktrees: input.worktrees ?? new GitWorktreeOperations(
+      input.repoRoot ?? process.cwd(),
+      input.config.worktreeRoot,
+      input.config.fixScope,
+    ),
   };
 }
 
@@ -69,7 +65,7 @@ function errorDetail(error: unknown): string {
 
 export async function giveUpWithDependencies(
   state: TriageState,
-  input: LifecycleDependencies = {},
+  input: LifecycleDependencies,
 ): Promise<Partial<TriageState>> {
   const { github, worktrees } = dependencies(input);
   const number = issueNumber(state);
@@ -85,7 +81,11 @@ export async function giveUpWithDependencies(
       errors.push(`give-up comment issue ${number}: ${errorDetail(error)}`);
     }
     try {
-      await github.replaceIssueLabel(number, "auto-fix-candidate", "needs-human");
+      await github.replaceIssueLabel(
+        number,
+        input.config.labels.mechanical,
+        input.config.labels.needsHuman,
+      );
     } catch (error: unknown) {
       errors.push(`give-up label issue ${number}: ${errorDetail(error)}`);
     }
@@ -132,7 +132,7 @@ function pullRequestBody(state: TriageState, number: number): string {
 
 export async function prWithDependencies(
   state: TriageState,
-  input: LifecycleDependencies = {},
+  input: LifecycleDependencies,
 ): Promise<Partial<TriageState>> {
   const { github, worktrees } = dependencies(input);
   const incident = state.activeIncident;
@@ -143,18 +143,18 @@ export async function prWithDependencies(
   }
   const number = issueNumber(state);
   const short = `${incident.fingerprint.errName} on ${incident.fingerprint.route}`;
-  const message = `fix: ${short} (bug-loop pipeline)\n\nFixes #${number}`;
+  const message = `fix: ${short} (${input.config.labels.pipeline} pipeline)\n\nFixes #${number}`;
   let pullRequest: PRRef | undefined;
   const errors = [...state.errors];
   try {
     await worktrees.commit({ worktreeDir, message });
     await worktrees.push({ worktreeDir, branch: fix.branch });
     pullRequest = await github.createPullRequest({
-      title: `[bug-loop] fix: ${short}`,
+      title: `[${input.config.labels.pipeline}] fix: ${short}`,
       body: pullRequestBody(state, number),
       head: fix.branch,
       base: "main",
-      labels: ["bug-loop"],
+      labels: [input.config.labels.pipeline],
     });
     await github.commentIssue(number, `Fix verified and PR opened: ${pullRequest.url}`);
     console.log(`[pr] issue=${number} url=${pullRequest.url}`);

@@ -12,6 +12,9 @@
     "apps/leaky-service": {
       "name": "@bug-loop/leaky-service",
       "version": "0.1.0",
+      "dependencies": {
+        "@bug-loop/core": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "latest",
         "typescript": "^5.8.2",
@@ -22,7 +25,8 @@
       "version": "0.1.0",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.3.209",
-        "@bug-loop/shared": "workspace:*",
+        "@bug-loop/core": "workspace:*",
+        "@bug-loop/leaky-service": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -33,7 +37,8 @@
       "name": "@bug-loop/pipeline-langgraph",
       "version": "0.1.0",
       "dependencies": {
-        "@bug-loop/shared": "workspace:*",
+        "@bug-loop/core": "workspace:*",
+        "@bug-loop/leaky-service": "workspace:*",
         "@langchain/core": "^1.2.2",
         "@langchain/langgraph": "^1.4.7",
       },
@@ -42,8 +47,8 @@
         "typescript": "^5.8.2",
       },
     },
-    "shared": {
-      "name": "@bug-loop/shared",
+    "packages/core": {
+      "name": "@bug-loop/core",
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "latest",
@@ -74,13 +79,13 @@
 
     "@babel/runtime": ["@babel/runtime@7.29.7", "", {}, "sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw=="],
 
+    "@bug-loop/core": ["@bug-loop/core@workspace:packages/core"],
+
     "@bug-loop/leaky-service": ["@bug-loop/leaky-service@workspace:apps/leaky-service"],
 
     "@bug-loop/pipeline-agent-sdk": ["@bug-loop/pipeline-agent-sdk@workspace:pipelines/agent-sdk"],
 
     "@bug-loop/pipeline-langgraph": ["@bug-loop/pipeline-langgraph@workspace:pipelines/langgraph"],
-
-    "@bug-loop/shared": ["@bug-loop/shared@workspace:shared"],
 
     "@cfworker/json-schema": ["@cfworker/json-schema@4.1.1", "", {}, "sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og=="],
 

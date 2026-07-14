@@ -1,7 +1,8 @@
-import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import { readNewEvents } from "./logtail";
 import { runProcess } from "./process";
+import type { PipelineConfig } from "./config";
+import { isPathInFixScope } from "./config";
+import type { ReproStrategy } from "./reproduction";
 import type { Incident, TriageState } from "./types";
 
 export interface CheckResult {
@@ -20,110 +21,6 @@ export interface VerifyRunner {
   runTypecheck(worktreeDir: string): Promise<CheckResult>;
 }
 
-async function selectFreePort(): Promise<number> {
-  const probe = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: () => new Response(null, { status: 204 }),
-  });
-  const port = probe.port;
-  await probe.stop(true);
-  if (port === undefined) throw new Error("Bun did not allocate a verification port");
-  return port;
-}
-
-async function waitForHealth(baseUrl: string): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    try {
-      const response = await fetch(`${baseUrl}/health`);
-      if (response.ok) return;
-    } catch {
-      // The service may still be starting.
-    }
-    await Bun.sleep(50);
-  }
-  throw new Error(`service did not become healthy at ${baseUrl}`);
-}
-
-interface IncidentRequestResult {
-  completed: boolean;
-  evidence: string;
-}
-
-async function runIncidentRequest(
-  baseUrl: string,
-  incident: Incident,
-): Promise<IncidentRequestResult> {
-  const route = incident.fingerprint.route;
-  if (route === "GET /orders") {
-    const response = await fetch(`${baseUrl}/orders?since=last-week`);
-    return {
-      completed: true,
-      evidence: `HTTP ${response.status}\n${(await response.text()).slice(0, 500)}`,
-    };
-  }
-  if (route === "POST /orders") {
-    const response = await fetch(`${baseUrl}/orders`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        items: [{ sku: "REPRO-CUSTOMER", qty: 1, priceCents: 100 }],
-      }),
-    });
-    return {
-      completed: true,
-      evidence: `HTTP ${response.status}\n${(await response.text()).slice(0, 500)}`,
-    };
-  }
-  if (route === "POST /orders/:id/ship") {
-    const create = await fetch(`${baseUrl}/orders`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        customer: { id: "bug-loop-verify", name: "Bug Loop" },
-        items: [{ sku: "REPRO-SHIP", qty: 1, priceCents: 100 }],
-      }),
-    });
-    const value: unknown = await create.json();
-    if (typeof value !== "object" || value === null) {
-      return {
-        completed: false,
-        evidence: `HTTP ${create.status}\ncreate response did not contain an object`,
-      };
-    }
-    const id = (value as Record<string, unknown>)["id"];
-    if (typeof id !== "string") {
-      return {
-        completed: false,
-        evidence: `HTTP ${create.status}\ncreate response did not contain an order id`,
-      };
-    }
-    const ship = await fetch(`${baseUrl}/orders/${encodeURIComponent(id)}/ship`, {
-      method: "POST",
-    });
-    await Bun.sleep(150);
-    return {
-      completed: true,
-      evidence: `create HTTP ${create.status}; ship HTTP ${ship.status}\n${(await ship.text()).slice(0, 500)}`,
-    };
-  }
-  throw new Error(`no verifier reproduction for ${route}`);
-}
-
-function failureSignaturePresent(
-  incident: Incident,
-  events: Awaited<ReturnType<typeof readNewEvents>>["events"],
-): boolean {
-  if (incident.fingerprint.route === "POST /orders/:id/ship") {
-    return events.some((event) => event.msg === "unhandledRejection");
-  }
-  return events.some(
-    (event) =>
-      event.err?.name === incident.fingerprint.errName &&
-      event.route === incident.fingerprint.route,
-  );
-}
-
 export function reproCheckPasses(
   requestCompleted: boolean,
   signaturePresent: boolean,
@@ -136,46 +33,22 @@ function outputTail(output: string): string {
 }
 
 export class RealVerifyRunner implements VerifyRunner {
+  constructor(
+    private readonly config: PipelineConfig,
+    private readonly reproStrategy?: ReproStrategy,
+  ) {}
+
   async verifyRepro(input: VerifyReproInput): Promise<CheckResult> {
-    const fingerprint8 = input.incident.fingerprint.hash.slice(0, 8);
-    const logPath = join(input.worktreeDir, "logs", `verify-${fingerprint8}.jsonl`);
-    await rm(logPath, { force: true });
-    const port = await selectFreePort();
-    const baseUrl = `http://127.0.0.1:${port}`;
-    const service = Bun.spawn(["bun", "run", "apps/leaky-service/src/server.ts"], {
-      cwd: input.worktreeDir,
-      env: { ...Bun.env, PORT: String(port), LOG_PATH: logPath },
-      stdin: "ignore",
-      stdout: "ignore",
-      stderr: "pipe",
+    const sample = input.incident.sampleEvents[0];
+    if (!sample) return { passes: false, detail: "Incident has no sample log." };
+    const plan = this.reproStrategy?.derive({
+      logPath: this.config.logPath,
+      baseUrl: this.config.baseUrl,
+      incident: input.incident,
+      sample,
     });
-    try {
-      await waitForHealth(baseUrl);
-      const request = await runIncidentRequest(baseUrl, input.incident);
-      const logs = await readNewEvents(logPath);
-      const signaturePresent = failureSignaturePresent(input.incident, logs.events);
-      return {
-        passes: reproCheckPasses(request.completed, signaturePresent),
-        detail: [
-          request.evidence,
-          !request.completed
-            ? "The incident reproduction request did not complete."
-            : signaturePresent
-              ? `${input.incident.fingerprint.errName} failure signature still present in fresh worktree log.`
-              : `${input.incident.fingerprint.errName} failure signature absent from fresh worktree log.`,
-        ].join("\n"),
-      };
-    } finally {
-      if (service.exitCode === null) service.kill("SIGTERM");
-      const stopped = await Promise.race([
-        service.exited.then(() => true),
-        Bun.sleep(1_000).then(() => false),
-      ]);
-      if (!stopped) {
-        if (service.exitCode === null) service.kill("SIGKILL");
-        await service.exited;
-      }
-    }
+    if (!plan) return { passes: false, detail: "No verification reproduction could be derived." };
+    return plan.verify(input);
   }
 
   async runTests(worktreeDir: string): Promise<CheckResult> {
@@ -220,6 +93,7 @@ async function safeCheck(check: () => Promise<CheckResult>): Promise<CheckResult
 export async function verifyWithRunner(
   state: TriageState,
   runner: VerifyRunner,
+  fixScope: string[],
 ): Promise<Partial<TriageState>> {
   const incident = state.activeIncident;
   const worktreeDir = state.worktreeDir;
@@ -231,7 +105,7 @@ export async function verifyWithRunner(
   const typecheck = await safeCheck(() => runner.runTypecheck(worktreeDir));
   const filesChanged = state.activeFix?.filesChanged ?? [];
   const scopePasses = filesChanged.length > 0 && filesChanged.every(
-    (path) => path.startsWith("apps/leaky-service/src/"),
+    (path) => isPathInFixScope(path, fixScope),
   );
   const verified = scopePasses && repro.passes && tests.passes && typecheck.passes;
   const detail = [

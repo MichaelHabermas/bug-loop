@@ -1,8 +1,9 @@
 import { FINGERPRINT_MARKER } from "./github";
 import type { IssueInput } from "./github";
 import type { IncidentTriage } from "./types";
+import type { PipelineLabels } from "./config";
 
-export function buildIssueInput(item: IncidentTriage): IssueInput {
+export function buildIssueInput(item: IncidentTriage, labels: PipelineLabels): IssueInput {
   const { incident } = item;
   const repro = item.repro ?? {
     reproduced: false,
@@ -48,11 +49,11 @@ export function buildIssueInput(item: IncidentTriage): IssueInput {
     ...brief,
   ].join("\n");
   return {
-    title: `[bug-loop] ${incident.fingerprint.errName} on ${incident.fingerprint.route}`,
+    title: `[${labels.pipeline}] ${incident.fingerprint.errName} on ${incident.fingerprint.route}`,
     body,
     labels: [
-      "bug-loop",
-      route.kind === "mechanical" ? "auto-fix-candidate" : "needs-human",
+      labels.pipeline,
+      route.kind === "mechanical" ? labels.mechanical : labels.needsHuman,
     ],
   };
 }

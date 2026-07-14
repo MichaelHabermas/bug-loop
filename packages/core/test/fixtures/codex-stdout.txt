@@ -1,0 +1,8 @@
+Applied the source fix and ran focused checks.
+model: gpt-5.5-codex
+input tokens: 12,345
+output tokens: 678
+tokens used
+13,023
+=== FIX SUMMARY ===
+Guarded the missing widget before dereference.

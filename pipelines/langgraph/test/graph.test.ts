@@ -4,10 +4,24 @@ import { join } from "node:path";
 import { createInitialState, createTriageGraph } from "../src/graph";
 import { routeAfterTicket } from "../src/graph";
 import { HeuristicClassifier } from "../src/classifier";
+import { TraceRecorder, type RunTrace } from "@bug-loop/core";
+import {
+  createLeakyServicePipelineConfig,
+  leakyServiceReproStrategy,
+} from "@bug-loop/leaky-service/bug-loop";
 
 const TMP = join(import.meta.dir, ".tmp-graph");
 const FIXTURE = join(import.meta.dir, "fixtures", "all-bugs.jsonl");
 const originalDryRun = process.env["DRY_RUN"];
+
+function pipelineConfig(cursorPath = join(TMP, "cursor.json")) {
+  return createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "codex",
+    logPath: FIXTURE,
+  });
+}
 
 beforeEach(() => {
   rmSync(TMP, { recursive: true, force: true });
@@ -22,13 +36,22 @@ afterEach(() => {
 });
 
 test("graph processes all four signatures and tolerates an unreachable service", async () => {
-  const graph = createTriageGraph({ classifier: new HeuristicClassifier() });
+  const config = pipelineConfig();
+  const tracePath = join(TMP, "langgraph-trace.json");
+  const recorder = new TraceRecorder({
+    pipeline: "langgraph",
+    config,
+    outputPath: tracePath,
+    runId: "langgraph-test-run",
+  });
+  const graph = createTriageGraph(config, {
+    classifier: new HeuristicClassifier(config.invariantWarnPrefixes),
+    reproStrategy: leakyServiceReproStrategy,
+    recorder,
+  });
   const result = await graph.invoke(
-    createInitialState({
-      logPath: FIXTURE,
-      cursorPath: join(TMP, "cursor.json"),
+    createInitialState(config, {
       fromStart: true,
-      baseUrl: "http://127.0.0.1:1",
     }),
     { configurable: { thread_id: "smoke-test" } },
   );
@@ -45,20 +68,30 @@ test("graph processes all four signatures and tolerates an unreachable service",
   expect(result.triage.every((item) => item.ticket !== undefined)).toBe(true);
 
   const rerun = await graph.invoke(
-    createInitialState({
-      logPath: FIXTURE,
-      cursorPath: join(TMP, "cursor.json"),
+    createInitialState(config, {
       fromStart: false,
-      baseUrl: "http://127.0.0.1:1",
     }),
     { configurable: { thread_id: "smoke-test-rerun" } },
   );
   expect(rerun.summary?.eventsRead).toBe(0);
   expect(rerun.summary?.newIncidents).toBe(0);
+  await recorder.finish();
+  const trace = await Bun.file(tracePath).json() as RunTrace;
+  expect(trace.events.slice(0, 6).map((event) => event.stage)).toEqual([
+    "ingest",
+    "detect",
+    "dedupe",
+    "reproduce",
+    "route",
+    "ticket",
+  ]);
 });
 
 test("compiled graph exposes the fix cycle and only routes fix-enabled mechanical work into it", () => {
-  const graph = createTriageGraph({ classifier: new HeuristicClassifier() });
+  const config = pipelineConfig();
+  const graph = createTriageGraph(config, {
+    classifier: new HeuristicClassifier(config.invariantWarnPrefixes),
+  });
   const edges = graph.getGraph().edges.map((edge) => `${edge.source}->${edge.target}`);
   expect(edges).toContain("ticket->fix");
   expect(edges).toContain("fix->verify");
@@ -86,27 +119,18 @@ test("compiled graph exposes the fix cycle and only routes fix-enabled mechanica
     ...mechanical,
     route: { kind: "needs-human" as const, reason: "ambiguous" },
   };
-  expect(routeAfterTicket(createInitialState({
-    logPath: "fixture",
-    cursorPath: "cursor",
+  expect(routeAfterTicket(createInitialState(config, {
     fromStart: true,
-    baseUrl: "http://localhost:3000",
     fix: true,
     live: false,
   }), [mechanical])).toBe("fix");
-  expect(routeAfterTicket(createInitialState({
-    logPath: "fixture",
-    cursorPath: "cursor",
+  expect(routeAfterTicket(createInitialState(config, {
     fromStart: true,
-    baseUrl: "http://localhost:3000",
     fix: true,
     live: false,
   }), [needsHuman])).toBe("end");
-  expect(routeAfterTicket(createInitialState({
-    logPath: "fixture",
-    cursorPath: "cursor",
+  expect(routeAfterTicket(createInitialState(config, {
     fromStart: true,
-    baseUrl: "http://localhost:3000",
     fix: false,
     live: false,
   }), [mechanical])).toBe("end");

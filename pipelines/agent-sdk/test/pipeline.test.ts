@@ -6,9 +6,13 @@ import {
   type FixInput,
   type IssueInput,
   type PRInput,
+  type ReproStrategy,
+  type ReproStrategyInput,
+  type RunTrace,
   type VerifyRunner,
   type WorktreeOperations,
 } from "@bug-loop/core";
+import { createLeakyServicePipelineConfig } from "@bug-loop/leaky-service/bug-loop";
 import { runAgentSdkPipeline, type GitHubOperations } from "../src/pipeline";
 import { FakeTriageAgent } from "../src/triage-agent";
 
@@ -29,6 +33,12 @@ afterEach(() => {
 });
 
 test("plain orchestrator routes, retries, gives up, and never fixes needs-human incidents", async () => {
+  const config = createLeakyServicePipelineConfig({
+    cursorPath: join(TMP, "cursor.json"),
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath: FIXTURE,
+  });
   const fixInputs: FixInput[] = [];
   const fixer = new FakeFixer(async (input) => {
     fixInputs.push(input);
@@ -111,27 +121,36 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     };
   });
 
-  const result = await runAgentSdkPipeline({
-    logPath: FIXTURE,
-    cursorPath: join(TMP, "cursor.json"),
+  const reproStrategy = {
+    derive({ incident }: ReproStrategyInput) {
+      const reproduced = incident.sampleEvents[0]?.level === "error";
+      return {
+        command: `curl ${incident.fingerprint.route}`,
+        async reproduce() {
+          return {
+            reproduced,
+            evidence: reproduced ? "HTTP 500" : "HTTP 201 policy ambiguity",
+          };
+        },
+        async verify() {
+          return { passes: true, detail: "unused by fake verifier" };
+        },
+      };
+    },
+  } satisfies ReproStrategy;
+
+  const result = await runAgentSdkPipeline(config, {
     fromStart: true,
-    baseUrl: "http://127.0.0.1:1",
     fix: true,
     live: false,
+    tracePath: join(TMP, "trace.json"),
   }, {
     triageAgent,
     fixer,
     verifier,
     worktrees,
     github,
-    async reproduce({ incident }) {
-      const reproduced = incident.sampleEvents[0]?.level === "error";
-      return {
-        reproduced,
-        command: `curl ${incident.fingerprint.route}`,
-        evidence: reproduced ? "HTTP 500" : "HTTP 201 policy ambiguity",
-      };
-    },
+    reproStrategy,
     repoRoot: TMP,
   });
 
@@ -157,15 +176,24 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(comments.join("\n")).toContain("3:Automated fix gave up after 2 attempts");
   expect(pullRequests).toHaveLength(2);
   expect(result.state.errors).toEqual([]);
+  const trace = await Bun.file(join(TMP, "trace.json")).json() as RunTrace;
+  expect(trace.events.slice(0, 6).map((event) => event.stage)).toEqual([
+    "ingest",
+    "detect",
+    "dedupe",
+    "reproduce",
+    "route",
+    "ticket",
+  ]);
+  expect(trace.events.filter((event) => event.stage === "fix")).toHaveLength(5);
+  expect(trace.events.filter((event) => event.stage === "verify")).toHaveLength(5);
 
-  const rerun = await runAgentSdkPipeline({
-    logPath: FIXTURE,
-    cursorPath: join(TMP, "cursor.json"),
+  const rerun = await runAgentSdkPipeline(config, {
     fromStart: false,
-    baseUrl: "http://127.0.0.1:1",
     fix: false,
     live: false,
-  }, { triageAgent, github, repoRoot: TMP });
+    tracePath: join(TMP, "rerun-trace.json"),
+  }, { triageAgent, github, repoRoot: TMP, reproStrategy });
   expect(rerun.summary.eventsRead).toBe(0);
   expect(rerun.summary.newIncidents).toBe(0);
   expect(triageCalls).toBe(4);

@@ -1,0 +1,139 @@
+{
+  "runId": "example-langgraph-run",
+  "startedAt": "2026-07-14T12:00:00.000Z",
+  "finishedAt": "2026-07-14T12:00:00.323Z",
+  "pipeline": "langgraph",
+  "config": {
+    "repo": "MichaelHabermas/bug-loop",
+    "labels": {
+      "pipeline": "bug-loop",
+      "mechanical": "auto-fix-candidate",
+      "needsHuman": "needs-human"
+    },
+    "logPath": "logs/leaky-service.jsonl",
+    "baseUrl": "http://127.0.0.1:3000",
+    "cursorPath": "pipelines/langgraph/.cursor.json",
+    "fixScope": [
+      "apps/leaky-service/src"
+    ],
+    "worktreeRoot": ".worktrees",
+    "maxFixAttempts": 2,
+    "fixer": "codex",
+    "invariantWarnPrefixes": [
+      "order total negative"
+    ],
+    "branchPrefix": "bugloop/fix-"
+  },
+  "events": [
+    {
+      "seq": 1,
+      "stage": "ingest",
+      "startedAt": "2026-07-14T12:00:00.017Z",
+      "durationMs": 17,
+      "outcome": "4 events",
+      "detail": {
+        "events": 4
+      }
+    },
+    {
+      "seq": 2,
+      "stage": "detect",
+      "startedAt": "2026-07-14T12:00:00.051Z",
+      "durationMs": 17,
+      "outcome": "4 actionable",
+      "detail": {
+        "actionable": 4
+      }
+    },
+    {
+      "seq": 3,
+      "stage": "dedupe",
+      "startedAt": "2026-07-14T12:00:00.085Z",
+      "durationMs": 17,
+      "outcome": "4 new incidents",
+      "detail": {
+        "incidents": 4,
+        "newIncidents": 4
+      }
+    },
+    {
+      "seq": 4,
+      "stage": "reproduce",
+      "startedAt": "2026-07-14T12:00:00.119Z",
+      "durationMs": 17,
+      "outcome": "3 reproduced",
+      "detail": {
+        "reproduced": 3
+      }
+    },
+    {
+      "seq": 5,
+      "stage": "route",
+      "startedAt": "2026-07-14T12:00:00.153Z",
+      "durationMs": 17,
+      "outcome": "3 mechanical",
+      "detail": {
+        "mechanical": 3,
+        "needsHuman": 1
+      }
+    },
+    {
+      "seq": 6,
+      "stage": "ticket",
+      "startedAt": "2026-07-14T12:00:00.187Z",
+      "durationMs": 17,
+      "outcome": "4 issues",
+      "detail": {
+        "issuesFiled": 4
+      }
+    },
+    {
+      "seq": 7,
+      "stage": "fix",
+      "fingerprint": "2239a31d3dda8339",
+      "startedAt": "2026-07-14T12:00:00.221Z",
+      "durationMs": 17,
+      "outcome": "attempt 1",
+      "detail": {
+        "attempt": 1,
+        "filesChanged": [
+          "apps/leaky-service/src/server.ts"
+        ]
+      },
+      "cost": {
+        "harness": "codex",
+        "model": "gpt-5.5-codex",
+        "inputTokens": 12345,
+        "outputTokens": 678,
+        "raw": "model: gpt-5.5-codex\ninput tokens: 12,345\noutput tokens: 678\ntokens used\n13,023"
+      }
+    },
+    {
+      "seq": 8,
+      "stage": "verify",
+      "fingerprint": "2239a31d3dda8339",
+      "startedAt": "2026-07-14T12:00:00.255Z",
+      "durationMs": 17,
+      "outcome": "verified",
+      "detail": {
+        "attempt": 1,
+        "scopePasses": true,
+        "reproPasses": true,
+        "testsPass": true,
+        "typecheckPasses": true
+      }
+    },
+    {
+      "seq": 9,
+      "stage": "pr",
+      "fingerprint": "2239a31d3dda8339",
+      "startedAt": "2026-07-14T12:00:00.289Z",
+      "durationMs": 17,
+      "outcome": "completed",
+      "detail": {
+        "issueNumber": 1,
+        "pullRequestNumber": 5
+      }
+    }
+  ]
+}

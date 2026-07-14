@@ -80,7 +80,12 @@ export class TraceRecorder {
     this.runId = options.runId ?? crypto.randomUUID();
     this.outputPath = options.outputPath ?? join(options.traceRoot ?? "traces", `${this.runId}.json`);
     this.pipeline = options.pipeline;
-    this.config = { ...options.config, labels: { ...options.config.labels } };
+    this.config = {
+      ...options.config,
+      labels: { ...options.config.labels },
+      fixScope: [...options.config.fixScope],
+      invariantWarnPrefixes: [...options.config.invariantWarnPrefixes],
+    };
     this.startedAt = this.now().toISOString();
   }
 
@@ -136,17 +141,16 @@ export function combineCostSamples(samples: CostSample[]): CostSample | undefine
     const values = samples.map(select).filter((value): value is number => value !== undefined);
     return values.length === 0 ? undefined : values.reduce((total, value) => total + value, 0);
   };
+  const inputTokens = sum((sample) => sample.inputTokens);
+  const outputTokens = sum((sample) => sample.outputTokens);
+  const usd = sum((sample) => sample.usd);
   const raw = samples.map((sample) => sample.raw).filter((value): value is string => value !== undefined);
   return {
     harness: first.harness,
     ...(models.size === 1 ? { model: [...models][0] } : {}),
-    ...(sum((sample) => sample.inputTokens) === undefined
-      ? {}
-      : { inputTokens: sum((sample) => sample.inputTokens) }),
-    ...(sum((sample) => sample.outputTokens) === undefined
-      ? {}
-      : { outputTokens: sum((sample) => sample.outputTokens) }),
-    ...(sum((sample) => sample.usd) === undefined ? {} : { usd: sum((sample) => sample.usd) }),
+    ...(inputTokens === undefined ? {} : { inputTokens }),
+    ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(usd === undefined ? {} : { usd }),
     ...(raw.length === 0 ? {} : { raw: raw.join("\n") }),
   };
 }

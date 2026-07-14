@@ -3,8 +3,9 @@ import { EMPTY_SUMMARY } from "../state";
 
 export async function ingestNode(state: TriageState): Promise<Partial<TriageState>> {
   const config = state.config;
-  if (!config) throw new Error("ingest requires state.config");
-  const cursor = config.fromStart ? { offset: 0 } : await readCursor(config.cursorPath);
+  const pipelineConfig = state.pipelineConfig;
+  if (!config || !pipelineConfig) throw new Error("ingest requires pipeline and run config");
+  const cursor = config.fromStart ? { offset: 0 } : await readCursor(pipelineConfig.cursorPath);
   const result = await readNewEvents(state.logPath, cursor);
   console.log(`[ingest] events=${result.events.length}`);
   return {

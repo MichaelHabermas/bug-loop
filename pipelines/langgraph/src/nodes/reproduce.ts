@@ -1,19 +1,23 @@
 import {
   reproduceIncident,
   type IncidentTriage,
+  type ReproStrategy,
   type TriageState,
 } from "@bug-loop/core";
 import { currentSummary } from "../state";
 
-export async function reproduceNode(state: TriageState): Promise<Partial<TriageState>> {
+export async function reproduceNode(
+  state: TriageState,
+  strategy?: ReproStrategy,
+): Promise<Partial<TriageState>> {
   const triage: IncidentTriage[] = [];
-  const baseUrl = state.config?.baseUrl ?? "http://localhost:3000";
+  const baseUrl = state.pipelineConfig?.baseUrl ?? "http://localhost:3000";
   for (const item of state.triage ?? []) {
     const repro = await reproduceIncident({
       logPath: state.logPath,
       baseUrl,
       incident: item.incident,
-    });
+    }, strategy);
     triage.push({ ...item, repro });
   }
   const reproduced = triage.filter(

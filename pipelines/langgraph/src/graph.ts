@@ -1,48 +1,51 @@
+import { resolve } from "node:path";
+import { Annotation, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import {
-  Annotation,
-  END,
-  MemorySaver,
-  START,
-  StateGraph,
-} from "@langchain/langgraph";
-import {
+  GitHubClient,
   GitWorktreeOperations,
   RealVerifyRunner,
-  type Fixer,
+  createDefaultFixer,
+  takeFixerCost,
+  verifyWithRunner,
   type FixAttempt,
+  type Fixer,
   type Incident,
   type IncidentTriage,
+  type IssueInput,
+  type IssueRef,
   type LogEvent,
+  type PipelineConfig,
+  type PRInput,
+  type PRRef,
   type PullRequestRef,
   type ReproResult,
+  type ReproStrategy,
   type TicketRef,
+  type TraceRecorder,
   type TriageRunConfig,
   type TriageState,
   type TriageSummary,
-  type VerifyRunner,
   type VerifyResult,
+  type VerifyRunner,
   type WorktreeOperations,
 } from "@bug-loop/core";
+import { type Classifier, selectClassifier } from "./classifier";
 import {
   dedupeNode,
   detectNode,
-  detectWithClassifier,
-  ingestNode,
-  reproduceNode,
-  routeNode,
-  routeWithClassifier,
-  ticketNode,
   fixWithDependencies,
   giveUpWithDependencies,
+  ingestNode,
   prWithDependencies,
+  reproduceNode,
+  routeNode,
+  ticketNode,
   type GitHubOperations,
 } from "./nodes";
-import type { Classifier } from "./classifier";
-import { verifyWithRunner } from "@bug-loop/core";
-import { resolve } from "node:path";
 
 const TriageAnnotation = Annotation.Root({
   logPath: Annotation<string>,
+  pipelineConfig: Annotation<PipelineConfig | undefined>,
   events: Annotation<LogEvent[]>,
   actionableEvents: Annotation<LogEvent[]>,
   incidents: Annotation<Incident[]>,
@@ -63,13 +66,15 @@ const TriageAnnotation = Annotation.Root({
   errors: Annotation<string[]>,
 });
 
-export interface InitialStateOptions extends TriageRunConfig {
-  logPath: string;
-}
+export interface InitialStateOptions extends TriageRunConfig {}
 
-export function createInitialState(options: InitialStateOptions): TriageState {
+export function createInitialState(
+  config: PipelineConfig,
+  options: InitialStateOptions,
+): TriageState {
   return {
-    logPath: options.logPath,
+    logPath: config.logPath,
+    pipelineConfig: config,
     events: [],
     actionableEvents: [],
     incidents: [],
@@ -78,9 +83,7 @@ export function createInitialState(options: InitialStateOptions): TriageState {
     verifyResults: [],
     pullRequests: [],
     config: {
-      cursorPath: options.cursorPath,
       fromStart: options.fromStart,
-      baseUrl: options.baseUrl,
       fix: options.fix ?? false,
       live: options.live ?? false,
     },
@@ -89,12 +92,20 @@ export function createInitialState(options: InitialStateOptions): TriageState {
   };
 }
 
+interface PipelineGitHubOperations extends GitHubOperations {
+  findOpenIssueByMarker(hash: string): Promise<IssueRef | null>;
+  createIssue(input: IssueInput): Promise<IssueRef>;
+  createPullRequest(input: PRInput): Promise<PRRef>;
+}
+
 export interface GraphOptions {
   classifier?: Classifier;
   fixer?: Fixer;
   verifier?: VerifyRunner;
   worktrees?: WorktreeOperations;
-  github?: GitHubOperations;
+  github?: PipelineGitHubOperations;
+  reproStrategy?: ReproStrategy;
+  recorder?: TraceRecorder;
   repoRoot?: string;
 }
 
@@ -110,49 +121,184 @@ export function routeAfterTicket(
 
 export function routeAfterVerify(state: TriageState): "pr" | "fix" | "give-up" {
   if (state.activeVerify?.verified) return "pr";
-  return state.retryCount >= 2 ? "give-up" : "fix";
+  const maxAttempts = state.pipelineConfig?.maxFixAttempts ?? 1;
+  return state.retryCount >= maxAttempts ? "give-up" : "fix";
 }
 
 export function routeAfterIncident(state: TriageState): "fix" | "end" {
   return state.activeIncident ? "fix" : "end";
 }
 
-export function createTriageGraph(options: GraphOptions = {}) {
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function tracedNode(
+  recorder: TraceRecorder | undefined,
+  stage: string,
+  run: () => Promise<Partial<TriageState>>,
+  summarize: (result: Partial<TriageState>) => {
+    outcome: string;
+    detail?: Record<string, unknown>;
+  },
+  fingerprint?: string,
+): Promise<Partial<TriageState>> {
+  const event = recorder?.start(stage, fingerprint);
+  try {
+    const result = await run();
+    const summary = summarize(result);
+    event?.finish(summary.outcome, summary.detail);
+    return result;
+  } catch (error: unknown) {
+    event?.finish("error", { error: errorDetail(error) });
+    throw error;
+  }
+}
+
+export function createTriageGraph(config: PipelineConfig, options: GraphOptions = {}) {
   const checkpointer = new MemorySaver();
-  const classifier = options.classifier;
-  const detect = classifier
-    ? (state: TriageState) => detectWithClassifier(state, classifier)
-    : detectNode;
-  const route = classifier
-    ? (state: TriageState) => routeWithClassifier(state, classifier)
-    : routeNode;
   const repoRoot = options.repoRoot ?? resolve(import.meta.dir, "../../..");
-  const worktrees = options.worktrees ?? new GitWorktreeOperations(repoRoot);
-  const verifier = options.verifier ?? new RealVerifyRunner();
-  const fix = (state: TriageState) => fixWithDependencies(state, {
-    fixer: options.fixer,
-    worktrees,
-    readIssue: options.github?.readIssue,
+  const github = options.github ?? new GitHubClient(config.repo);
+  const classifier = options.classifier ?? selectClassifier(config.invariantWarnPrefixes);
+  const reproStrategy = options.reproStrategy;
+  const worktrees = options.worktrees ?? new GitWorktreeOperations(
     repoRoot,
-  });
-  const verify = (state: TriageState) => verifyWithRunner(state, verifier);
-  const giveUp = (state: TriageState) => giveUpWithDependencies(state, {
-    github: options.github,
-    worktrees,
-    repoRoot,
-  });
-  const pr = (state: TriageState) => prWithDependencies(state, {
-    github: options.github,
-    worktrees,
-    repoRoot,
-  });
+    config.worktreeRoot,
+    config.fixScope,
+  );
+  const verifier = options.verifier ?? new RealVerifyRunner(config, reproStrategy);
+  let fixer = options.fixer;
+
+  const ingest = (state: TriageState) => tracedNode(
+    options.recorder,
+    "ingest",
+    () => ingestNode(state),
+    (result) => ({
+      outcome: `${result.summary?.eventsRead ?? 0} events`,
+      detail: { events: result.summary?.eventsRead ?? 0 },
+    }),
+  );
+  const detect = (state: TriageState) => tracedNode(
+    options.recorder,
+    "detect",
+    () => detectNode(state, classifier, reproStrategy),
+    (result) => ({
+      outcome: `${result.summary?.actionable ?? 0} actionable`,
+      detail: { actionable: result.summary?.actionable ?? 0 },
+    }),
+  );
+  const dedupe = (state: TriageState) => tracedNode(
+    options.recorder,
+    "dedupe",
+    () => dedupeNode(state, (hash) => github.findOpenIssueByMarker(hash)),
+    (result) => ({
+      outcome: `${result.summary?.newIncidents ?? 0} new incidents`,
+      detail: {
+        incidents: result.summary?.incidents ?? 0,
+        newIncidents: result.summary?.newIncidents ?? 0,
+      },
+    }),
+  );
+  const reproduce = (state: TriageState) => tracedNode(
+    options.recorder,
+    "reproduce",
+    () => reproduceNode(state, reproStrategy),
+    (result) => ({
+      outcome: `${result.summary?.reproduced ?? 0} reproduced`,
+      detail: { reproduced: result.summary?.reproduced ?? 0 },
+    }),
+  );
+  const route = (state: TriageState) => tracedNode(
+    options.recorder,
+    "route",
+    () => routeNode(state, classifier),
+    (result) => {
+      const triage = result.triage ?? [];
+      const mechanical = triage.filter((item) => item.route?.kind === "mechanical").length;
+      return {
+        outcome: `${mechanical} mechanical`,
+        detail: { mechanical, needsHuman: triage.length - mechanical },
+      };
+    },
+  );
+  const ticket = (state: TriageState) => tracedNode(
+    options.recorder,
+    "ticket",
+    () => ticketNode(state, (input) => github.createIssue(input), config.labels),
+    (result) => ({
+      outcome: `${result.summary?.issuesFiled ?? 0} issues`,
+      detail: { issuesFiled: result.summary?.issuesFiled ?? 0 },
+    }),
+  );
+  const fix = async (state: TriageState): Promise<Partial<TriageState>> => {
+    fixer ??= createDefaultFixer(config.fixScope, config.fixer);
+    const fingerprint = state.activeIncident?.fingerprint.hash;
+    const event = options.recorder?.start("fix", fingerprint);
+    try {
+      const result = await fixWithDependencies(state, {
+        config,
+        fixer,
+        worktrees,
+        readIssue: (number) => github.readIssue(number),
+        repoRoot,
+      });
+      const activeFix = result.activeFix;
+      event?.finish(
+        activeFix ? `attempt ${activeFix.attempt}` : "no fix",
+        activeFix
+          ? { attempt: activeFix.attempt, filesChanged: activeFix.filesChanged }
+          : undefined,
+        takeFixerCost(fixer),
+      );
+      return result;
+    } catch (error: unknown) {
+      event?.finish("error", { error: errorDetail(error) }, takeFixerCost(fixer));
+      throw error;
+    }
+  };
+  const verify = async (state: TriageState): Promise<Partial<TriageState>> => {
+    const fingerprint = state.activeIncident?.fingerprint.hash;
+    const event = options.recorder?.start("verify", fingerprint);
+    try {
+      const result = await verifyWithRunner(state, verifier, config.fixScope);
+      event?.finish(
+        result.activeVerify?.verified ? "verified" : "failed",
+        {
+          attempt: state.activeFix?.attempt,
+          scopePasses: result.activeVerify?.scopePasses,
+          reproPasses: result.activeVerify?.reproPasses,
+          testsPass: result.activeVerify?.testsPass,
+          typecheckPasses: result.activeVerify?.typecheckPasses,
+        },
+      );
+      return result;
+    } catch (error: unknown) {
+      event?.finish("error", { error: errorDetail(error) });
+      throw error;
+    }
+  };
+  const giveUp = (state: TriageState) => tracedNode(
+    options.recorder,
+    "give-up",
+    () => giveUpWithDependencies(state, { config, github, worktrees, repoRoot }),
+    () => ({ outcome: "needs human", detail: { attempts: state.retryCount } }),
+    state.activeIncident?.fingerprint.hash,
+  );
+  const pr = (state: TriageState) => tracedNode(
+    options.recorder,
+    "pr",
+    () => prWithDependencies(state, { config, github, worktrees, repoRoot }),
+    () => ({ outcome: "completed" }),
+    state.activeIncident?.fingerprint.hash,
+  );
+
   return new StateGraph(TriageAnnotation)
-    .addNode("ingest", ingestNode)
+    .addNode("ingest", ingest)
     .addNode("detect", detect)
-    .addNode("dedupe", dedupeNode)
-    .addNode("reproduce", reproduceNode)
+    .addNode("dedupe", dedupe)
+    .addNode("reproduce", reproduce)
     .addNode("route", route)
-    .addNode("ticket", ticketNode)
+    .addNode("ticket", ticket)
     .addNode("fix", fix)
     .addNode("verify", verify)
     .addNode("give-up", giveUp)
@@ -173,11 +319,7 @@ export function createTriageGraph(options: GraphOptions = {}) {
       ["fix", END],
     )
     .addEdge("fix", "verify")
-    .addConditionalEdges(
-      "verify",
-      routeAfterVerify,
-      ["pr", "fix", "give-up"],
-    )
+    .addConditionalEdges("verify", routeAfterVerify, ["pr", "fix", "give-up"])
     .addConditionalEdges(
       "pr",
       (state) => (routeAfterIncident(state) === "fix" ? "fix" : END),
@@ -188,8 +330,5 @@ export function createTriageGraph(options: GraphOptions = {}) {
       (state) => (routeAfterIncident(state) === "fix" ? "fix" : END),
       ["fix", END],
     )
-    .compile({
-      checkpointer,
-      // Replace MemorySaver with a durable checkpointer when runs must survive process exit.
-    });
+    .compile({ checkpointer });
 }

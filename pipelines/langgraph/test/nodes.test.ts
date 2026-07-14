@@ -9,6 +9,11 @@ import type {
   TriageState,
 } from "@bug-loop/core";
 import { FINGERPRINT_MARKER, fingerprintEvent } from "@bug-loop/core";
+import { GitHubClient } from "@bug-loop/core";
+import {
+  createLeakyServicePipelineConfig,
+  leakyServiceReproStrategy,
+} from "@bug-loop/leaky-service/bug-loop";
 import {
   buildIssueInput,
   dedupeEvents,
@@ -19,6 +24,13 @@ import {
   ticketWithCreator,
 } from "../src/nodes";
 import { HeuristicClassifier } from "../src/classifier";
+
+const PIPELINE_CONFIG = createLeakyServicePipelineConfig({
+  cursorPath: ".cursor.json",
+  baseUrl: "http://localhost:3000",
+  fixer: "codex",
+  logPath: "fixture.jsonl",
+});
 
 function errorEvent(reqId: string, line: number): LogEvent {
   return {
@@ -49,6 +61,7 @@ function incident(sample: LogEvent): Incident {
 function state(overrides: Partial<TriageState> = {}): TriageState {
   return {
     logPath: "fixture.jsonl",
+    pipelineConfig: PIPELINE_CONFIG,
     events: [],
     actionableEvents: [],
     incidents: [],
@@ -69,7 +82,8 @@ describe("detectNode", () => {
     };
     const result = await detectWithClassifier(
       state({ events: [ship, { ...ship, level: "info" }] }),
-      new HeuristicClassifier(),
+      new HeuristicClassifier(PIPELINE_CONFIG.invariantWarnPrefixes),
+      leakyServiceReproStrategy,
     );
     expect(result.actionableEvents).toHaveLength(1);
     expect(result.actionableEvents?.[0]?.route).toBe("POST /orders/:id/ship");
@@ -105,9 +119,7 @@ describe("dedupeEvents", () => {
     const fixResult = await dedupeWithLookup(state({
       actionableEvents: [sample],
       config: {
-        cursorPath: ".cursor.json",
         fromStart: true,
-        baseUrl: "http://localhost:3000",
         fix: true,
       },
     }), existing);
@@ -117,9 +129,7 @@ describe("dedupeEvents", () => {
     const triageOnly = await dedupeWithLookup(state({
       actionableEvents: [sample],
       config: {
-        cursorPath: ".cursor.json",
         fromStart: true,
-        baseUrl: "http://localhost:3000",
         fix: false,
       },
     }), existing);
@@ -148,7 +158,7 @@ describe("routeNode", () => {
     ];
     const result = await routeWithClassifier(
       state({ triage }),
-      new HeuristicClassifier(),
+      new HeuristicClassifier(PIPELINE_CONFIG.invariantWarnPrefixes),
     );
     expect(result.triage?.[0]?.route?.kind).toBe("mechanical");
     expect(result.triage?.[1]?.route?.kind).toBe("needs-human");
@@ -174,11 +184,16 @@ describe("buildIssueInput", () => {
       repro: { reproduced: true, command: "curl example.test", evidence: "HTTP 500" },
       route: { kind: "mechanical", reason: "Crash reproduced." },
     };
-    const input = buildIssueInput(triage);
+    const input = buildIssueInput(triage, PIPELINE_CONFIG.labels);
     expect(input.body).toContain(FINGERPRINT_MARKER(ticketIncident.fingerprint.hash));
     expect(input.body).toContain("curl example.test");
     expect(input.labels).toEqual(["bug-loop", "auto-fix-candidate"]);
-    const result = await ticketNode(state({ triage: [triage] }));
+    const github = new GitHubClient(PIPELINE_CONFIG.repo);
+    const result = await ticketNode(
+      state({ triage: [triage] }),
+      (issue) => github.createIssue(issue),
+      PIPELINE_CONFIG.labels,
+    );
     expect(result.triage?.[0]?.ticket?.issueNumber).toBe(9001);
   });
 
@@ -189,11 +204,10 @@ describe("buildIssueInput", () => {
     const result = await ticketWithCreator(
       state({
         config: {
-          cursorPath,
           fromStart: false,
-          baseUrl: "http://localhost:3000",
           nextCursorOffset: 123,
         },
+        pipelineConfig: { ...PIPELINE_CONFIG, cursorPath },
         triage: [{
           incident: ticketIncident,
           repro: { reproduced: true, command: "curl example.test", evidence: "HTTP 500" },
@@ -203,6 +217,7 @@ describe("buildIssueInput", () => {
       async () => {
         throw new Error("gh unavailable");
       },
+      PIPELINE_CONFIG.labels,
     );
     expect(result.errors).toEqual([
       `ticket ${ticketIncident.fingerprint.hash}: gh unavailable`,

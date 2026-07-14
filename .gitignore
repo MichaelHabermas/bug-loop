@@ -9,3 +9,5 @@ dist/
 *.log
 pipelines/langgraph/.cursor.json
 .worktrees/
+traces/*
+!traces/example-run.json

@@ -1,22 +1,13 @@
 import { fingerprintEvent } from "./fingerprint";
 import type { Incident, LogEvent, ReproResult, RouteDecision } from "./types";
 
-const NEGATIVE_TOTAL_PREFIX = "order total negative";
-
-export function enrichActionableEvent(event: LogEvent): LogEvent {
-  if (
-    event.route === undefined &&
-    event.msg === "unhandledRejection" &&
-    event.err?.message.startsWith("shipping provider timeout")
-  ) {
-    return { ...event, route: "POST /orders/:id/ship" };
-  }
-  return event;
-}
-
-export function isHeuristicallyActionable(event: LogEvent): boolean {
+export function isHeuristicallyActionable(
+  event: LogEvent,
+  invariantWarnPrefixes: string[],
+): boolean {
   return event.level === "error" || (
-    event.level === "warn" && event.msg.startsWith(NEGATIVE_TOTAL_PREFIX)
+    event.level === "warn" &&
+    invariantWarnPrefixes.some((prefix) => event.msg.startsWith(prefix))
   );
 }
 

@@ -1,17 +1,18 @@
 import {
   createDefaultFixer,
   GitWorktreeOperations,
-  readIssue,
   type Fixer,
   type Incident,
   type IncidentTriage,
   type IssueDetails,
   type TriageState,
   type WorktreeOperations,
+  type PipelineConfig,
 } from "@bug-loop/core";
 import { buildIssueInput } from "./ticket";
 
 export interface FixDependencies {
+  config: PipelineConfig;
   fixer?: Fixer;
   worktrees?: WorktreeOperations;
   readIssue?: (number: number) => Promise<IssueDetails | null>;
@@ -47,16 +48,21 @@ export function initializeFixQueue(state: TriageState): {
 
 export async function fixWithDependencies(
   state: TriageState,
-  dependencies: FixDependencies = {},
+  dependencies: FixDependencies,
 ): Promise<Partial<TriageState>> {
   const selected = initializeFixQueue(state);
   const incident = selected.activeIncident;
   const fingerprint8 = incident.fingerprint.hash.slice(0, 8);
-  const branch = `bugloop/fix-${fingerprint8}`;
+  const branch = `${dependencies.config.branchPrefix}${fingerprint8}`;
   const worktrees = dependencies.worktrees ?? new GitWorktreeOperations(
     dependencies.repoRoot ?? process.cwd(),
+    dependencies.config.worktreeRoot,
+    dependencies.config.fixScope,
   );
-  const fixer = dependencies.fixer ?? createDefaultFixer();
+  const fixer = dependencies.fixer ?? createDefaultFixer(
+    dependencies.config.fixScope,
+    dependencies.config.fixer,
+  );
   let worktreeDir = state.worktreeDir;
   if (!worktreeDir) {
     const created = await worktrees.create({ branch, fingerprint8 });
@@ -64,10 +70,10 @@ export async function fixWithDependencies(
   }
 
   const item = activeItem(state, incident);
-  const generatedIssue = buildIssueInput(item);
+  const generatedIssue = buildIssueInput(item, dependencies.config.labels);
   let issue: IssueDetails | null = null;
   try {
-    issue = await (dependencies.readIssue ?? readIssue)(item.ticket?.issueNumber ?? 0);
+    issue = await dependencies.readIssue?.(item.ticket?.issueNumber ?? 0) ?? null;
   } catch (error: unknown) {
     console.warn(
       `[fix] issue read failed; using generated issue body: ${error instanceof Error ? error.message : String(error)}`,

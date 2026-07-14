@@ -1,4 +1,6 @@
 /** Parsed structured log line from leaky-service. */
+import type { PipelineConfig } from "./config";
+
 export type LogLevel = "info" | "warn" | "error";
 
 export interface LogErr {
@@ -109,6 +111,7 @@ export interface VerifyResult {
  */
 export interface TriageState {
   logPath: string;
+  pipelineConfig?: PipelineConfig;
   events: LogEvent[];
   actionableEvents?: LogEvent[];
   incidents: Incident[];

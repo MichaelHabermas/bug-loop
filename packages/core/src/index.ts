@@ -60,8 +60,10 @@ export {
   FIX_SUMMARY_MARKER,
   extractFixSummary,
   buildFixPrompt,
+  parseCliCost,
   parseChangedFiles,
   createDefaultFixer,
+  takeFixerCost,
 } from "./fixer";
 export type {
   FixInput,
@@ -79,29 +81,26 @@ export type {
 } from "./verifier";
 
 export {
-  enrichActionableEvent,
   isHeuristicallyActionable,
   groupIncidents,
   heuristicRoute,
 } from "./triage";
 
-export { buildReproCommand, reproduceIncident } from "./reproduction";
-export type { ReproduceInput } from "./reproduction";
+export { reproduceIncident } from "./reproduction";
+export type {
+  ReproduceInput,
+  ReproPlan,
+  ReproStrategy,
+  ReproStrategyInput,
+} from "./reproduction";
 
 export { buildIssueInput } from "./ticket";
 
 export {
-  createIssue,
-  findOpenIssueByMarker,
-  createPullRequest,
-  addLabels,
-  readIssue,
-  commentIssue,
-  replaceIssueLabel,
+  GitHubClient,
   toRepoRelativePath,
   rewritePathsForPrBody,
   formatPrFilesList,
   FINGERPRINT_MARKER,
-  REPO,
 } from "./github";
 export type { IssueInput, PRInput, IssueRef, PRRef, IssueDetails } from "./github";

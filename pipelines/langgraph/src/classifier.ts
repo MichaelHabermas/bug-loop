@@ -12,13 +12,19 @@ export interface Classifier {
   route(incident: Incident, repro: ReproResult): Promise<RouteDecision>;
 }
 
-export function isNegativeTotalInvariant(event: LogEvent): boolean {
-  return event.level === "warn" && isHeuristicallyActionable(event);
+export function isNegativeTotalInvariant(
+  event: LogEvent,
+  invariantWarnPrefixes: string[],
+): boolean {
+  return event.level === "warn" &&
+    invariantWarnPrefixes.some((prefix) => event.msg.startsWith(prefix));
 }
 
 export class HeuristicClassifier implements Classifier {
+  constructor(private readonly invariantWarnPrefixes: string[]) {}
+
   async classify(event: LogEvent): Promise<boolean> {
-    return isHeuristicallyActionable(event);
+    return isHeuristicallyActionable(event, this.invariantWarnPrefixes);
   }
 
   async route(incident: Incident, repro: ReproResult): Promise<RouteDecision> {
@@ -35,12 +41,15 @@ function isChatCompletionResponse(value: unknown): value is ChatCompletionRespon
 }
 
 export class LlmClassifier implements Classifier {
-  private readonly heuristic = new HeuristicClassifier();
+  private readonly heuristic: HeuristicClassifier;
 
   constructor(
     private readonly apiKey: string,
+    invariantWarnPrefixes: string[],
     private readonly model = process.env["BUGLOOP_CLASSIFIER_MODEL"] ?? "gpt-4o-mini",
-  ) {}
+  ) {
+    this.heuristic = new HeuristicClassifier(invariantWarnPrefixes);
+  }
 
   async classify(event: LogEvent): Promise<boolean> {
     try {
@@ -82,7 +91,9 @@ export class LlmClassifier implements Classifier {
   }
 }
 
-export function selectClassifier(): Classifier {
+export function selectClassifier(invariantWarnPrefixes: string[]): Classifier {
   const apiKey = process.env["OPENAI_API_KEY"];
-  return apiKey ? new LlmClassifier(apiKey) : new HeuristicClassifier();
+  return apiKey
+    ? new LlmClassifier(apiKey, invariantWarnPrefixes)
+    : new HeuristicClassifier(invariantWarnPrefixes);
 }

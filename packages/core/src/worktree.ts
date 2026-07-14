@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { requireSuccess, runProcess } from "./process";
+import type { ProcessRunner } from "./process";
 
 export interface WorktreeCreateInput {
   branch: string;
@@ -29,11 +30,17 @@ function isDryRun(): boolean {
 }
 
 export class GitWorktreeOperations implements WorktreeOperations {
-  constructor(private readonly repoRoot: string) {}
+  constructor(
+    private readonly repoRoot: string,
+    private readonly worktreeRoot: string,
+    private readonly fixScope: string[],
+    private readonly runner: ProcessRunner = runProcess,
+  ) {}
 
   async create(input: WorktreeCreateInput): Promise<{ worktreeDir: string; branch: string }> {
-    const worktreeDir = join(this.repoRoot, ".worktrees", input.fingerprint8);
-    await mkdir(join(this.repoRoot, ".worktrees"), { recursive: true });
+    const root = resolve(this.repoRoot, this.worktreeRoot);
+    const worktreeDir = join(root, input.fingerprint8);
+    await mkdir(root, { recursive: true });
     // Fix branches are pipeline-owned scratch, so reset stale branches from failed runs.
     const command = [
       "git",
@@ -44,12 +51,12 @@ export class GitWorktreeOperations implements WorktreeOperations {
       input.branch,
       "main",
     ];
-    const result = await runProcess(command, { cwd: this.repoRoot });
+    const result = await this.runner(command, { cwd: this.repoRoot });
     requireSuccess(command, result);
 
     // Worktrees need local workspace links for tests and typecheck to resolve correctly.
     const installCommand = ["bun", "install"];
-    const install = await runProcess(installCommand, { cwd: worktreeDir });
+    const install = await this.runner(installCommand, { cwd: worktreeDir });
     requireSuccess(installCommand, install);
     return { worktreeDir, branch: input.branch };
   }
@@ -60,12 +67,12 @@ export class GitWorktreeOperations implements WorktreeOperations {
       "-C",
       input.worktreeDir,
       "add",
-      "apps/leaky-service/src",
+      ...this.fixScope,
     ];
-    const add = await runProcess(addCommand, { cwd: input.worktreeDir });
+    const add = await this.runner(addCommand, { cwd: input.worktreeDir });
     requireSuccess(addCommand, add);
     const commitCommand = ["git", "-C", input.worktreeDir, "commit", "-m", input.message];
-    const commit = await runProcess(commitCommand, { cwd: input.worktreeDir });
+    const commit = await this.runner(commitCommand, { cwd: input.worktreeDir });
     requireSuccess(commitCommand.slice(0, 5), commit);
   }
 
@@ -83,13 +90,13 @@ export class GitWorktreeOperations implements WorktreeOperations {
       console.log(`[DRY_RUN] ${command.join(" ")}`);
       return;
     }
-    const result = await runProcess(command, { cwd: input.worktreeDir });
+    const result = await this.runner(command, { cwd: input.worktreeDir });
     requireSuccess(command.slice(0, 5), result);
   }
 
   async remove(worktreeDir: string): Promise<void> {
     const command = ["git", "worktree", "remove", "--force", worktreeDir];
-    const result = await runProcess(command, { cwd: this.repoRoot });
+    const result = await this.runner(command, { cwd: this.repoRoot });
     requireSuccess(command, result);
   }
 }

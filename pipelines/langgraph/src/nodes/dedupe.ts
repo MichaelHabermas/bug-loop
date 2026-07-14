@@ -1,5 +1,4 @@
 import {
-  findOpenIssueByMarker,
   groupIncidents,
   type Incident,
   type IssueRef,
@@ -13,7 +12,7 @@ type IssueLookup = (hash: string) => Promise<IssueRef | null>;
 
 export async function dedupeEvents(
   events: LogEvent[],
-  lookup: IssueLookup = findOpenIssueByMarker,
+  lookup: IssueLookup,
 ): Promise<{ all: Incident[]; fresh: Incident[]; existingIssues: Array<IssueRef | null> }> {
   const all = groupIncidents(events);
   const existingIssues = await Promise.all(
@@ -30,7 +29,9 @@ export async function dedupeWithLookup(
   const result = await dedupeEvents(state.actionableEvents ?? [], lookup);
   const config = state.config;
   if (result.fresh.length === 0 && config?.nextCursorOffset !== undefined) {
-    await writeCursor(config.cursorPath, { offset: config.nextCursorOffset });
+    const cursorPath = state.pipelineConfig?.cursorPath;
+    if (!cursorPath) throw new Error("dedupe requires pipelineConfig.cursorPath");
+    await writeCursor(cursorPath, { offset: config.nextCursorOffset });
   }
   console.log(`[dedupe] incidents=${result.all.length} new=${result.fresh.length}`);
   const incidents = config?.fix ? result.all : result.fresh;
@@ -51,6 +52,9 @@ export async function dedupeWithLookup(
   };
 }
 
-export async function dedupeNode(state: TriageState): Promise<Partial<TriageState>> {
-  return dedupeWithLookup(state, findOpenIssueByMarker);
+export async function dedupeNode(
+  state: TriageState,
+  lookup: IssueLookup,
+): Promise<Partial<TriageState>> {
+  return dedupeWithLookup(state, lookup);
 }

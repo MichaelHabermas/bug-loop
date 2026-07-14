@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { LogEvent } from "@bug-loop/core";
 import { HeuristicClassifier } from "../src/classifier";
 
-const classifier = new HeuristicClassifier();
+const classifier = new HeuristicClassifier(["order total negative"]);
 
 function event(overrides: Partial<LogEvent>): LogEvent {
   return {

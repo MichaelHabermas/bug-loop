@@ -1,35 +1,33 @@
 import { resolve } from "node:path";
 import {
   buildIssueInput,
-  commentIssue,
+  combineCostSamples,
   createDefaultFixer,
-  createIssue,
-  createPullRequest,
-  enrichActionableEvent,
-  findOpenIssueByMarker,
   formatPrFilesList,
+  GitHubClient,
   GitWorktreeOperations,
   groupIncidents,
   isHeuristicallyActionable,
   readCursor,
-  readIssue,
   readNewEvents,
   RealVerifyRunner,
-  replaceIssueLabel,
   reproduceIncident,
   rewritePathsForPrBody,
+  takeFixerCost,
+  TraceRecorder,
   verifyWithRunner,
   writeCursor,
   type FixAttempt,
   type Fixer,
+  type CostSample,
   type IncidentTriage,
   type IssueDetails,
   type IssueInput,
   type IssueRef,
   type PRInput,
   type PRRef,
-  type ReproduceInput,
-  type ReproResult,
+  type PipelineConfig,
+  type ReproStrategy,
   type TriageRunConfig,
   type TriageState,
   type TriageSummary,
@@ -48,7 +46,7 @@ const EMPTY_SUMMARY: TriageSummary = {
 };
 
 export interface AgentSdkPipelineOptions extends TriageRunConfig {
-  logPath: string;
+  tracePath?: string;
 }
 
 export interface GitHubOperations {
@@ -60,15 +58,14 @@ export interface GitHubOperations {
   createPullRequest(input: PRInput): Promise<PRRef>;
 }
 
-export type Reproducer = (input: ReproduceInput) => Promise<ReproResult>;
-
 export interface PipelineDependencies {
   triageAgent?: TriageAgent;
   fixer?: Fixer;
   verifier?: VerifyRunner;
   worktrees?: WorktreeOperations;
   github?: GitHubOperations;
-  reproduce?: Reproducer;
+  reproStrategy?: ReproStrategy;
+  recorder?: TraceRecorder;
   repoRoot?: string;
 }
 
@@ -77,18 +74,13 @@ export interface AgentSdkPipelineResult {
   summary: TriageSummary;
 }
 
-const defaultGitHub: GitHubOperations = {
-  findOpenIssueByMarker,
-  createIssue,
-  readIssue,
-  commentIssue,
-  replaceIssueLabel,
-  createPullRequest,
-};
-
-function initialState(options: AgentSdkPipelineOptions): TriageState {
+function initialState(
+  pipelineConfig: PipelineConfig,
+  options: AgentSdkPipelineOptions,
+): TriageState {
   return {
-    logPath: options.logPath,
+    logPath: pipelineConfig.logPath,
+    pipelineConfig,
     events: [],
     actionableEvents: [],
     incidents: [],
@@ -97,9 +89,7 @@ function initialState(options: AgentSdkPipelineOptions): TriageState {
     verifyResults: [],
     pullRequests: [],
     config: {
-      cursorPath: options.cursorPath,
       fromStart: options.fromStart,
-      baseUrl: options.baseUrl,
       fix: options.fix ?? false,
       live: options.live ?? false,
     },
@@ -111,8 +101,9 @@ function initialState(options: AgentSdkPipelineOptions): TriageState {
 
 async function ingest(state: TriageState): Promise<void> {
   const config = state.config;
-  if (!config) throw new Error("ingest requires state.config");
-  const cursor = config.fromStart ? { offset: 0 } : await readCursor(config.cursorPath);
+  const pipelineConfig = state.pipelineConfig;
+  if (!config || !pipelineConfig) throw new Error("ingest requires pipeline and run config");
+  const cursor = config.fromStart ? { offset: 0 } : await readCursor(pipelineConfig.cursorPath);
   const result = await readNewEvents(state.logPath, cursor);
   state.events = result.events;
   state.config = { ...config, nextCursorOffset: result.cursor.offset };
@@ -120,10 +111,14 @@ async function ingest(state: TriageState): Promise<void> {
   console.log(`[ingest] events=${result.events.length}`);
 }
 
-function detect(state: TriageState): void {
+function detect(
+  state: TriageState,
+  config: PipelineConfig,
+  strategy?: ReproStrategy,
+): void {
   const actionable = state.events
-    .filter(isHeuristicallyActionable)
-    .map(enrichActionableEvent);
+    .filter((event) => isHeuristicallyActionable(event, config.invariantWarnPrefixes))
+    .map((event) => strategy?.normalizeEvent?.(event) ?? event);
   state.actionableEvents = actionable;
   state.summary = { ...(state.summary ?? EMPTY_SUMMARY), actionable: actionable.length };
   console.log(`[detect] actionable=${actionable.length}`);
@@ -140,7 +135,9 @@ async function dedupe(
   const fresh = all.filter((_, index) => existing[index] === null);
   const config = state.config;
   if (fresh.length === 0 && config?.nextCursorOffset !== undefined) {
-    await writeCursor(config.cursorPath, { offset: config.nextCursorOffset });
+    const cursorPath = state.pipelineConfig?.cursorPath;
+    if (!cursorPath) throw new Error("dedupe requires pipelineConfig.cursorPath");
+    await writeCursor(cursorPath, { offset: config.nextCursorOffset });
   }
   const incidents = config?.fix ? all : fresh;
   state.incidents = incidents;
@@ -160,15 +157,15 @@ async function dedupe(
 
 async function reproduce(
   state: TriageState,
-  runReproduction: Reproducer,
+  strategy?: ReproStrategy,
 ): Promise<void> {
   const triage: IncidentTriage[] = [];
   for (const item of state.triage ?? []) {
-    const repro = await runReproduction({
+    const repro = await reproduceIncident({
       logPath: state.logPath,
-      baseUrl: state.config?.baseUrl ?? "http://localhost:3000",
+      baseUrl: state.pipelineConfig?.baseUrl ?? "http://localhost:3000",
       incident: item.incident,
-    });
+    }, strategy);
     triage.push({ ...item, repro });
   }
   const reproduced = triage.filter(
@@ -179,8 +176,14 @@ async function reproduce(
   console.log(`[reproduce] reproduced=${reproduced}/${triage.length}`);
 }
 
-async function route(state: TriageState, agent: TriageAgent): Promise<void> {
+function takeTriageCost(agent: TriageAgent): CostSample | undefined {
+  const candidate = agent as TriageAgent & { takeCost?: () => CostSample | undefined };
+  return candidate.takeCost?.();
+}
+
+async function route(state: TriageState, agent: TriageAgent): Promise<CostSample[]> {
   const triage: IncidentTriage[] = [];
+  const costs: CostSample[] = [];
   for (const item of state.triage ?? []) {
     const repro = item.repro ?? {
       reproduced: false,
@@ -188,6 +191,8 @@ async function route(state: TriageState, agent: TriageAgent): Promise<void> {
       evidence: "Reproduction stage did not return a result.",
     };
     const decision = await agent.triage({ incident: item.incident, repro });
+    const cost = takeTriageCost(agent);
+    if (cost) costs.push(cost);
     triage.push({
       ...item,
       route: {
@@ -200,9 +205,14 @@ async function route(state: TriageState, agent: TriageAgent): Promise<void> {
   const mechanical = triage.filter((item) => item.route?.kind === "mechanical").length;
   state.triage = triage;
   console.log(`[route] mechanical=${mechanical} needs-human=${triage.length - mechanical}`);
+  return costs;
 }
 
-async function ticket(state: TriageState, github: GitHubOperations): Promise<void> {
+async function ticket(
+  state: TriageState,
+  github: GitHubOperations,
+  config: PipelineConfig,
+): Promise<void> {
   const triage: IncidentTriage[] = [];
   let issuesFiled = 0;
   let ticketFailed = false;
@@ -212,7 +222,7 @@ async function ticket(state: TriageState, github: GitHubOperations): Promise<voi
       continue;
     }
     try {
-      const issue = await github.createIssue(buildIssueInput(item));
+      const issue = await github.createIssue(buildIssueInput(item, config.labels));
       triage.push({ ...item, ticket: { issueNumber: issue.number, url: issue.url } });
       issuesFiled += 1;
     } catch (error: unknown) {
@@ -224,7 +234,7 @@ async function ticket(state: TriageState, github: GitHubOperations): Promise<voi
     }
   }
   if (!ticketFailed && state.config) {
-    await writeCursor(state.config.cursorPath, { offset: Bun.file(state.logPath).size });
+    await writeCursor(config.cursorPath, { offset: Bun.file(state.logPath).size });
   }
   state.triage = triage;
   state.summary = { ...(state.summary ?? EMPTY_SUMMARY), issuesFiled };
@@ -273,6 +283,7 @@ async function giveUp(
   worktreeDir: string,
   attempts: number,
   detail: string,
+  config: PipelineConfig,
 ): Promise<void> {
   const number = item.ticket?.issueNumber;
   if (number === undefined) throw new Error("give-up requires an issue ticket");
@@ -286,7 +297,11 @@ async function giveUp(
       state.errors.push(`give-up comment issue ${number}: ${errorDetail(error)}`);
     }
     try {
-      await github.replaceIssueLabel(number, "auto-fix-candidate", "needs-human");
+      await github.replaceIssueLabel(
+        number,
+        config.labels.mechanical,
+        config.labels.needsHuman,
+      );
     } catch (error: unknown) {
       state.errors.push(`give-up label issue ${number}: ${errorDetail(error)}`);
     }
@@ -334,21 +349,22 @@ async function openPullRequest(
   worktreeDir: string,
   fix: FixAttempt,
   verify: NonNullable<TriageState["activeVerify"]>,
+  config: PipelineConfig,
 ): Promise<void> {
   const number = item.ticket?.issueNumber;
   if (number === undefined) throw new Error("pr requires an issue ticket");
   const short = `${item.incident.fingerprint.errName} on ${item.incident.fingerprint.route}`;
-  const message = `fix: ${short} (bug-loop pipeline)\n\nFixes #${number}`;
+  const message = `fix: ${short} (${config.labels.pipeline} pipeline)\n\nFixes #${number}`;
   let pullRequest: PRRef | undefined;
   try {
     await worktrees.commit({ worktreeDir, message });
     await worktrees.push({ worktreeDir, branch: fix.branch });
     pullRequest = await github.createPullRequest({
-      title: `[bug-loop] fix: ${short}`,
+      title: `[${config.labels.pipeline}] fix: ${short}`,
       body: pullRequestBody(item, fix, verify, number),
       head: fix.branch,
       base: "main",
-      labels: ["bug-loop"],
+      labels: [config.labels.pipeline],
     });
     await github.commentIssue(number, `Fix verified and PR opened: ${pullRequest.url}`);
     state.pullRequests = [...state.pullRequests ?? [], pullRequest];
@@ -367,14 +383,16 @@ async function fixIncident(
   verifier: VerifyRunner,
   worktrees: WorktreeOperations,
   github: GitHubOperations,
+  config: PipelineConfig,
+  recorder: TraceRecorder,
 ): Promise<void> {
   const fingerprint8 = item.incident.fingerprint.hash.slice(0, 8);
-  const branch = `bugloop/fix-${fingerprint8}`;
+  const branch = `${config.branchPrefix}${fingerprint8}`;
   const created = await worktrees.create({ branch, fingerprint8 });
-  const generatedIssue = buildIssueInput(item);
+  const generatedIssue = buildIssueInput(item, config.labels);
   let previousFailure: string | undefined;
 
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  for (let attempt = 1; attempt <= config.maxFixAttempts; attempt += 1) {
     let issue: IssueDetails | null = null;
     try {
       issue = await github.readIssue(item.ticket?.issueNumber ?? 0);
@@ -383,6 +401,7 @@ async function fixIncident(
     }
 
     let fix: FixAttempt;
+    const fixEvent = recorder.start("fix", item.incident.fingerprint.hash);
     try {
       const output = await fixer.fix({
         worktreeDir: created.worktreeDir,
@@ -393,6 +412,11 @@ async function fixIncident(
         ...(previousFailure === undefined ? {} : { previousFailure }),
       });
       fix = { attempt, branch, ...output };
+      fixEvent.finish(
+        `attempt ${attempt}`,
+        { attempt, filesChanged: output.filesChanged },
+        takeFixerCost(fixer),
+      );
     } catch (error: unknown) {
       fix = {
         attempt,
@@ -400,17 +424,32 @@ async function fixIncident(
         description: `Fixer failed: ${errorDetail(error)}`,
         filesChanged: [],
       };
+      fixEvent.finish(
+        "error",
+        { attempt, error: errorDetail(error) },
+        takeFixerCost(fixer),
+      );
     }
     state.fixAttempts = [...state.fixAttempts ?? [], fix];
     console.log(`[fix] fingerprint=${fingerprint8} attempt=${attempt} files=${fix.filesChanged.length}`);
 
     const verifyState = activeState(state, item, created.worktreeDir, fix, attempt - 1);
-    const verified = await verifyWithRunner(verifyState, verifier);
+    const verifyEvent = recorder.start("verify", item.incident.fingerprint.hash);
+    const verified = await verifyWithRunner(verifyState, verifier, config.fixScope);
     const result = verified.activeVerify;
     if (!result) throw new Error("verify did not return a result");
     state.verifyResults = verified.verifyResults ?? state.verifyResults;
     console.log(`[verify] fingerprint=${fingerprint8} attempt=${attempt} verified=${result.verified}`);
+    verifyEvent.finish(result.verified ? "verified" : "failed", {
+      attempt,
+      scopePasses: result.scopePasses,
+      reproPasses: result.reproPasses,
+      testsPass: result.testsPass,
+      typecheckPasses: result.typecheckPasses,
+    });
     if (result.verified) {
+      const prEvent = recorder.start("pr", item.incident.fingerprint.hash);
+      const errorsBefore = state.errors.length;
       await openPullRequest(
         state,
         github,
@@ -419,56 +458,130 @@ async function fixIncident(
         created.worktreeDir,
         fix,
         result,
+        config,
       );
+      prEvent.finish(state.errors.length === errorsBefore ? "completed" : "error", {
+        issueNumber: item.ticket?.issueNumber,
+      });
       return;
     }
     previousFailure = result.detail;
   }
 
+  const giveUpEvent = recorder.start("give-up", item.incident.fingerprint.hash);
+  const errorsBefore = state.errors.length;
   await giveUp(
     state,
     github,
     worktrees,
     item,
     created.worktreeDir,
-    2,
+    config.maxFixAttempts,
     previousFailure ?? "Verification did not provide details.",
+    config,
   );
+  giveUpEvent.finish(state.errors.length === errorsBefore ? "needs human" : "error", {
+    attempts: config.maxFixAttempts,
+    issueNumber: item.ticket?.issueNumber,
+  });
 }
 
 export async function runAgentSdkPipeline(
+  config: PipelineConfig,
   options: AgentSdkPipelineOptions,
   dependencies: PipelineDependencies = {},
 ): Promise<AgentSdkPipelineResult> {
   const repoRoot = dependencies.repoRoot ?? resolve(import.meta.dir, "../../..");
-  const github = dependencies.github ?? defaultGitHub;
-  const state = initialState(options);
+  const github = dependencies.github ?? new GitHubClient(config.repo);
+  const recorder = dependencies.recorder ?? new TraceRecorder({
+    pipeline: "agent-sdk",
+    config,
+    traceRoot: resolve(repoRoot, "traces"),
+    ...(options.tracePath === undefined ? {} : { outputPath: options.tracePath }),
+  });
+  const state = initialState(config, options);
 
-  await ingest(state);
-  detect(state);
-  await dedupe(state, github);
-  if (state.incidents.length === 0) {
-    return { state, summary: state.summary ?? EMPTY_SUMMARY };
-  }
-  await reproduce(state, dependencies.reproduce ?? reproduceIncident);
-  await route(state, dependencies.triageAgent ?? new ClaudeTriageAgent(repoRoot));
-  await ticket(state, github);
+  try {
+    const ingestEvent = recorder.start("ingest");
+    await ingest(state);
+    ingestEvent.finish(`${state.summary?.eventsRead ?? 0} events`, {
+      events: state.summary?.eventsRead ?? 0,
+    });
 
-  if (state.config?.fix) {
-    const fixer = dependencies.fixer ?? createDefaultFixer("grok");
-    const verifier = dependencies.verifier ?? new RealVerifyRunner();
-    const worktrees = dependencies.worktrees ?? new GitWorktreeOperations(repoRoot);
-    const mechanical = (state.triage ?? []).filter(
-      (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
+    const detectEvent = recorder.start("detect");
+    detect(state, config, dependencies.reproStrategy);
+    detectEvent.finish(`${state.summary?.actionable ?? 0} actionable`, {
+      actionable: state.summary?.actionable ?? 0,
+    });
+
+    const dedupeEvent = recorder.start("dedupe");
+    await dedupe(state, github);
+    dedupeEvent.finish(`${state.summary?.newIncidents ?? 0} new incidents`, {
+      incidents: state.summary?.incidents ?? 0,
+      newIncidents: state.summary?.newIncidents ?? 0,
+    });
+    if (state.incidents.length === 0) {
+      return { state, summary: state.summary ?? EMPTY_SUMMARY };
+    }
+
+    const reproduceEvent = recorder.start("reproduce");
+    await reproduce(state, dependencies.reproStrategy);
+    reproduceEvent.finish(`${state.summary?.reproduced ?? 0} reproduced`, {
+      reproduced: state.summary?.reproduced ?? 0,
+    });
+
+    const agent = dependencies.triageAgent ?? new ClaudeTriageAgent(repoRoot, config.fixScope);
+    const routeEvent = recorder.start("route");
+    const routeCosts = await route(state, agent);
+    const mechanicalCount = (state.triage ?? []).filter(
+      (item) => item.route?.kind === "mechanical",
+    ).length;
+    routeEvent.finish(
+      `${mechanicalCount} mechanical`,
+      {
+        mechanical: mechanicalCount,
+        needsHuman: (state.triage?.length ?? 0) - mechanicalCount,
+      },
+      combineCostSamples(routeCosts),
     );
-    for (const item of mechanical) {
-      try {
-        await fixIncident(state, item, fixer, verifier, worktrees, github);
-      } catch (error: unknown) {
-        state.errors.push(`fix ${item.incident.fingerprint.hash}: ${errorDetail(error)}`);
+
+    const ticketEvent = recorder.start("ticket");
+    await ticket(state, github, config);
+    ticketEvent.finish(`${state.summary?.issuesFiled ?? 0} issues`, {
+      issuesFiled: state.summary?.issuesFiled ?? 0,
+    });
+
+    if (state.config?.fix) {
+      const fixer = dependencies.fixer ?? createDefaultFixer(config.fixScope, config.fixer);
+      const verifier = dependencies.verifier ?? new RealVerifyRunner(config, dependencies.reproStrategy);
+      const worktrees = dependencies.worktrees ?? new GitWorktreeOperations(
+        repoRoot,
+        config.worktreeRoot,
+        config.fixScope,
+      );
+      const mechanical = (state.triage ?? []).filter(
+        (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
+      );
+      for (const item of mechanical) {
+        try {
+          await fixIncident(
+            state,
+            item,
+            fixer,
+            verifier,
+            worktrees,
+            github,
+            config,
+            recorder,
+          );
+        } catch (error: unknown) {
+          state.errors.push(`fix ${item.incident.fingerprint.hash}: ${errorDetail(error)}`);
+        }
       }
     }
-  }
 
-  return { state, summary: state.summary ?? EMPTY_SUMMARY };
+    return { state, summary: state.summary ?? EMPTY_SUMMARY };
+  } finally {
+    await recorder.finish();
+  }
 }

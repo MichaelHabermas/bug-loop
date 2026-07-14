@@ -3,6 +3,7 @@ import {
   extractFixSummary,
   FIX_SUMMARY_MARKER,
   GrokFixer,
+  parseCliCost,
   type ProcessResult,
   type ProcessRunner,
 } from "../src";
@@ -20,7 +21,7 @@ test("GrokFixer passes the prompt as -p and reports git porcelain changes", asyn
       stderr: "",
     };
   };
-  const fixer = new GrokFixer(runner);
+  const fixer = new GrokFixer(["apps/leaky-service/src"], runner);
 
   const output = await fixer.fix({
     worktreeDir: "/tmp/bug-loop-worktree",
@@ -114,7 +115,7 @@ test("GrokFixer uses extractFixSummary for description", async () => {
       stderr: "",
     };
   };
-  const fixer = new GrokFixer(runner);
+  const fixer = new GrokFixer(["apps/leaky-service/src"], runner);
   const output = await fixer.fix({
     worktreeDir: "/tmp/bug-loop-worktree",
     issueTitle: "TypeError on POST /orders",
@@ -123,4 +124,30 @@ test("GrokFixer uses extractFixSummary for description", async () => {
   });
   expect(output.description).toBe("Guarded missing customer input.");
   expect(output.description).not.toContain("I'll inspect");
+});
+
+test("parseCliCost captures only usage present in CLI stdout fixtures", async () => {
+  const codex = parseCliCost(
+    await Bun.file(new URL("./fixtures/codex-stdout.txt", import.meta.url)).text(),
+    "codex",
+  );
+  expect(codex).toMatchObject({
+    harness: "codex",
+    model: "gpt-5.5-codex",
+    inputTokens: 12345,
+    outputTokens: 678,
+  });
+  expect(codex?.raw).toContain("tokens used");
+
+  const grok = parseCliCost(
+    await Bun.file(new URL("./fixtures/grok-stdout.txt", import.meta.url)).text(),
+    "grok",
+  );
+  expect(grok).toMatchObject({
+    harness: "grok",
+    inputTokens: 2100,
+    outputTokens: 450,
+    usd: 0.031,
+  });
+  expect(parseCliCost("No usage was printed.", "codex")).toBeUndefined();
 });

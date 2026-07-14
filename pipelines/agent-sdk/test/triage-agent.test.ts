@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import { fingerprintEvent, type Incident, type LogEvent } from "@bug-loop/core";
-import { parseTriageResult, type TriageAgentInput } from "../src/triage-agent";
+import {
+  costFromSdkResult,
+  parseTriageResult,
+  type TriageAgentInput,
+} from "../src/triage-agent";
 
 function input(level: LogEvent["level"] = "error"): TriageAgentInput {
   const event: LogEvent = {
@@ -64,5 +68,19 @@ test("falls back to the deterministic heuristic for garbage", () => {
   expect(parseTriageResult("{}", input("warn"))).toMatchObject({
     decision: "needs-human",
     fixBrief: "",
+  });
+});
+
+test("captures exact Claude Agent SDK result usage and cost fields", () => {
+  expect(costFromSdkResult({
+    usage: { input_tokens: 4321, output_tokens: 765 },
+    total_cost_usd: 0.0842,
+    modelUsage: { "claude-sonnet-4-5": {} },
+  })).toEqual({
+    harness: "claude-agent-sdk",
+    model: "claude-sonnet-4-5",
+    inputTokens: 4321,
+    outputTokens: 765,
+    usd: 0.0842,
   });
 });

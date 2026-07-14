@@ -17,7 +17,7 @@ Three principles drive the design:
 For review agents specifically: same shape, fan-out instead of a chain - parallel specialist reviewers, then dedupe and rank findings, with a confidence gate before anything reaches a human.
 
 The toy target is `apps/leaky-service`, a small order API that writes structured JSONL logs and ships with a handful of seeded failure modes.
-Shared types and helpers live in `shared/`.
+The reusable kit lives in `packages/core/` and is published as `@bug-loop/core`.
 Pipelines consume those contracts; they do not re-invent fingerprinting, log reading, or GitHub ticket shape.
 
 ## Stage graph
@@ -45,7 +45,7 @@ flowchart TD
 
 - **Verifier before writer.** A fix is not done until the failure signature disappears, the suite passes, and TypeScript is clean.
 - **Agentic judgment has a narrow seam.** The Agent SDK triage agent plans and returns a fix brief; Grok or Codex executes; deterministic code verifies.
-- **The pipeline never edits application code.** The shared `Fixer` interface delegates edits to `GrokFixer` or `CodexFixer`, while tests inject `FakeFixer`.
+- **The pipeline never edits application code.** The core `Fixer` interface delegates edits to `GrokFixer` or `CodexFixer`, while tests inject `FakeFixer`.
 - **Isolation is mandatory.** Each incident runs on `bugloop/fix-<fingerprint8>` in `.worktrees/<fingerprint8>` and is cleaned up after PR or give-up.
 - **Failure routes to a human.** A second failed verification comments with evidence and swaps `auto-fix-candidate` for `needs-human`.
 
@@ -57,7 +57,7 @@ flowchart TD
 | Triage judgment | Classifier behind the graph route node | Claude Agent SDK with read-only `Read`/`Grep`/`Glob` access |
 | Fix planning | Issue and reproduction evidence | SDK result adds a 2-4 sentence root-cause fix brief |
 | Fix execution | `CodexFixer` by default | `GrokFixer` by default |
-| Verification and lifecycle | Shared deterministic verifier, worktree, GitHub helpers | The same shared machinery |
+| Verification and lifecycle | Core deterministic verifier, worktree, GitHub helpers | The same core machinery |
 
 Both implementations accept `BUGLOOP_FIXER=codex|grok`.
 The defaults preserve the comparison: LangGraph uses Codex, while Agent SDK uses Grok.
@@ -114,6 +114,7 @@ bun run pipeline:agent-sdk -- --from-start --fix --live --base http://127.0.0.1:
 ```
 
 `--fix` does not imply `--live`.
+Every pipeline invocation writes a machine-readable trace under `traces/`; pass `--trace <path>` to override the destination.
 Without `--live`, code fixing, service reproduction, tests, typecheck, local worktree commits, and cleanup are real, while branch pushes and GitHub mutations are printed.
 Run the dry fix command and live fix command as separate demos only after resetting branches, because both use deterministic branch names.
 
@@ -137,7 +138,7 @@ Demo-sized simplifications you'd close before trusting this at work - kept hones
 - **Concurrency**: no run lock; racing instances would duplicate issues and clobber worktrees.
 - **Dedupe edges**: only *open* issues are marker-searched (recurrence after close files fresh, unlinked); GitHub search indexing lag is a small race window; fingerprints can drift (same cause, changed message) or collide (distinct bugs, same name+frame+route).
 - **Intermittent bugs**: repro is one-shot, so flaky bugs route `needs-human` - safe but low recall.
-- **Observability**: no per-incident token/cost tracking across the three harnesses.
+- **Cost completeness**: SDK cost is structured, while Codex and Grok capture only usage lines their CLIs choose to print.
 
 Efficiency roadmap in the same spirit: one dedupe query per run instead of one per fingerprint; parallel fix fan-out (worktrees already isolate); verify fast-path (repro check before the full suite); a "seen again, count N" heartbeat on open issues; batch triage in one SDK session.
 
@@ -167,7 +168,7 @@ Delete the relevant pipeline's `.cursor.json` if the next triage run should rere
 
 ```
 apps/leaky-service/     # buggy order API + traffic generator + happy-path tests
-shared/                 # stage contracts, fingerprint, logtail, gh helpers
+packages/core/          # reusable config, contracts, machinery, tracing
 pipelines/langgraph/    # LangGraph triage + fix/verify cycle
 pipelines/agent-sdk/    # Plain TypeScript orchestration + Claude Agent SDK triage
 ```
@@ -175,9 +176,12 @@ pipelines/agent-sdk/    # Plain TypeScript orchestration + Claude Agent SDK tria
 | Package | Role |
 |---------|------|
 | `@bug-loop/leaky-service` | HTTP API, JSONL logger, traffic script |
-| `@bug-loop/shared` | `LogEvent`, `Fingerprint`, `Incident`, `TriageState`, … |
+| `@bug-loop/core` | Config, adapters, pipeline contracts, verification, and tracing |
 | `@bug-loop/pipeline-langgraph` | LangGraph triage and fix/verify implementation |
 | `@bug-loop/pipeline-agent-sdk` | Agent SDK implementation |
+
+A new consumer supplies one `PipelineConfig`, one `ReproStrategy`, and structured JSONL logs.
+The short contract and extension points are documented in [`packages/core/README.md`](packages/core/README.md).
 
 ## Root scripts
 

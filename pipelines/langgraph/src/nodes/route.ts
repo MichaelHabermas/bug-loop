@@ -1,5 +1,5 @@
 import type { IncidentTriage, TriageState } from "@bug-loop/core";
-import { type Classifier, selectClassifier } from "../classifier";
+import type { Classifier } from "../classifier";
 
 export async function routeWithClassifier(
   state: TriageState,
@@ -19,6 +19,9 @@ export async function routeWithClassifier(
   return { triage };
 }
 
-export async function routeNode(state: TriageState): Promise<Partial<TriageState>> {
-  return routeWithClassifier(state, selectClassifier());
+export async function routeNode(
+  state: TriageState,
+  classifier: Classifier,
+): Promise<Partial<TriageState>> {
+  return routeWithClassifier(state, classifier);
 }

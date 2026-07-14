@@ -1,4 +1,3 @@
-const REPO = "MichaelHabermas/bug-loop";
 const FINGERPRINT_MARKER = (hash: string) => `bug-loop:fingerprint:${hash}`;
 
 export interface IssueInput {
@@ -39,7 +38,6 @@ async function runGh(args: string[]): Promise<{ stdout: string; stderr: string; 
     console.log(`[DRY_RUN] gh ${args.join(" ")}`);
     return { stdout: "", stderr: "", exitCode: 0 };
   }
-
   const proc = Bun.spawn(["gh", ...args], {
     stdout: "pipe",
     stderr: "pipe",
@@ -53,261 +51,126 @@ async function runGh(args: string[]): Promise<{ stdout: string; stderr: string; 
   return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode };
 }
 
-/** Create a GitHub issue. In DRY_RUN mode returns a fake ref. */
-export async function createIssue(input: IssueInput): Promise<IssueRef> {
-  const args = [
-    "issue",
-    "create",
-    "--repo",
-    REPO,
-    "--title",
-    input.title,
-    "--body",
-    input.body,
-  ];
-  for (const label of input.labels ?? []) {
-    args.push("--label", label);
+export class GitHubClient {
+  constructor(readonly repo: string) {}
+
+  async createIssue(input: IssueInput): Promise<IssueRef> {
+    const args = ["issue", "create", "--repo", this.repo, "--title", input.title, "--body", input.body];
+    for (const label of input.labels ?? []) args.push("--label", label);
+    if (isDryRun()) {
+      console.log(`[DRY_RUN] gh ${args.join(" ")}`);
+      return { number: 9001, url: `https://github.com/${this.repo}/issues/9001` };
+    }
+    const { stdout, stderr, exitCode } = await runGh(args);
+    if (exitCode !== 0) throw new Error(`gh issue create failed: ${stderr || stdout}`);
+    const match = stdout.match(/\/issues\/(\d+)/);
+    return { number: match?.[1] ? Number(match[1]) : 0, url: stdout };
   }
 
-  if (isDryRun()) {
-    console.log(`[DRY_RUN] gh ${args.join(" ")}`);
-    return {
-      number: 9001,
-      url: `https://github.com/${REPO}/issues/9001`,
-    };
-  }
-
-  const { stdout, stderr, exitCode } = await runGh(args);
-  if (exitCode !== 0) {
-    throw new Error(`gh issue create failed: ${stderr || stdout}`);
-  }
-  // gh prints the issue URL
-  const url = stdout.trim();
-  const match = url.match(/\/issues\/(\d+)/);
-  const number = match?.[1] ? Number(match[1]) : 0;
-  return { number, url };
-}
-
-/**
- * Find an open issue whose body contains the fingerprint marker
- * `bug-loop:fingerprint:<hash>`. Prevents duplicate tickets across runs.
- */
-export async function findOpenIssueByMarker(hash: string): Promise<IssueRef | null> {
-  const marker = FINGERPRINT_MARKER(hash);
-
-  if (isDryRun()) {
-    console.log(`[DRY_RUN] gh issue list --repo ${REPO} --state open --search marker:${marker}`);
-    return null;
-  }
-
-  const { stdout, stderr, exitCode } = await runGh([
-    "issue",
-    "list",
-    "--repo",
-    REPO,
-    "--state",
-    "open",
-    "--json",
-    "number,url,body",
-    "--limit",
-    "50",
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(`gh issue list failed: ${stderr || stdout}`);
-  }
-
-  interface GhIssue {
-    number: number;
-    url: string;
-    body: string | null;
-  }
-
-  let issues: GhIssue[] = [];
-  try {
-    issues = JSON.parse(stdout) as GhIssue[];
-  } catch {
-    return null;
-  }
-
-  const found = issues.find((i) => (i.body ?? "").includes(marker));
-  if (!found) return null;
-  return { number: found.number, url: found.url };
-}
-
-/** Open a pull request. In DRY_RUN mode returns a fake ref. */
-export async function createPullRequest(input: PRInput): Promise<PRRef> {
-  const base = input.base ?? "main";
-  const args = [
-    "pr",
-    "create",
-    "--repo",
-    REPO,
-    "--title",
-    input.title,
-    "--body",
-    input.body,
-    "--head",
-    input.head,
-    "--base",
-    base,
-  ];
-  for (const label of input.labels ?? []) {
-    args.push("--label", label);
-  }
-
-  if (isDryRun()) {
-    console.log(`[DRY_RUN] gh ${args.join(" ")}`);
-    return {
-      number: 9002,
-      url: `https://github.com/${REPO}/pull/9002`,
-    };
-  }
-
-  const { stdout, stderr, exitCode } = await runGh(args);
-  if (exitCode !== 0) {
-    throw new Error(`gh pr create failed: ${stderr || stdout}`);
-  }
-  const url = stdout.trim();
-  const match = url.match(/\/pull\/(\d+)/);
-  const number = match?.[1] ? Number(match[1]) : 0;
-  return { number, url };
-}
-
-/** Add labels to an issue or PR by number. */
-export async function addLabels(number: number, labels: string[]): Promise<void> {
-  if (labels.length === 0) return;
-
-  const args = [
-    "issue",
-    "edit",
-    String(number),
-    "--repo",
-    REPO,
-    ...labels.flatMap((l) => ["--add-label", l]),
-  ];
-
-  if (isDryRun()) {
-    console.log(`[DRY_RUN] gh ${args.join(" ")}`);
-    return;
-  }
-
-  const { stdout, stderr, exitCode } = await runGh(args);
-  if (exitCode !== 0) {
-    throw new Error(`gh issue edit (labels) failed: ${stderr || stdout}`);
-  }
-}
-
-/** Read an issue's title and body for a self-contained fixer prompt. */
-export async function readIssue(number: number): Promise<IssueDetails | null> {
-  if (isDryRun()) {
-    console.log(`[DRY_RUN] gh issue view ${number} --repo ${REPO} --json title,body`);
-    return null;
-  }
-  const { stdout, stderr, exitCode } = await runGh([
-    "issue",
-    "view",
-    String(number),
-    "--repo",
-    REPO,
-    "--json",
-    "title,body",
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(`gh issue view failed: ${stderr || stdout}`);
-  }
-  const value: unknown = JSON.parse(stdout);
-  if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  return typeof record["title"] === "string" && typeof record["body"] === "string"
-    ? { title: record["title"], body: record["body"] }
-    : null;
-}
-
-/** Comment on an issue. */
-export async function commentIssue(number: number, body: string): Promise<void> {
-  const args = [
-    "issue",
-    "comment",
-    String(number),
-    "--repo",
-    REPO,
-    "--body",
-    body,
-  ];
-  if (isDryRun()) {
-    console.log(`[DRY_RUN] gh ${args.join(" ")}`);
-    return;
-  }
-  const { stdout, stderr, exitCode } = await runGh(args);
-  if (exitCode !== 0) {
-    throw new Error(`gh issue comment failed: ${stderr || stdout}`);
-  }
-}
-
-/** Atomically remove one issue label and add another. */
-export async function replaceIssueLabel(
-  number: number,
-  remove: string,
-  add: string,
-): Promise<void> {
-  const args = [
-    "issue",
-    "edit",
-    String(number),
-    "--repo",
-    REPO,
-    "--remove-label",
-    remove,
-    "--add-label",
-    add,
-  ];
-  if (isDryRun()) {
-    console.log(`[DRY_RUN] gh ${args.join(" ")}`);
-    return;
-  }
-  const { stdout, stderr, exitCode } = await runGh(args);
-  if (exitCode !== 0) {
-    throw new Error(`gh issue edit (label swap) failed: ${stderr || stdout}`);
-  }
-}
-
-/**
- * Strip worktree or absolute prefixes so a path is repo-relative.
- * Examples:
- *   /Users/.../bug-loop/.worktrees/45b905d3/apps/leaky-service/src/server.ts:60
- *     -> apps/leaky-service/src/server.ts:60
- *   apps/leaky-service/src/server.ts -> unchanged
- */
-export function toRepoRelativePath(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/").trim();
-  if (!normalized) return normalized;
-
-  const worktreeMatch = normalized.match(/(?:^|\/)\.worktrees\/[^/]+\/(.+)$/);
-  if (worktreeMatch?.[1]) {
-    return worktreeMatch[1];
-  }
-
-  if (normalized.startsWith("/")) {
-    const monorepoRoots = ["apps/", "shared/", "pipelines/"] as const;
-    for (const root of monorepoRoots) {
-      const needle = `/${root}`;
-      const idx = normalized.indexOf(needle);
-      if (idx !== -1) {
-        return normalized.slice(idx + 1);
-      }
+  async findOpenIssueByMarker(hash: string): Promise<IssueRef | null> {
+    const marker = FINGERPRINT_MARKER(hash);
+    if (isDryRun()) {
+      console.log(`[DRY_RUN] gh issue list --repo ${this.repo} --state open --search marker:${marker}`);
+      return null;
+    }
+    const { stdout, stderr, exitCode } = await runGh([
+      "issue", "list", "--repo", this.repo, "--state", "open", "--json", "number,url,body",
+      "--limit", "50",
+    ]);
+    if (exitCode !== 0) throw new Error(`gh issue list failed: ${stderr || stdout}`);
+    interface GhIssue {
+      number: number;
+      url: string;
+      body: string | null;
+    }
+    try {
+      const issues = JSON.parse(stdout) as GhIssue[];
+      const found = issues.find((issue) => (issue.body ?? "").includes(marker));
+      return found ? { number: found.number, url: found.url } : null;
+    } catch {
+      return null;
     }
   }
 
+  async createPullRequest(input: PRInput): Promise<PRRef> {
+    const args = [
+      "pr", "create", "--repo", this.repo, "--title", input.title, "--body", input.body,
+      "--head", input.head, "--base", input.base ?? "main",
+    ];
+    for (const label of input.labels ?? []) args.push("--label", label);
+    if (isDryRun()) {
+      console.log(`[DRY_RUN] gh ${args.join(" ")}`);
+      return { number: 9002, url: `https://github.com/${this.repo}/pull/9002` };
+    }
+    const { stdout, stderr, exitCode } = await runGh(args);
+    if (exitCode !== 0) throw new Error(`gh pr create failed: ${stderr || stdout}`);
+    const match = stdout.match(/\/pull\/(\d+)/);
+    return { number: match?.[1] ? Number(match[1]) : 0, url: stdout };
+  }
+
+  async addLabels(number: number, labels: string[]): Promise<void> {
+    if (labels.length === 0) return;
+    await this.runMutation([
+      "issue", "edit", String(number), "--repo", this.repo,
+      ...labels.flatMap((label) => ["--add-label", label]),
+    ], "gh issue edit (labels)");
+  }
+
+  async readIssue(number: number): Promise<IssueDetails | null> {
+    const args = ["issue", "view", String(number), "--repo", this.repo, "--json", "title,body"];
+    if (isDryRun()) {
+      console.log(`[DRY_RUN] gh ${args.join(" ")}`);
+      return null;
+    }
+    const { stdout, stderr, exitCode } = await runGh(args);
+    if (exitCode !== 0) throw new Error(`gh issue view failed: ${stderr || stdout}`);
+    const value: unknown = JSON.parse(stdout);
+    if (typeof value !== "object" || value === null) return null;
+    const record = value as Record<string, unknown>;
+    return typeof record["title"] === "string" && typeof record["body"] === "string"
+      ? { title: record["title"], body: record["body"] }
+      : null;
+  }
+
+  async commentIssue(number: number, body: string): Promise<void> {
+    await this.runMutation(
+      ["issue", "comment", String(number), "--repo", this.repo, "--body", body],
+      "gh issue comment",
+    );
+  }
+
+  async replaceIssueLabel(number: number, remove: string, add: string): Promise<void> {
+    await this.runMutation([
+      "issue", "edit", String(number), "--repo", this.repo,
+      "--remove-label", remove, "--add-label", add,
+    ], "gh issue edit (label swap)");
+  }
+
+  private async runMutation(args: string[], description: string): Promise<void> {
+    if (isDryRun()) {
+      console.log(`[DRY_RUN] gh ${args.join(" ")}`);
+      return;
+    }
+    const { stdout, stderr, exitCode } = await runGh(args);
+    if (exitCode !== 0) throw new Error(`${description} failed: ${stderr || stdout}`);
+  }
+}
+
+export function toRepoRelativePath(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/").trim();
+  if (!normalized) return normalized;
+  const worktreeMatch = normalized.match(/(?:^|\/)\.worktrees\/[^/]+\/(.+)$/);
+  if (worktreeMatch?.[1]) return worktreeMatch[1];
+  if (normalized.startsWith("/")) {
+    for (const root of ["apps/", "packages/", "pipelines/"] as const) {
+      const index = normalized.indexOf(`/${root}`);
+      if (index !== -1) return normalized.slice(index + 1);
+    }
+  }
   return normalized.replace(/^\.\//, "");
 }
 
-/**
- * Rewrite absolute/worktree file references in free text for GitHub PR bodies.
- * Converts markdown links like [server.ts](/Users/.../.worktrees/.../file.ts:60)
- * and bare absolute worktree paths to plain repo-relative paths.
- */
 export function rewritePathsForPrBody(text: string): string {
-  // Markdown links with absolute or worktree targets -> plain repo-relative path
   let out = text.replace(
     /\[([^\]]*)\]\(([^)\s]+)\)/g,
     (full, _label: string, href: string) => {
@@ -316,20 +179,16 @@ export function rewritePathsForPrBody(text: string): string {
       return toRepoRelativePath(href);
     },
   );
-
-  // Bare absolute paths that include a .worktrees/ segment
   out = out.replace(
     /\/[^\s)\]`'"]*?\.worktrees\/[^\s)\]`'"]+/g,
     (match) => toRepoRelativePath(match),
   );
-
   return out;
 }
 
-/** Format the Files: list for a PR body using repo-relative paths. */
 export function formatPrFilesList(filesChanged: string[]): string {
   if (filesChanged.length === 0) return "none recorded";
   return filesChanged.map(toRepoRelativePath).join(", ");
 }
 
-export { FINGERPRINT_MARKER, REPO };
+export { FINGERPRINT_MARKER };

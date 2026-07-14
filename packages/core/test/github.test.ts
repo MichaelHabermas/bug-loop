@@ -1,14 +1,13 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import {
-  createIssue,
-  findOpenIssueByMarker,
-  createPullRequest,
-  addLabels,
   formatPrFilesList,
+  GitHubClient,
   rewritePathsForPrBody,
   toRepoRelativePath,
-  REPO,
 } from "../src/github";
+
+const REPO = "MichaelHabermas/bug-loop";
+const github = new GitHubClient(REPO);
 
 const originalDryRun = process.env["DRY_RUN"];
 
@@ -26,7 +25,7 @@ afterEach(() => {
 
 describe("github DRY_RUN", () => {
   test("createIssue returns fake ref", async () => {
-    const ref = await createIssue({
+    const ref = await github.createIssue({
       title: "TypeError on POST /orders",
       body: "bug-loop:fingerprint:abc123\n\nDetails here.",
       labels: ["bug", "auto-triaged"],
@@ -37,12 +36,12 @@ describe("github DRY_RUN", () => {
   });
 
   test("findOpenIssueByMarker returns null in dry run", async () => {
-    const found = await findOpenIssueByMarker("deadbeef");
+    const found = await github.findOpenIssueByMarker("deadbeef");
     expect(found).toBeNull();
   });
 
   test("createPullRequest returns fake ref", async () => {
-    const ref = await createPullRequest({
+    const ref = await github.createPullRequest({
       title: "fix: null deref on POST /orders",
       body: "Closes #9001",
       head: "fix/typeerror-orders",
@@ -52,7 +51,7 @@ describe("github DRY_RUN", () => {
   });
 
   test("addLabels is a no-op that does not throw", async () => {
-    await addLabels(9001, ["needs-human"]);
+    await github.addLabels(9001, ["needs-human"]);
   });
 });
 
