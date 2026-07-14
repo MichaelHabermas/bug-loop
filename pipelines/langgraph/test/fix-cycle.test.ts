@@ -450,4 +450,56 @@ describe("give-up and PR nodes", () => {
       nextIncident.fingerprint.hash,
     );
   });
+
+  test("pr body rewrites worktree absolute file paths to repo-relative", async () => {
+    const calls: string[] = [];
+    const worktreeFile =
+      "/Users/michaelhabermas/repos/CaS-tests/bug-loop/.worktrees/45b905d3/apps/leaky-service/src/server.ts:60";
+    let prBody = "";
+    const github: GitHubOperations = {
+      async readIssue() {
+        return { title: "issue", body: "body" };
+      },
+      async commentIssue() {},
+      async replaceIssueLabel() {},
+      async createPullRequest(input) {
+        prBody = input.body;
+        calls.push("pr");
+        return { number: 9, url: "https://example.test/pull/9" };
+      },
+    };
+    await prWithDependencies(state({
+      worktreeDir: "/tmp/worktree",
+      activeTicket: { issueNumber: 1, url: "https://example.test/issues/1" },
+      activeRepro: {
+        reproduced: true,
+        command: "curl before",
+        evidence: "HTTP 500 before",
+      },
+      activeFix: {
+        attempt: 1,
+        branch: `bugloop/fix-${incident().fingerprint.hash.slice(0, 8)}`,
+        description: `Guard missing customer in [server.ts](${worktreeFile}).`,
+        filesChanged: [
+          "/Users/michaelhabermas/repos/CaS-tests/bug-loop/.worktrees/45b905d3/apps/leaky-service/src/server.ts",
+        ],
+      },
+      activeVerify: {
+        verified: true,
+        scopePasses: true,
+        reproPasses: true,
+        testsPass: true,
+        typecheckPasses: true,
+        reproEvidence: "HTTP 400 after",
+        testSummary: "12 pass, 0 fail",
+        typecheckDetail: "TypeScript clean",
+        detail: "all verification checks passed",
+      },
+    }), { github, worktrees: worktrees(calls) });
+
+    expect(prBody).toContain("apps/leaky-service/src/server.ts");
+    expect(prBody).not.toContain("/Users/");
+    expect(prBody).not.toContain(".worktrees/");
+    expect(prBody).toContain("Files: apps/leaky-service/src/server.ts");
+  });
 });

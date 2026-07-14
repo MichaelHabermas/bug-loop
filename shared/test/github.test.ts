@@ -4,6 +4,9 @@ import {
   findOpenIssueByMarker,
   createPullRequest,
   addLabels,
+  formatPrFilesList,
+  rewritePathsForPrBody,
+  toRepoRelativePath,
   REPO,
 } from "../src/github";
 
@@ -50,5 +53,55 @@ describe("github DRY_RUN", () => {
 
   test("addLabels is a no-op that does not throw", async () => {
     await addLabels(9001, ["needs-human"]);
+  });
+});
+
+describe("PR body path rewriting", () => {
+  const worktreeAbs =
+    "/Users/michaelhabermas/repos/CaS-tests/bug-loop/.worktrees/45b905d3/apps/leaky-service/src/server.ts:60";
+
+  test("toRepoRelativePath strips worktree absolute prefixes", () => {
+    expect(toRepoRelativePath(worktreeAbs)).toBe(
+      "apps/leaky-service/src/server.ts:60",
+    );
+    expect(toRepoRelativePath("apps/leaky-service/src/server.ts")).toBe(
+      "apps/leaky-service/src/server.ts",
+    );
+  });
+
+  test("rewritePathsForPrBody converts markdown absolute links to repo-relative plain text", () => {
+    const description = `Fixed null guard in [server.ts](${worktreeAbs}).`;
+    const rewritten = rewritePathsForPrBody(description);
+    expect(rewritten).toBe(
+      "Fixed null guard in apps/leaky-service/src/server.ts:60.",
+    );
+    expect(rewritten).not.toContain("/Users/");
+    expect(rewritten).not.toContain(".worktrees/");
+  });
+
+  test("PR body built from worktree paths contains no local absolute prefixes", () => {
+    const description = [
+      "Root cause: missing null check.",
+      `Changed [server.ts](${worktreeAbs}).`,
+    ].join("\n");
+    const filesChanged = [
+      "/Users/michaelhabermas/repos/CaS-tests/bug-loop/.worktrees/45b905d3/apps/leaky-service/src/server.ts",
+    ];
+
+    const body = [
+      "## What changed",
+      "",
+      rewritePathsForPrBody(description),
+      "",
+      `Files: ${formatPrFilesList(filesChanged)}`,
+      "",
+      "## Verification",
+      "",
+      "Fixes #1",
+    ].join("\n");
+
+    expect(body).toContain("apps/leaky-service/src/server.ts");
+    expect(body).not.toContain("/Users/");
+    expect(body).not.toContain(".worktrees/");
   });
 });

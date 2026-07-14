@@ -1,8 +1,10 @@
 import {
   commentIssue,
   createPullRequest,
+  formatPrFilesList,
   readIssue,
   replaceIssueLabel,
+  rewritePathsForPrBody,
   GitWorktreeOperations,
   type IssueDetails,
   type PRInput,
@@ -107,9 +109,9 @@ function pullRequestBody(state: TriageState, number: number): string {
   return [
     "## What changed",
     "",
-    fix.description,
+    rewritePathsForPrBody(fix.description),
     "",
-    `Files: ${fix.filesChanged.join(", ") || "none recorded"}`,
+    `Files: ${formatPrFilesList(fix.filesChanged)}`,
     "",
     "## Verification",
     "",

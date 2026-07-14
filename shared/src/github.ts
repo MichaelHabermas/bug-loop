@@ -271,4 +271,65 @@ export async function replaceIssueLabel(
   }
 }
 
+/**
+ * Strip worktree or absolute prefixes so a path is repo-relative.
+ * Examples:
+ *   /Users/.../bug-loop/.worktrees/45b905d3/apps/leaky-service/src/server.ts:60
+ *     -> apps/leaky-service/src/server.ts:60
+ *   apps/leaky-service/src/server.ts -> unchanged
+ */
+export function toRepoRelativePath(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/").trim();
+  if (!normalized) return normalized;
+
+  const worktreeMatch = normalized.match(/(?:^|\/)\.worktrees\/[^/]+\/(.+)$/);
+  if (worktreeMatch?.[1]) {
+    return worktreeMatch[1];
+  }
+
+  if (normalized.startsWith("/")) {
+    const monorepoRoots = ["apps/", "shared/", "pipelines/"] as const;
+    for (const root of monorepoRoots) {
+      const needle = `/${root}`;
+      const idx = normalized.indexOf(needle);
+      if (idx !== -1) {
+        return normalized.slice(idx + 1);
+      }
+    }
+  }
+
+  return normalized.replace(/^\.\//, "");
+}
+
+/**
+ * Rewrite absolute/worktree file references in free text for GitHub PR bodies.
+ * Converts markdown links like [server.ts](/Users/.../.worktrees/.../file.ts:60)
+ * and bare absolute worktree paths to plain repo-relative paths.
+ */
+export function rewritePathsForPrBody(text: string): string {
+  // Markdown links with absolute or worktree targets -> plain repo-relative path
+  let out = text.replace(
+    /\[([^\]]*)\]\(([^)\s]+)\)/g,
+    (full, _label: string, href: string) => {
+      if (/^https?:\/\//i.test(href)) return full;
+      if (!(href.startsWith("/") || href.includes(".worktrees/"))) return full;
+      return toRepoRelativePath(href);
+    },
+  );
+
+  // Bare absolute paths that include a .worktrees/ segment
+  out = out.replace(
+    /\/[^\s)\]`'"]*?\.worktrees\/[^\s)\]`'"]+/g,
+    (match) => toRepoRelativePath(match),
+  );
+
+  return out;
+}
+
+/** Format the Files: list for a PR body using repo-relative paths. */
+export function formatPrFilesList(filesChanged: string[]): string {
+  if (filesChanged.length === 0) return "none recorded";
+  return filesChanged.map(toRepoRelativePath).join(", ");
+}
+
 export { FINGERPRINT_MARKER, REPO };

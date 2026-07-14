@@ -43,6 +43,8 @@ export {
   FakeFixer,
   CodexFixer,
   GrokFixer,
+  FIX_SUMMARY_MARKER,
+  extractFixSummary,
   buildFixPrompt,
   parseChangedFiles,
   createDefaultFixer,
@@ -82,6 +84,9 @@ export {
   readIssue,
   commentIssue,
   replaceIssueLabel,
+  toRepoRelativePath,
+  rewritePathsForPrBody,
+  formatPrFilesList,
   FINGERPRINT_MARKER,
   REPO,
 } from "./github";
