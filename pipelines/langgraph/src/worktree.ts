@@ -34,12 +34,14 @@ export class GitWorktreeOperations implements WorktreeOperations {
   async create(input: WorktreeCreateInput): Promise<{ worktreeDir: string; branch: string }> {
     const worktreeDir = join(this.repoRoot, ".worktrees", input.fingerprint8);
     await mkdir(join(this.repoRoot, ".worktrees"), { recursive: true });
+    // -B (create-or-reset): fix branches are pipeline-owned scratch; a stale
+    // one left by an earlier failed run must not block the next attempt.
     const command = [
       "git",
       "worktree",
       "add",
       worktreeDir,
-      "-b",
+      "-B",
       input.branch,
       "main",
     ];
