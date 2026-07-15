@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>bug-loop | Runs and Cost</title>
+  <script>
+    try {
+      const savedTheme = localStorage.getItem("bug-loop-theme");
+      if (savedTheme === "light" || savedTheme === "dark") document.documentElement.dataset.theme = savedTheme;
+    } catch {}
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f2efe6;
+      --paper-raised: #fbf8ef;
+      --ink: #171816;
+      --ink-soft: #4f514c;
+      --ink-faint: #797b73;
+      --rule: #b9b6aa;
+      --rule-strong: #6d6d67;
+      --code: #0b6e82;
+      --code-soft: #d7ebec;
+      --agent: #d44a2f;
+      --agent-soft: #f6d9ce;
+      --human: #9a3f73;
+      --human-soft: #eed9e5;
+      --signal: #ff5a36;
+      --focus: #126cce;
+      --grid: rgba(23, 24, 22, 0.052);
+      --triage: #0072b2;
+      --fix: #d55e00;
+      --testgen: #009e73;
+      --verify: #cc79a7;
+      --other: #73766f;
+      --reported: #d55e00;
+      --estimated: #0072b2;
+      --serif: "Iowan Old Style", "Baskerville", "Palatino Linotype", Georgia, serif;
+      --sans: "Avenir Next", Avenir, "Century Gothic", "Trebuchet MS", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --paper: #101310;
+        --paper-raised: #181c18;
+        --ink: #edf0e8;
+        --ink-soft: #bdc2b8;
+        --ink-faint: #858b82;
+        --rule: #3c433d;
+        --rule-strong: #70786f;
+        --code: #55bfd0;
+        --code-soft: #16383d;
+        --agent: #ff6c4d;
+        --agent-soft: #4c251d;
+        --human: #ee8fc3;
+        --human-soft: #452538;
+        --signal: #ff7558;
+        --focus: #71b7ff;
+        --grid: rgba(237, 240, 232, 0.045);
+        --triage: #56b4e9;
+        --fix: #e69f00;
+        --testgen: #42c79a;
+        --verify: #f092c7;
+        --other: #9da29a;
+        --reported: #e69f00;
+        --estimated: #56b4e9;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --paper: #101310;
+      --paper-raised: #181c18;
+      --ink: #edf0e8;
+      --ink-soft: #bdc2b8;
+      --ink-faint: #858b82;
+      --rule: #3c433d;
+      --rule-strong: #70786f;
+      --code: #55bfd0;
+      --code-soft: #16383d;
+      --agent: #ff6c4d;
+      --agent-soft: #4c251d;
+      --human: #ee8fc3;
+      --human-soft: #452538;
+      --signal: #ff7558;
+      --focus: #71b7ff;
+      --grid: rgba(237, 240, 232, 0.045);
+      --triage: #56b4e9;
+      --fix: #e69f00;
+      --testgen: #42c79a;
+      --verify: #f092c7;
+      --other: #9da29a;
+      --reported: #e69f00;
+      --estimated: #56b4e9;
+    }
+
+    :root[data-theme="light"] { color-scheme: light; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      color: var(--ink);
+      background-color: var(--paper);
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 24px 24px;
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button, .file-label, .drop-zone { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible, .term:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+    a:hover { color: var(--agent); }
+
+    .shell { width: min(1440px, calc(100% - 48px)); margin: 0 auto; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 56px;
+      border-bottom: 1px solid var(--rule-strong);
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .topbar-mark, .topbar-actions { display: flex; align-items: center; gap: 10px; }
+    .topbar-actions { gap: 14px; }
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 16%, transparent);
+    }
+    .theme-toggle, .control-button, .file-label, .glossary-jump, select {
+      border: 1px solid var(--rule-strong);
+      border-radius: 0;
+      color: var(--ink);
+      background: var(--paper-raised);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .theme-toggle, .glossary-jump { padding: 9px 11px; line-height: 1; }
+    .glossary-jump { text-decoration: none; }
+    .theme-toggle:hover, .control-button:hover, .file-label:hover, .glossary-jump:hover {
+      border-color: var(--ink);
+      color: var(--paper);
+      background: var(--ink);
+    }
+
+    .hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+      gap: 6vw;
+      align-items: end;
+      min-height: 510px;
+      padding: 76px 0 62px;
+      border-bottom: 4px solid var(--ink);
+    }
+    .hero::after {
+      content: "01 / RUN ECONOMICS";
+      position: absolute;
+      right: 0;
+      top: 34px;
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.15em;
+    }
+    .eyebrow, .section-kicker, .mini-label {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+    .eyebrow { color: var(--agent); }
+    h1 {
+      max-width: 950px;
+      margin: 18px 0 26px;
+      font-family: var(--serif);
+      font-size: clamp(4rem, 9vw, 8.8rem);
+      font-weight: 400;
+      letter-spacing: -0.07em;
+      line-height: 0.8;
+    }
+    .hero-thesis {
+      max-width: 800px;
+      margin: 0;
+      font-family: var(--serif);
+      font-size: clamp(1.35rem, 2.7vw, 2.4rem);
+      font-style: italic;
+      line-height: 1.15;
+    }
+    .headline {
+      padding: 24px 0 5px 24px;
+      border-left: 1px solid var(--rule-strong);
+    }
+    .headline-value {
+      display: block;
+      margin: 10px 0 5px;
+      font-family: var(--serif);
+      font-size: clamp(3rem, 7vw, 6rem);
+      letter-spacing: -0.06em;
+      line-height: 0.95;
+    }
+    .headline-detail { margin: 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.72rem; line-height: 1.6; }
+
+    .term { position: relative; display: inline-block; border-bottom: 1px dotted currentColor; cursor: help; }
+    .term-tip {
+      position: absolute;
+      z-index: 30;
+      left: 50%;
+      bottom: calc(100% + 9px);
+      width: max-content;
+      max-width: min(330px, calc(100vw - 32px));
+      padding: 10px 12px;
+      border: 1px solid var(--rule-strong);
+      color: var(--ink);
+      background: var(--paper-raised);
+      box-shadow: 5px 5px 0 color-mix(in srgb, var(--ink) 18%, transparent);
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0;
+      line-height: 1.35;
+      text-align: left;
+      text-transform: none;
+      white-space: normal;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 4px);
+      visibility: hidden;
+      transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+    }
+    .term:hover .term-tip, .term:focus .term-tip { opacity: 1; transform: translate(-50%, 0); visibility: visible; }
+
+    .loader-section { padding: 32px 0 20px; border-bottom: 1px solid var(--rule-strong); }
+    .loader-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(310px, 0.8fr); gap: 16px; }
+    .drop-zone, .price-panel {
+      min-height: 190px;
+      padding: 24px;
+      border: 1px solid var(--rule-strong);
+      background: color-mix(in srgb, var(--paper-raised) 84%, transparent);
+    }
+    .drop-zone {
+      display: grid;
+      place-content: center;
+      text-align: center;
+      cursor: pointer;
+      transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+    }
+    .drop-zone.is-over { color: var(--paper-raised); border-color: var(--agent); background: var(--agent); }
+    .drop-zone strong { display: block; font-family: var(--serif); font-size: clamp(1.6rem, 3vw, 2.6rem); font-weight: 400; }
+    .drop-zone span { color: var(--ink-soft); font-family: var(--mono); font-size: 0.72rem; }
+    .drop-zone.is-over span { color: inherit; }
+    .drop-zone input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .price-panel { display: grid; gap: 10px; align-content: start; }
+    .price-panel label { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .price-panel textarea {
+      width: 100%;
+      min-height: 76px;
+      resize: vertical;
+      border: 1px solid var(--rule);
+      border-radius: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      line-height: 1.45;
+    }
+    .panel-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .control-button { min-height: 36px; padding: 0 12px; }
+    .inline-message { margin: 0; color: var(--ink-faint); font-family: var(--mono); font-size: 0.68rem; }
+    .inline-message.error { color: var(--agent); font-weight: 800; }
+    .error-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 30px; margin-top: 12px; }
+    .error-chip, .badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 6px 8px;
+      border: 1px solid currentColor;
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+    .error-chip { color: var(--agent); background: var(--agent-soft); text-transform: none; }
+    .badge.partial { color: var(--human); background: var(--human-soft); }
+    .badge.estimated { color: var(--estimated); background: color-mix(in srgb, var(--estimated) 13%, var(--paper-raised)); border-style: dashed; }
+
+    .section { padding: 90px 0; border-bottom: 1px solid var(--rule-strong); }
+    .section-head { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 32px; align-items: start; margin-bottom: 42px; }
+    .section-number { color: var(--ink-faint); font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; }
+    .section-title { margin: 0; font-family: var(--serif); font-size: clamp(2.5rem, 6vw, 5.4rem); font-weight: 400; letter-spacing: -0.048em; line-height: 0.95; }
+    .section-intro { max-width: 760px; margin: 16px 0 0; color: var(--ink-soft); font-size: 1rem; }
+
+    .table-wrap, .chart-scroll {
+      width: 100%;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      border: 1px solid var(--rule-strong);
+      background: var(--paper-raised);
+      scrollbar-color: var(--agent) var(--paper);
+    }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    .runs-table { min-width: 1280px; }
+    th, td { padding: 13px 12px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); text-align: right; vertical-align: top; }
+    th:last-child, td:last-child { border-right: 0; }
+    tbody tr:last-child td { border-bottom: 0; }
+    th { color: var(--ink-faint); background: color-mix(in srgb, var(--paper) 72%, transparent); font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    th button { width: 100%; padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; text-align: right; text-transform: inherit; }
+    th:first-child button, th:nth-child(2) button, td:first-child, td:nth-child(2) { text-align: left; }
+    th button:hover { color: var(--agent); }
+    td { font-family: var(--mono); font-size: 0.73rem; }
+    td:first-child { min-width: 170px; font-weight: 800; }
+    .cell-main { display: block; color: var(--ink); font-weight: 800; }
+    .cell-sub { display: block; margin-top: 3px; color: var(--ink-faint); font-size: 0.61rem; line-height: 1.35; }
+    .cell-detail { margin-top: 4px; color: var(--ink-soft); font-size: 0.61rem; }
+    .cell-detail summary { cursor: pointer; }
+    .cell-detail ul { min-width: 260px; margin: 6px 0 0; padding-left: 17px; text-align: left; }
+    .label-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .empty-row { padding: 28px; color: var(--ink-faint); text-align: center !important; }
+
+    .chart-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 16px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 13px; align-items: center; color: var(--ink-soft); font-family: var(--mono); font-size: 0.66rem; }
+    .legend-item { display: inline-flex; gap: 6px; align-items: center; }
+    .legend-swatch { width: 14px; height: 10px; border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); background: var(--swatch); }
+    .legend-swatch.estimated { opacity: 0.55; border-style: dashed; }
+    .metric-select { display: flex; gap: 8px; align-items: center; font-family: var(--mono); font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+    .metric-select select { min-height: 36px; padding: 0 30px 0 10px; }
+    .chart-scroll { padding: 12px 8px 4px; }
+    .chart-scroll svg { display: block; max-width: none; min-height: 260px; }
+    .chart-axis { stroke: var(--rule-strong); stroke-width: 1; }
+    .chart-gridline { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 5; }
+    .chart-text { fill: var(--ink-soft); font-family: var(--mono); font-size: 11px; }
+    .chart-value { fill: var(--ink); font-family: var(--mono); font-size: 11px; font-weight: 800; }
+    .chart-label { fill: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 800; }
+    .chart-empty { fill: var(--ink-faint); font-family: var(--serif); font-size: 20px; font-style: italic; }
+    .line-path { fill: none; stroke: var(--triage); stroke-width: 3; }
+    .line-point { fill: var(--paper-raised); stroke: var(--triage); stroke-width: 3; }
+    .chart-data { margin-top: 10px; color: var(--ink-soft); font-family: var(--mono); font-size: 0.68rem; }
+    .chart-data summary { width: fit-content; cursor: pointer; font-weight: 800; text-transform: uppercase; }
+    .chart-data .table-wrap { margin-top: 8px; }
+    .chart-data table { min-width: 700px; }
+
+    .glossary-section { padding-top: 76px; padding-bottom: 76px; }
+    .glossary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--rule-strong); border-left: 1px solid var(--rule-strong); background: color-mix(in srgb, var(--paper-raised) 82%, transparent); }
+    .glossary-item { display: grid; grid-template-columns: minmax(130px, 0.38fr) minmax(0, 1fr); gap: 16px; margin: 0; padding: 13px 16px; border-right: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
+    .glossary-item dt { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; line-height: 1.35; }
+    .glossary-item dd { margin: 0; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; }
+    footer { padding: 32px 0 48px; }
+    .footer-inner { display: flex; justify-content: space-between; gap: 28px; align-items: flex-start; font-family: var(--mono); font-size: 0.72rem; }
+    .footer-inner p { max-width: 780px; margin: 0; color: var(--ink-soft); }
+
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 28px, 1440px); }
+      .hero { grid-template-columns: 1fr; gap: 42px; min-height: auto; padding-top: 100px; }
+      .headline { max-width: 560px; }
+      .loader-grid { grid-template-columns: 1fr; }
+      .section { padding: 72px 0; }
+      .section-head { grid-template-columns: 90px minmax(0, 1fr); gap: 18px; }
+    }
+    @media (max-width: 640px) {
+      .shell { width: min(100% - 20px, 1440px); }
+      .topbar-copy, .glossary-jump { display: none; }
+      .topbar-actions { gap: 8px; }
+      h1 { font-size: clamp(3.8rem, 21vw, 6rem); }
+      .section-head { display: block; }
+      .section-number { display: block; margin-bottom: 16px; }
+      .drop-zone, .price-panel { padding: 18px; }
+      .glossary-grid { grid-template-columns: 1fr; }
+      .glossary-item { grid-template-columns: 108px minmax(0, 1fr); }
+      .footer-inner { flex-direction: column; }
+      .term-tip { position: fixed; inset: auto 10px 10px; width: auto; max-width: none; transform: translateY(4px); }
+      .term:hover .term-tip, .term:focus .term-tip { transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <div class="topbar">
+      <div class="topbar-mark"><span class="status-dot" aria-hidden="true"></span><span class="topbar-copy">bug-loop / run ledger</span></div>
+      <div class="topbar-actions">
+        <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html" aria-current="page">Runs</a></nav>
+        <a class="glossary-jump" href="#glossary">Glossary</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">Theme: auto</button>
+      </div>
+    </div>
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Measured automation, no invented prices</p>
+        <h1>Runs &amp; cost</h1>
+        <p class="hero-thesis">A verified fix only counts after the independent check passes. A dollar only counts when the trace reports it or you supply the model’s price.</p>
+      </div>
+      <aside class="headline" aria-labelledby="headline-label">
+        <p class="mini-label" id="headline-label"><span class="term" tabindex="0" aria-describedby="tip-headline">Dollars per verified fix<span class="term-tip" id="tip-headline" role="tooltip">All known reported and user-priced costs across the loaded runs, divided by fixes whose verify event passed. Missing cost remains visibly partial or unavailable.</span></span></p>
+        <strong class="headline-value" id="headline-value">n/a</strong>
+        <p class="headline-detail" id="headline-detail">Demo trace has tokens but no reported dollar amount.</p>
+      </aside>
+    </div>
+  </header>
+
+  <main>
+    <section class="loader-section shell" aria-labelledby="load-title">
+      <h2 id="load-title" class="section-kicker">Load run traces</h2>
+      <div class="loader-grid">
+        <label class="drop-zone" id="drop-zone">
+          <strong>Drop trace JSON files here</strong>
+          <span>or choose any number of files · each valid file becomes one run</span>
+          <input id="trace-files" type="file" accept="application/json,.json" multiple>
+        </label>
+        <div class="price-panel">
+          <label for="price-table">Optional model prices in USD per million tokens</label>
+          <textarea id="price-table" spellcheck="false" placeholder='{"gpt-5.6-luna":{"inPerM":0,"outPerM":0}}'></textarea>
+          <div class="panel-actions">
+            <button class="control-button" id="apply-prices" type="button">Apply prices</button>
+            <button class="control-button" id="reset-demo" type="button">Reset to demo</button>
+            <p class="inline-message" id="price-message" role="status" aria-live="polite">No price table applied.</p>
+          </div>
+        </div>
+      </div>
+      <div class="error-list" id="file-errors" aria-live="polite" aria-label="File errors"></div>
+    </section>
+
+    <section class="section shell" id="comparison" aria-labelledby="comparison-title">
+      <div class="section-head">
+        <span class="section-number">02 / RUN REGISTER</span>
+        <div>
+          <h2 class="section-title" id="comparison-title">Runs compared</h2>
+          <p class="section-intro">Click any column heading to sort. Open a token total to see the recorded <span class="term" tabindex="0" aria-describedby="tip-harness">harness and model<span class="term-tip" id="tip-harness" role="tooltip">A harness is the tool surrounding an AI worker. A model is the named AI system it ran. Keeping both names prevents unlike costs from being blended invisibly.</span></span> breakdown.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="runs-table" id="runs-table">
+          <thead><tr id="runs-head"><th scope="col">Run label</th></tr></thead>
+          <tbody id="runs-body"><tr><td colspan="11">Loading built-in demo…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section shell" id="cost-per-fix" aria-labelledby="cost-per-fix-title">
+      <div class="section-head">
+        <span class="section-number">03 / OUTCOME ECONOMICS</span>
+        <div>
+          <h2 class="section-title" id="cost-per-fix-title">Dollars per verified fix</h2>
+          <p class="section-intro">Known cost from every recorded agent attempt and planning step, divided by independently verified fixes. Estimated segments only appear after your matching model price is applied.</p>
+        </div>
+      </div>
+      <div class="chart-header"><div class="legend" id="cost-per-fix-legend"></div></div>
+      <div class="chart-scroll" id="cost-per-fix-chart"></div>
+      <div id="cost-per-fix-data"></div>
+    </section>
+
+    <section class="section shell" id="cost-seams" aria-labelledby="cost-seams-title">
+      <div class="section-head">
+        <span class="section-number">04 / SPEND BY BOUNDARY</span>
+        <div>
+          <h2 class="section-title" id="cost-seams-title">Where dollars go</h2>
+          <p class="section-intro">Each bar splits known cost across the <span class="term" tabindex="0" aria-describedby="tip-cost-seam">triage, fix, test-writing, and other seams<span class="term-tip" id="tip-cost-seam" role="tooltip">A seam is a replaceable boundary in the pipeline. Grouping spend by seam shows which kind of work consumes money without pretending the trace knows more detail than it records.</span></span>.</p>
+        </div>
+      </div>
+      <div class="chart-header"><div class="legend" id="cost-seams-legend"></div></div>
+      <div class="chart-scroll" id="cost-seams-chart"></div>
+      <div id="cost-seams-data"></div>
+    </section>
+
+    <section class="section shell" id="time-seams" aria-labelledby="time-seams-title">
+      <div class="section-head">
+        <span class="section-number">05 / TIME BY BOUNDARY</span>
+        <div>
+          <h2 class="section-title" id="time-seams-title">Where wall-clock goes</h2>
+          <p class="section-intro">Recorded event durations grouped into triage, fixing, verification, and everything else. This is summed event time; the run’s wall duration may also include uninstrumented gaps.</p>
+        </div>
+      </div>
+      <div class="chart-header"><div class="legend" id="time-seams-legend"></div></div>
+      <div class="chart-scroll" id="time-seams-chart"></div>
+      <div id="time-seams-data"></div>
+    </section>
+
+    <section class="section shell" id="retries" aria-labelledby="retries-title">
+      <div class="section-head">
+        <span class="section-number">06 / ITERATION LOAD</span>
+        <div>
+          <h2 class="section-title" id="retries-title">Attempts and retries</h2>
+          <p class="section-intro">A <span class="term" tabindex="0" aria-describedby="tip-retry">retry<span class="term-tip" id="tip-retry" role="tooltip">A retry is a fix event after the first fix event for the same failure fingerprint. It measures repeated fixing work, not verification or test-writing attempts.</span></span> is any fix attempt after the first for the same incident fingerprint.</p>
+        </div>
+      </div>
+      <div class="chart-header"><div class="legend" id="retries-legend"></div></div>
+      <div class="chart-scroll" id="retries-chart"></div>
+      <div id="retries-data"></div>
+    </section>
+
+    <section class="section shell" id="over-time" aria-labelledby="over-time-title">
+      <div class="section-head">
+        <span class="section-number">07 / RUN HISTORY</span>
+        <div>
+          <h2 class="section-title" id="over-time-title">Runs over time</h2>
+          <p class="section-intro">The history becomes useful as trace files accumulate. Missing dollar values remain gaps instead of zeroes.</p>
+        </div>
+      </div>
+      <div class="chart-header">
+        <div class="legend"><span class="legend-item"><span class="legend-swatch" style="--swatch:var(--triage)"></span>Selected metric</span></div>
+        <label class="metric-select" for="time-metric">Y axis
+          <select id="time-metric">
+            <option value="usdPerFix">USD per verified fix</option>
+            <option value="tokens">Total tokens</option>
+            <option value="duration">Wall duration</option>
+          </select>
+        </label>
+      </div>
+      <div class="chart-scroll" id="over-time-chart"></div>
+      <div id="over-time-data"></div>
+    </section>
+
+    <section class="section shell glossary-section" id="glossary" aria-labelledby="glossary-title">
+      <div class="section-head">
+        <span class="section-number">08 / PRESENTER GLOSSARY</span>
+        <div>
+          <h2 class="section-title" id="glossary-title">What every number means</h2>
+          <p class="section-intro">The page uses only trace fields, deterministic groupings, and optional prices you provide.</p>
+        </div>
+      </div>
+      <div class="glossary-grid">
+        <dl class="glossary-item"><dt>Agent event</dt><dd>A recorded triage, fix, or test-writing step where an AI worker may incur cost. Cost coverage is the share of these events carrying a cost sample.</dd></dl>
+        <dl class="glossary-item"><dt>Estimated USD</dt><dd>A dollar value calculated only for a token-only sample whose model appears in your price table. It is always labeled “estimated at your prices.”</dd></dl>
+        <dl class="glossary-item"><dt>Fingerprint</dt><dd>A stable ID for one failure. Fix events sharing it are treated as attempts on the same incident.</dd></dl>
+        <dl class="glossary-item"><dt>Harness</dt><dd>The surrounding tool that starts an AI worker and records its usage, such as Claude Agent SDK, Codex, or Grok.</dd></dl>
+        <dl class="glossary-item"><dt>Incident</dt><dd>One distinct bug. The dashboard uses the dedupe stage’s explicit incident count, or fingerprint count only when that explicit field is absent.</dd></dl>
+        <dl class="glossary-item"><dt>Model</dt><dd>The named AI system used by a cost sample. Prices match this exact string.</dd></dl>
+        <dl class="glossary-item"><dt>Needs human</dt><dd>An incident routed directly to a person plus an automated incident handed off after its allowed fix attempts fail.</dd></dl>
+        <dl class="glossary-item"><dt>Partial cost data</dt><dd>At least one agent event has no cost sample. Known dollars are shown, but the badge warns that they are not a complete run total.</dd></dl>
+        <dl class="glossary-item"><dt>Reported USD</dt><dd>A dollar amount present in the trace itself. The dashboard sums only samples that actually carry the <code>usd</code> field.</dd></dl>
+        <dl class="glossary-item"><dt>Retry</dt><dd>A fix attempt after the first for the same fingerprint. An un-fingerprinted attempt counts as a retry only when its explicit attempt number is above one.</dd></dl>
+        <dl class="glossary-item"><dt>Seam</dt><dd>A replaceable pipeline boundary. Spend uses triage, fix, test-writing, and other; time uses triage, fix, verification, and other.</dd></dl>
+        <dl class="glossary-item"><dt>Token</dt><dd>A unit of model input or output text. Input and output counts are kept separate for each harness and model.</dd></dl>
+        <dl class="glossary-item"><dt>Verified fix</dt><dd>A <code>verify</code>-stage event with the exact normalized outcome <code>verified</code>, <code>pass</code>, or <code>passed</code>. Current pipeline emitters use <code>verified</code>.</dd></dl>
+        <dl class="glossary-item"><dt>Wall duration</dt><dd>The non-negative difference between a run’s <code>finishedAt</code> and <code>startedAt</code> timestamps.</dd></dl>
+        <dl class="glossary-item"><dt>USD per verified fix</dt><dd>All known reported and user-priced cost in the selected run or loaded set, divided by its verified fix count. It is unavailable when either side is missing or zero.</dd></dl>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <div class="footer-inner">
+      <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html" aria-current="page">Runs</a></nav>
+      <p>Offline by design. Trace files stay in this browser tab; this page makes no network requests and stores only the manual light/dark preference.</p>
+    </div>
+  </footer>
+
+  <script id="demo-trace" type="application/json">
+{
+  "runId": "example-langgraph-run",
+  "startedAt": "2026-07-14T12:00:00.000Z",
+  "finishedAt": "2026-07-14T12:00:00.323Z",
+  "pipeline": "langgraph",
+  "config": {
+    "repo": "MichaelHabermas/bug-loop",
+    "labels": { "pipeline": "bug-loop", "mechanical": "auto-fix-candidate", "needsHuman": "needs-human" },
+    "logPath": "logs/leaky-service.jsonl",
+    "baseUrl": "http://127.0.0.1:3000",
+    "cursorPath": "pipelines/langgraph/.cursor.json",
+    "fixScope": ["apps/leaky-service/src"],
+    "worktreeRoot": ".worktrees",
+    "maxFixAttempts": 2,
+    "fixer": "codex",
+    "invariantWarnPrefixes": ["order total negative"],
+    "branchPrefix": "bugloop/fix-"
+  },
+  "events": [
+    { "seq": 1, "stage": "ingest", "startedAt": "2026-07-14T12:00:00.017Z", "durationMs": 17, "outcome": "4 events", "detail": { "events": 4 } },
+    { "seq": 2, "stage": "detect", "startedAt": "2026-07-14T12:00:00.051Z", "durationMs": 17, "outcome": "4 actionable", "detail": { "actionable": 4 } },
+    { "seq": 3, "stage": "dedupe", "startedAt": "2026-07-14T12:00:00.085Z", "durationMs": 17, "outcome": "4 new incidents", "detail": { "incidents": 4, "newIncidents": 4 } },
+    { "seq": 4, "stage": "reproduce", "startedAt": "2026-07-14T12:00:00.119Z", "durationMs": 17, "outcome": "3 reproduced", "detail": { "reproduced": 3 } },
+    { "seq": 5, "stage": "route", "startedAt": "2026-07-14T12:00:00.153Z", "durationMs": 17, "outcome": "3 mechanical", "detail": { "mechanical": 3, "needsHuman": 1 } },
+    { "seq": 6, "stage": "ticket", "startedAt": "2026-07-14T12:00:00.187Z", "durationMs": 17, "outcome": "4 issues", "detail": { "issuesFiled": 4 } },
+    { "seq": 7, "stage": "fix", "fingerprint": "2239a31d3dda8339", "startedAt": "2026-07-14T12:00:00.221Z", "durationMs": 17, "outcome": "attempt 1", "detail": { "attempt": 1, "filesChanged": ["apps/leaky-service/src/server.ts"] }, "cost": { "harness": "codex", "model": "gpt-5.5-codex", "inputTokens": 12345, "outputTokens": 678, "raw": "model: gpt-5.5-codex\ninput tokens: 12,345\noutput tokens: 678\ntokens used\n13,023" } },
+    { "seq": 8, "stage": "verify", "fingerprint": "2239a31d3dda8339", "startedAt": "2026-07-14T12:00:00.255Z", "durationMs": 17, "outcome": "verified", "detail": { "attempt": 1, "scopePasses": true, "reproPasses": true, "testsPass": true, "typecheckPasses": true } },
+    { "seq": 9, "stage": "pr", "fingerprint": "2239a31d3dda8339", "startedAt": "2026-07-14T12:00:00.289Z", "durationMs": 17, "outcome": "completed", "detail": { "issueNumber": 1, "pullRequestNumber": 5 } }
+  ]
+}
+  </script>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const $ = (selector) => document.querySelector(selector);
+      const SVG_NS = "http://www.w3.org/2000/svg";
+      const VERIFIED_OUTCOMES = new Set(["verified", "pass", "passed"]);
+      const AGENT_STAGES = new Set(["route", "triage", "fix", "testgen"]);
+      const COST_SEAMS = ["triage", "fix", "testgen", "other"];
+      const TIME_SEAMS = ["triage", "fix", "verify", "other"];
+      const seamColors = { triage: "var(--triage)", fix: "var(--fix)", testgen: "var(--testgen)", verify: "var(--verify)", other: "var(--other)" };
+      const columns = [
+        { key: "label", label: "Run label" },
+        { key: "pipeline", label: "Pipeline" },
+        { key: "startedAt", label: "Date" },
+        { key: "incidents", label: "Incidents" },
+        { key: "verifiedFixes", label: "Verified fixes" },
+        { key: "retries", label: "Retries" },
+        { key: "needsHuman", label: "Needs human" },
+        { key: "totalTokens", label: "Tokens" },
+        { key: "reportedUsdSort", label: "Reported USD" },
+        { key: "estimatedUsdSort", label: "Estimated USD" },
+        { key: "usdPerFixSort", label: "USD / verified fix" },
+      ];
+      let runs = [];
+      let fileErrors = [];
+      let priceTable = null;
+      let sortState = { key: "startedAt", direction: "desc" };
+
+      const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+      const finite = (value) => typeof value === "number" && Number.isFinite(value);
+      const nonNegative = (value) => finite(value) && value >= 0;
+      const normalizeOutcome = (value) => value.trim().toLowerCase();
+      const numberOrZero = (value) => finite(value) ? value : 0;
+
+      function validateTrace(value) {
+        if (!isRecord(value)) throw new Error("trace root must be an object");
+        for (const key of ["runId", "startedAt", "finishedAt", "pipeline"]) {
+          if (typeof value[key] !== "string") throw new Error(`${key} must be a string`);
+        }
+        if (!Number.isFinite(Date.parse(value.startedAt)) || !Number.isFinite(Date.parse(value.finishedAt))) throw new Error("startedAt and finishedAt must be valid dates");
+        if (!new Set(["langgraph", "agent-sdk"]).has(value.pipeline)) throw new Error("pipeline must be langgraph or agent-sdk");
+        if (!isRecord(value.config)) throw new Error("config must be an object");
+        if (!Array.isArray(value.events)) throw new Error("events must be an array");
+        value.events.forEach((event, index) => {
+          const path = `events[${index}]`;
+          if (!isRecord(event)) throw new Error(`${path} must be an object`);
+          if (!Number.isInteger(event.seq)) throw new Error(`${path}.seq must be an integer`);
+          for (const key of ["stage", "startedAt", "outcome"]) if (typeof event[key] !== "string") throw new Error(`${path}.${key} must be a string`);
+          if (!Number.isFinite(Date.parse(event.startedAt))) throw new Error(`${path}.startedAt must be a valid date`);
+          if (!nonNegative(event.durationMs)) throw new Error(`${path}.durationMs must be a non-negative number`);
+          if (event.fingerprint !== undefined && typeof event.fingerprint !== "string") throw new Error(`${path}.fingerprint must be a string`);
+          if (event.detail !== undefined && !isRecord(event.detail)) throw new Error(`${path}.detail must be an object`);
+          if (event.cost !== undefined) {
+            if (!isRecord(event.cost)) throw new Error(`${path}.cost must be an object`);
+            if (!new Set(["claude-agent-sdk", "codex", "grok"]).has(event.cost.harness)) throw new Error(`${path}.cost.harness is invalid`);
+            if (event.cost.model !== undefined && typeof event.cost.model !== "string") throw new Error(`${path}.cost.model must be a string`);
+            for (const key of ["inputTokens", "outputTokens", "usd"]) {
+              if (event.cost[key] !== undefined && !nonNegative(event.cost[key])) throw new Error(`${path}.cost.${key} must be a non-negative number`);
+            }
+          }
+        });
+        return value;
+      }
+
+      function labelFromFilename(name) {
+        const base = name.split(/[\\/]/).pop().replace(/\.json$/i, "");
+        const trimmed = base.startsWith("sweep-") ? base.slice(6) : base;
+        return trimmed || base || "unnamed-run";
+      }
+
+      function costSeam(stage) {
+        if (stage === "route" || stage === "triage") return "triage";
+        if (stage === "fix") return "fix";
+        if (stage === "testgen") return "testgen";
+        return "other";
+      }
+
+      function timeSeam(stage) {
+        if (stage === "route" || stage === "triage") return "triage";
+        if (stage === "fix") return "fix";
+        if (stage === "verify" || stage.startsWith("verify-")) return "verify";
+        return "other";
+      }
+
+      function estimatedCost(cost) {
+        if (cost.usd !== undefined || !priceTable || !cost.model) return null;
+        const price = priceTable[cost.model];
+        if (!price) return null;
+        const hasTokens = finite(cost.inputTokens) || finite(cost.outputTokens);
+        if (!hasTokens) return null;
+        return (numberOrZero(cost.inputTokens) * price.inPerM + numberOrZero(cost.outputTokens) * price.outPerM) / 1_000_000;
+      }
+
+      function metricsFor(run) {
+        const { trace } = run;
+        const events = trace.events;
+        const verifiedFixes = events.filter((event) => event.stage === "verify" && VERIFIED_OUTCOMES.has(normalizeOutcome(event.outcome))).length;
+        const fixEvents = events.filter((event) => event.stage === "fix");
+        const attemptGroups = new Map();
+        let explicitUnfingerprintedRetries = 0;
+        fixEvents.forEach((event) => {
+          if (event.fingerprint) attemptGroups.set(event.fingerprint, (attemptGroups.get(event.fingerprint) || 0) + 1);
+          else if (finite(event.detail?.attempt) && event.detail.attempt > 1) explicitUnfingerprintedRetries += 1;
+        });
+        const retries = [...attemptGroups.values()].reduce((sum, count) => sum + Math.max(0, count - 1), explicitUnfingerprintedRetries);
+
+        const explicitIncidentCounts = events
+          .filter((event) => event.stage === "dedupe")
+          .map((event) => finite(event.detail?.incidents) ? event.detail.incidents : finite(event.detail?.newIncidents) ? event.detail.newIncidents : null)
+          .filter((value) => value !== null);
+        const fingerprints = new Set(events.map((event) => event.fingerprint).filter(Boolean));
+        const incidents = explicitIncidentCounts.length > 0 ? Math.max(...explicitIncidentCounts) : fingerprints.size > 0 ? fingerprints.size : null;
+
+        const directNeedsHuman = events
+          .filter((event) => event.stage === "route" || event.stage === "triage")
+          .reduce((sum, event) => sum + (nonNegative(event.detail?.needsHuman) ? event.detail.needsHuman : 0), 0);
+        const handoffKeys = new Set();
+        events.forEach((event, index) => {
+          const handoffStage = event.stage === "give-up" || event.stage === "human" || event.stage === "needs-human";
+          if (handoffStage && normalizeOutcome(event.outcome) === "needs human") handoffKeys.add(event.fingerprint || `event-${index}`);
+        });
+        const needsHuman = directNeedsHuman + handoffKeys.size;
+
+        const started = Date.parse(trace.startedAt);
+        const finished = Date.parse(trace.finishedAt);
+        const durationMs = Math.max(0, finished - started);
+        const tokenGroups = new Map();
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let hasTokens = false;
+        let reportedUsd = 0;
+        let estimatedUsd = 0;
+        let hasReported = false;
+        let hasEstimated = false;
+        const costBySeam = Object.fromEntries(COST_SEAMS.map((seam) => [seam, { reported: 0, estimated: 0 }]));
+        const timeBySeam = Object.fromEntries(TIME_SEAMS.map((seam) => [seam, 0]));
+
+        events.forEach((event) => {
+          timeBySeam[timeSeam(event.stage)] += event.durationMs;
+          if (!event.cost) return;
+          const cost = event.cost;
+          const groupKey = `${cost.harness} / ${cost.model || "model n/a"}`;
+          if (!tokenGroups.has(groupKey)) tokenGroups.set(groupKey, { harness: cost.harness, model: cost.model || null, input: 0, output: 0, hasInput: false, hasOutput: false });
+          const group = tokenGroups.get(groupKey);
+          if (finite(cost.inputTokens)) { group.input += cost.inputTokens; group.hasInput = true; inputTokens += cost.inputTokens; hasTokens = true; }
+          if (finite(cost.outputTokens)) { group.output += cost.outputTokens; group.hasOutput = true; outputTokens += cost.outputTokens; hasTokens = true; }
+          const seam = costSeam(event.stage);
+          if (finite(cost.usd)) {
+            reportedUsd += cost.usd;
+            costBySeam[seam].reported += cost.usd;
+            hasReported = true;
+          } else {
+            const estimate = estimatedCost(cost);
+            if (estimate !== null) {
+              estimatedUsd += estimate;
+              costBySeam[seam].estimated += estimate;
+              hasEstimated = true;
+            }
+          }
+        });
+
+        const agentEvents = events.filter((event) => AGENT_STAGES.has(event.stage));
+        const costEvents = agentEvents.filter((event) => event.cost !== undefined).length;
+        const partialCost = agentEvents.length > 0 && costEvents < agentEvents.length;
+        const knownUsd = reportedUsd + estimatedUsd;
+        const hasKnownUsd = hasReported || hasEstimated;
+        const usdPerFix = verifiedFixes > 0 && hasKnownUsd ? knownUsd / verifiedFixes : null;
+
+        return {
+          ...run,
+          pipeline: trace.pipeline,
+          startedAt: trace.startedAt,
+          incidents,
+          verifiedFixes,
+          fixAttempts: fixEvents.length,
+          retries,
+          needsHuman,
+          durationMs,
+          inputTokens,
+          outputTokens,
+          totalTokens: hasTokens ? inputTokens + outputTokens : null,
+          tokenGroups: [...tokenGroups.entries()].map(([label, values]) => ({ label, ...values })),
+          reportedUsd: hasReported ? reportedUsd : null,
+          estimatedUsd: hasEstimated ? estimatedUsd : null,
+          reportedUsdSort: hasReported ? reportedUsd : null,
+          estimatedUsdSort: hasEstimated ? estimatedUsd : null,
+          usdPerFix,
+          usdPerFixSort: usdPerFix,
+          costBySeam,
+          timeBySeam,
+          agentEventCount: agentEvents.length,
+          costEventCount: costEvents,
+          partialCost,
+        };
+      }
+
+      function formatInteger(value) { return value === null || value === undefined ? "n/a" : Math.round(value).toLocaleString(); }
+      function formatMoney(value) { return value === null || value === undefined ? "n/a" : `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`; }
+      function formatDuration(ms) {
+        if (ms === null || ms === undefined) return "n/a";
+        if (ms < 1000) return `${Math.round(ms)} ms`;
+        if (ms < 60000) return `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
+        const minutes = Math.floor(ms / 60000);
+        return `${minutes}m ${Math.round((ms % 60000) / 1000)}s`;
+      }
+      function formatDate(value) {
+        return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(new Date(value));
+      }
+      function shortDate(value) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
+      function textElement(tag, className, content) { const element = document.createElement(tag); if (className) element.className = className; element.textContent = content; return element; }
+      function svgElement(tag, attributes = {}, content) {
+        const element = document.createElementNS(SVG_NS, tag);
+        Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+        if (content !== undefined) element.textContent = content;
+        return element;
+      }
+
+      function sortedMetrics() {
+        const values = runs.map(metricsFor);
+        const multiplier = sortState.direction === "asc" ? 1 : -1;
+        return values.sort((a, b) => {
+          let left = a[sortState.key];
+          let right = b[sortState.key];
+          if (sortState.key === "startedAt") { left = Date.parse(left); right = Date.parse(right); }
+          if (left === null || left === undefined) return right === null || right === undefined ? a.label.localeCompare(b.label) : 1;
+          if (right === null || right === undefined) return -1;
+          if (typeof left === "string") return left.localeCompare(right) * multiplier;
+          return (left - right) * multiplier;
+        });
+      }
+
+      function appendBadge(container, label, className) { const badge = textElement("span", `badge ${className}`, label); container.append(badge); }
+
+      function renderTable(metrics) {
+        const head = $("#runs-head");
+        const body = $("#runs-body");
+        head.replaceChildren();
+        body.replaceChildren();
+        columns.forEach((column) => {
+          const th = document.createElement("th");
+          const button = document.createElement("button");
+          button.type = "button";
+          const active = sortState.key === column.key;
+          button.textContent = `${column.label}${active ? sortState.direction === "asc" ? " ↑" : " ↓" : ""}`;
+          button.setAttribute("aria-label", `Sort by ${column.label}${active ? `, currently ${sortState.direction}ending` : ""}`);
+          button.addEventListener("click", () => {
+            sortState = { key: column.key, direction: sortState.key === column.key && sortState.direction === "asc" ? "desc" : "asc" };
+            renderAll();
+          });
+          th.append(button);
+          head.append(th);
+        });
+        if (metrics.length === 0) {
+          const row = document.createElement("tr");
+          const cell = textElement("td", "empty-row", "No valid runs loaded.");
+          cell.colSpan = columns.length;
+          row.append(cell);
+          body.append(row);
+          return;
+        }
+        metrics.forEach((metric) => {
+          const row = document.createElement("tr");
+          const labelCell = document.createElement("td");
+          labelCell.append(textElement("span", "cell-main", metric.label));
+          const badges = document.createElement("span");
+          badges.className = "label-badges";
+          if (metric.isDemo) appendBadge(badges, "built-in demo", "estimated");
+          if (metric.partialCost) appendBadge(badges, `partial cost data · ${metric.costEventCount}/${metric.agentEventCount}`, "partial");
+          labelCell.append(badges);
+          row.append(labelCell);
+          const plain = (value) => { const cell = document.createElement("td"); cell.textContent = value; row.append(cell); };
+          plain(metric.pipeline);
+          plain(formatDate(metric.startedAt));
+          plain(formatInteger(metric.incidents));
+          plain(formatInteger(metric.verifiedFixes));
+          plain(formatInteger(metric.retries));
+          plain(formatInteger(metric.needsHuman));
+
+          const tokenCell = document.createElement("td");
+          tokenCell.append(textElement("span", "cell-main", formatInteger(metric.totalTokens)));
+          tokenCell.append(textElement("span", "cell-sub", metric.totalTokens === null ? "input n/a · output n/a" : `input ${formatInteger(metric.inputTokens)} · output ${formatInteger(metric.outputTokens)}`));
+          if (metric.tokenGroups.length > 0) {
+            const details = document.createElement("details");
+            details.className = "cell-detail";
+            details.append(textElement("summary", "", "By harness + model"));
+            const list = document.createElement("ul");
+            metric.tokenGroups.forEach((group) => list.append(textElement("li", "", `${group.label}: ${group.hasInput ? formatInteger(group.input) : "n/a"} in · ${group.hasOutput ? formatInteger(group.output) : "n/a"} out`)));
+            details.append(list);
+            tokenCell.append(details);
+          }
+          row.append(tokenCell);
+
+          const reportedCell = document.createElement("td");
+          reportedCell.append(textElement("span", "cell-main", formatMoney(metric.reportedUsd)));
+          reportedCell.append(textElement("span", "cell-sub", "reported by trace"));
+          row.append(reportedCell);
+          const estimatedCell = document.createElement("td");
+          estimatedCell.append(textElement("span", "cell-main", formatMoney(metric.estimatedUsd)));
+          estimatedCell.append(textElement("span", "cell-sub", "estimated at your prices"));
+          row.append(estimatedCell);
+          const perFixCell = document.createElement("td");
+          perFixCell.append(textElement("span", "cell-main", formatMoney(metric.usdPerFix)));
+          const parts = [];
+          if (metric.reportedUsd !== null) parts.push(`${formatMoney(metric.reportedUsd / Math.max(1, metric.verifiedFixes))} reported`);
+          if (metric.estimatedUsd !== null) parts.push(`${formatMoney(metric.estimatedUsd / Math.max(1, metric.verifiedFixes))} estimated at your prices`);
+          perFixCell.append(textElement("span", "cell-sub", parts.join(" + ") || "dollars n/a"));
+          row.append(perFixCell);
+          body.append(row);
+        });
+      }
+
+      function renderHeadline(metrics) {
+        const verified = metrics.reduce((sum, metric) => sum + metric.verifiedFixes, 0);
+        const reported = metrics.reduce((sum, metric) => sum + (metric.reportedUsd || 0), 0);
+        const estimated = metrics.reduce((sum, metric) => sum + (metric.estimatedUsd || 0), 0);
+        const hasReported = metrics.some((metric) => metric.reportedUsd !== null);
+        const hasEstimated = metrics.some((metric) => metric.estimatedUsd !== null);
+        const known = reported + estimated;
+        const value = verified > 0 && (hasReported || hasEstimated) ? known / verified : null;
+        $("#headline-value").textContent = formatMoney(value);
+        const detail = [];
+        detail.push(`${verified.toLocaleString()} verified ${verified === 1 ? "fix" : "fixes"}`);
+        detail.push(hasReported ? `${formatMoney(reported)} reported` : "reported dollars n/a");
+        detail.push(hasEstimated ? `${formatMoney(estimated)} estimated at your prices` : "estimated dollars n/a");
+        if (metrics.some((metric) => metric.partialCost)) detail.push("partial cost data present");
+        $("#headline-detail").textContent = detail.join(" · ");
+      }
+
+      function legend(containerSelector, items, includeEstimate = false) {
+        const container = $(containerSelector);
+        container.replaceChildren();
+        items.forEach((item) => {
+          const wrapper = document.createElement("span");
+          wrapper.className = "legend-item";
+          const swatch = document.createElement("span");
+          swatch.className = "legend-swatch";
+          swatch.style.setProperty("--swatch", item.color);
+          wrapper.append(swatch, document.createTextNode(item.label));
+          container.append(wrapper);
+        });
+        if (includeEstimate) {
+          const wrapper = document.createElement("span");
+          wrapper.className = "legend-item";
+          const swatch = document.createElement("span");
+          swatch.className = "legend-swatch estimated";
+          swatch.style.setProperty("--swatch", "var(--estimated)");
+          wrapper.append(swatch, document.createTextNode("Estimated at your prices (dashed / lighter)"));
+          container.append(wrapper);
+        }
+      }
+
+      function createChartSvg(width, height, title, description, id) {
+        const svg = svgElement("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-labelledby": `${id}-title ${id}-desc` });
+        svg.style.width = `${width}px`;
+        svg.append(svgElement("title", { id: `${id}-title` }, title), svgElement("desc", { id: `${id}-desc` }, description));
+        return svg;
+      }
+
+      function addHorizontalAxis(svg, left, right, y, max, formatter) {
+        svg.append(svgElement("line", { x1: left, x2: right, y1: y, y2: y, class: "chart-axis" }));
+        for (let index = 0; index <= 4; index += 1) {
+          const x = left + ((right - left) * index / 4);
+          svg.append(svgElement("line", { x1: x, x2: x, y1: 38, y2: y, class: "chart-gridline" }));
+          svg.append(svgElement("text", { x, y: y + 18, class: "chart-text", "text-anchor": "middle" }, formatter(max * index / 4)));
+        }
+      }
+
+      function renderFallback(containerSelector, caption, headers, rows) {
+        const container = $(containerSelector);
+        container.replaceChildren();
+        const details = document.createElement("details");
+        details.className = "chart-data";
+        details.append(textElement("summary", "", "Accessible data table"));
+        const wrap = document.createElement("div");
+        wrap.className = "table-wrap";
+        const table = document.createElement("table");
+        table.append(textElement("caption", "", caption));
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        headers.forEach((header) => headRow.append(textElement("th", "", header)));
+        thead.append(headRow);
+        const tbody = document.createElement("tbody");
+        rows.forEach((values) => { const row = document.createElement("tr"); values.forEach((value) => row.append(textElement("td", "", value))); tbody.append(row); });
+        table.append(thead, tbody);
+        wrap.append(table);
+        details.append(wrap);
+        container.append(details);
+      }
+
+      function renderCostPerFix(metrics) {
+        legend("#cost-per-fix-legend", [{ label: "Reported by trace", color: "var(--reported)" }, { label: "Estimated at your prices", color: "var(--estimated)" }]);
+        const container = $("#cost-per-fix-chart");
+        container.replaceChildren();
+        const width = Math.max(920, 270 + metrics.length * 40);
+        const rowHeight = 66;
+        const height = Math.max(280, 90 + metrics.length * rowHeight);
+        const left = 190;
+        const right = width - 130;
+        const values = metrics.map((metric) => metric.usdPerFix || 0);
+        const max = Math.max(...values, 0.01);
+        const svg = createChartSvg(width, height, "Dollars per verified fix", "Horizontal stacked bars compare reported and user-priced dollars per verified fix for each run.", "dpf");
+        addHorizontalAxis(svg, left, right, height - 42, max, formatMoney);
+        metrics.forEach((metric, index) => {
+          const y = 52 + index * rowHeight;
+          svg.append(svgElement("text", { x: left - 12, y: y + 15, class: "chart-label", "text-anchor": "end" }, metric.label));
+          if (metric.usdPerFix === null) {
+            svg.append(svgElement("text", { x: left + 8, y: y + 15, class: "chart-value" }, "n/a dollars"));
+            return;
+          }
+          const reported = (metric.reportedUsd || 0) / metric.verifiedFixes;
+          const estimated = (metric.estimatedUsd || 0) / metric.verifiedFixes;
+          const reportedWidth = (right - left) * reported / max;
+          const estimatedWidth = (right - left) * estimated / max;
+          if (reportedWidth > 0) svg.append(svgElement("rect", { x: left, y, width: reportedWidth, height: 28, fill: "var(--reported)" }));
+          if (estimatedWidth > 0) svg.append(svgElement("rect", { x: left + reportedWidth, y, width: estimatedWidth, height: 28, fill: "var(--estimated)", "fill-opacity": 0.55, stroke: "var(--estimated)", "stroke-dasharray": "4 3" }));
+          svg.append(svgElement("text", { x: Math.min(right + 8, left + reportedWidth + estimatedWidth + 8), y: y + 19, class: "chart-value" }, formatMoney(metric.usdPerFix)));
+        });
+        svg.append(svgElement("text", { x: (left + right) / 2, y: height - 8, class: "chart-text", "text-anchor": "middle" }, "USD per verified fix"));
+        container.append(svg);
+        renderFallback("#cost-per-fix-data", "Dollars per verified fix", ["Run", "Reported per fix", "Estimated at your prices per fix", "Combined per fix"], metrics.map((metric) => [metric.label, metric.reportedUsd === null || metric.verifiedFixes === 0 ? "n/a" : formatMoney(metric.reportedUsd / metric.verifiedFixes), metric.estimatedUsd === null || metric.verifiedFixes === 0 ? "n/a" : formatMoney(metric.estimatedUsd / metric.verifiedFixes), formatMoney(metric.usdPerFix)]));
+      }
+
+      function renderStackedHorizontal(metrics, options) {
+        const container = $(options.chartSelector);
+        container.replaceChildren();
+        const width = Math.max(940, 280 + metrics.length * 35);
+        const rowHeight = 66;
+        const height = Math.max(280, 90 + metrics.length * rowHeight);
+        const left = 190;
+        const right = width - 140;
+        const totals = metrics.map((metric) => options.seams.reduce((sum, seam) => sum + options.value(metric, seam).reported + options.value(metric, seam).estimated, 0));
+        const max = Math.max(...totals, options.minimumMax);
+        const svg = createChartSvg(width, height, options.title, options.description, options.id);
+        addHorizontalAxis(svg, left, right, height - 42, max, options.formatter);
+        metrics.forEach((metric, index) => {
+          const y = 52 + index * rowHeight;
+          svg.append(svgElement("text", { x: left - 12, y: y + 15, class: "chart-label", "text-anchor": "end" }, metric.label));
+          let x = left;
+          options.seams.forEach((seam) => {
+            const values = options.value(metric, seam);
+            for (const kind of ["reported", "estimated"]) {
+              const value = values[kind];
+              if (value <= 0) continue;
+              const segmentWidth = (right - left) * value / max;
+              const attrs = { x, y, width: segmentWidth, height: 28, fill: seamColors[seam] };
+              if (kind === "estimated") Object.assign(attrs, { "fill-opacity": 0.5, stroke: "var(--ink)", "stroke-dasharray": "4 3" });
+              svg.append(svgElement("rect", attrs));
+              if (segmentWidth >= 54) svg.append(svgElement("text", { x: x + segmentWidth / 2, y: y + 19, class: "chart-value", "text-anchor": "middle" }, options.segmentFormatter(value)));
+              x += segmentWidth;
+            }
+          });
+          const total = totals[index];
+          svg.append(svgElement("text", { x: total === 0 ? left + 8 : Math.min(right + 8, x + 8), y: y + 19, class: "chart-value" }, total === 0 ? options.emptyLabel : options.formatter(total)));
+        });
+        svg.append(svgElement("text", { x: (left + right) / 2, y: height - 8, class: "chart-text", "text-anchor": "middle" }, options.axisLabel));
+        container.append(svg);
+      }
+
+      function renderCostSeams(metrics) {
+        legend("#cost-seams-legend", COST_SEAMS.map((seam) => ({ label: seam === "testgen" ? "Test writing" : seam[0].toUpperCase() + seam.slice(1), color: seamColors[seam] })), true);
+        renderStackedHorizontal(metrics, {
+          chartSelector: "#cost-seams-chart", seams: COST_SEAMS, id: "cost-seam", title: "Known dollars by seam", description: "Horizontal bars split each run's reported and user-priced dollars into triage, fix, test-writing, and other stages.", minimumMax: 0.01,
+          value: (metric, seam) => metric.costBySeam[seam], formatter: formatMoney, segmentFormatter: formatMoney, emptyLabel: "n/a dollars", axisLabel: "Known USD across all events",
+        });
+        renderFallback("#cost-seams-data", "Known dollars by seam", ["Run", ...COST_SEAMS.flatMap((seam) => [`${seam} reported`, `${seam} estimated at your prices`])], metrics.map((metric) => [metric.label, ...COST_SEAMS.flatMap((seam) => [metric.costBySeam[seam].reported > 0 ? formatMoney(metric.costBySeam[seam].reported) : "n/a", metric.costBySeam[seam].estimated > 0 ? formatMoney(metric.costBySeam[seam].estimated) : "n/a"])]));
+      }
+
+      function renderTimeSeams(metrics) {
+        legend("#time-seams-legend", TIME_SEAMS.map((seam) => ({ label: seam[0].toUpperCase() + seam.slice(1), color: seamColors[seam] })));
+        renderStackedHorizontal(metrics, {
+          chartSelector: "#time-seams-chart", seams: TIME_SEAMS, id: "time-seam", title: "Recorded event time by seam", description: "Horizontal bars split summed TraceEvent duration into triage, fix, verification, and other stages.", minimumMax: 1,
+          value: (metric, seam) => ({ reported: metric.timeBySeam[seam], estimated: 0 }), formatter: formatDuration, segmentFormatter: formatDuration, emptyLabel: "0 ms", axisLabel: "Summed TraceEvent duration",
+        });
+        renderFallback("#time-seams-data", "Recorded event time by seam", ["Run", ...TIME_SEAMS, "Wall duration"], metrics.map((metric) => [metric.label, ...TIME_SEAMS.map((seam) => formatDuration(metric.timeBySeam[seam])), formatDuration(metric.durationMs)]));
+      }
+
+      function renderRetries(metrics) {
+        legend("#retries-legend", [{ label: "Fix attempts", color: "var(--triage)" }, { label: "Retries within attempts", color: "var(--fix)" }]);
+        const container = $("#retries-chart");
+        container.replaceChildren();
+        const width = Math.max(920, 270 + metrics.length * 40);
+        const rowHeight = 72;
+        const height = Math.max(290, 90 + metrics.length * rowHeight);
+        const left = 190;
+        const right = width - 110;
+        const max = Math.max(...metrics.flatMap((metric) => [metric.fixAttempts, metric.retries]), 1);
+        const svg = createChartSvg(width, height, "Fix attempts and retries per run", "Two bars per run compare all fix attempts with attempts after the first for the same failure.", "retry-chart");
+        addHorizontalAxis(svg, left, right, height - 42, max, (value) => String(Math.round(value)));
+        metrics.forEach((metric, index) => {
+          const y = 46 + index * rowHeight;
+          svg.append(svgElement("text", { x: left - 12, y: y + 24, class: "chart-label", "text-anchor": "end" }, metric.label));
+          const attemptWidth = (right - left) * metric.fixAttempts / max;
+          const retryWidth = (right - left) * metric.retries / max;
+          svg.append(svgElement("rect", { x: left, y, width: attemptWidth, height: 18, fill: "var(--triage)" }));
+          svg.append(svgElement("rect", { x: left, y: y + 24, width: retryWidth, height: 18, fill: "var(--fix)" }));
+          svg.append(svgElement("text", { x: left + attemptWidth + 7, y: y + 14, class: "chart-value" }, String(metric.fixAttempts)));
+          svg.append(svgElement("text", { x: left + retryWidth + 7, y: y + 38, class: "chart-value" }, String(metric.retries)));
+        });
+        svg.append(svgElement("text", { x: (left + right) / 2, y: height - 8, class: "chart-text", "text-anchor": "middle" }, "Count of fix events"));
+        container.append(svg);
+        renderFallback("#retries-data", "Fix attempts and retries", ["Run", "Fix attempts", "Retries"], metrics.map((metric) => [metric.label, String(metric.fixAttempts), String(metric.retries)]));
+      }
+
+      function timeMetric(metric, key) {
+        if (key === "usdPerFix") return metric.usdPerFix;
+        if (key === "tokens") return metric.totalTokens;
+        return metric.durationMs;
+      }
+
+      function timeMetricFormat(value, key) {
+        if (key === "usdPerFix") return formatMoney(value);
+        if (key === "tokens") return formatInteger(value);
+        return formatDuration(value);
+      }
+
+      function renderOverTime(metrics) {
+        const key = $("#time-metric").value;
+        const chronological = [...metrics].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+        const points = chronological.map((metric) => ({ metric, value: timeMetric(metric, key) }));
+        const valid = points.filter((point) => point.value !== null);
+        const width = Math.max(920, 220 + chronological.length * 170);
+        const height = 410;
+        const left = 92;
+        const right = width - 44;
+        const top = 44;
+        const bottom = height - 80;
+        const max = Math.max(...valid.map((point) => point.value), key === "usdPerFix" ? 0.01 : 1);
+        const svg = createChartSvg(width, height, "Runs over time", `Line chart of ${$("#time-metric").selectedOptions[0].textContent} by run start date. Missing values are gaps.`, "history-chart");
+        svg.append(svgElement("line", { x1: left, x2: left, y1: top, y2: bottom, class: "chart-axis" }), svgElement("line", { x1: left, x2: right, y1: bottom, y2: bottom, class: "chart-axis" }));
+        for (let index = 0; index <= 4; index += 1) {
+          const y = bottom - (bottom - top) * index / 4;
+          svg.append(svgElement("line", { x1: left, x2: right, y1: y, y2: y, class: "chart-gridline" }));
+          svg.append(svgElement("text", { x: left - 10, y: y + 4, class: "chart-text", "text-anchor": "end" }, timeMetricFormat(max * index / 4, key)));
+        }
+        const xFor = (index) => chronological.length <= 1 ? (left + right) / 2 : left + (right - left) * index / (chronological.length - 1);
+        let segment = [];
+        const flush = () => {
+          if (segment.length > 0) svg.append(svgElement("path", { d: segment.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "), class: "line-path" }));
+          segment = [];
+        };
+        points.forEach((point, index) => {
+          const x = xFor(index);
+          svg.append(svgElement("text", { x, y: bottom + 25, class: "chart-text", "text-anchor": "middle" }, shortDate(point.metric.startedAt)));
+          svg.append(svgElement("text", { x, y: bottom + 42, class: "chart-text", "text-anchor": "middle" }, point.metric.label));
+          if (point.value === null) { flush(); svg.append(svgElement("text", { x, y: bottom - 10, class: "chart-value", "text-anchor": "middle" }, "n/a")); return; }
+          const y = bottom - (bottom - top) * point.value / max;
+          segment.push({ x, y });
+          svg.append(svgElement("circle", { cx: x, cy: y, r: 5, class: "line-point" }));
+          svg.append(svgElement("text", { x, y: Math.max(top + 10, y - 12), class: "chart-value", "text-anchor": "middle" }, timeMetricFormat(point.value, key)));
+        });
+        flush();
+        svg.append(svgElement("text", { x: 18, y: (top + bottom) / 2, class: "chart-text", transform: `rotate(-90 18 ${(top + bottom) / 2})`, "text-anchor": "middle" }, $("#time-metric").selectedOptions[0].textContent));
+        containerOrEmpty($("#over-time-chart"), svg, chronological.length);
+        renderFallback("#over-time-data", `Runs over time: ${$("#time-metric").selectedOptions[0].textContent}`, ["Run", "Started", $("#time-metric").selectedOptions[0].textContent], chronological.map((metric) => [metric.label, formatDate(metric.startedAt), timeMetricFormat(timeMetric(metric, key), key)]));
+      }
+
+      function containerOrEmpty(container, svg, count) {
+        container.replaceChildren();
+        if (count === 0) {
+          const emptySvg = createChartSvg(920, 280, "No run data", "Load a valid trace to draw this chart.", "empty-chart");
+          emptySvg.append(svgElement("text", { x: 460, y: 140, class: "chart-empty", "text-anchor": "middle" }, "Load a valid trace to draw this view."));
+          container.append(emptySvg);
+        } else container.append(svg);
+      }
+
+      function renderErrors() {
+        const container = $("#file-errors");
+        container.replaceChildren();
+        fileErrors.forEach((error) => container.append(textElement("span", "error-chip", `${error.name}: ${error.message}`)));
+      }
+
+      function renderAll() {
+        const metrics = sortedMetrics();
+        renderHeadline(metrics);
+        renderTable(metrics);
+        renderCostPerFix(metrics);
+        renderCostSeams(metrics);
+        renderTimeSeams(metrics);
+        renderRetries(metrics);
+        renderOverTime(metrics);
+        renderErrors();
+      }
+
+      async function loadFiles(fileList) {
+        const files = [...fileList];
+        if (files.length === 0) return;
+        const results = await Promise.all(files.map(async (file) => {
+          try {
+            const value = JSON.parse(await file.text());
+            return { run: { label: labelFromFilename(file.name), trace: validateTrace(value), isDemo: false } };
+          } catch (error) {
+            return { error: { name: file.name, message: error instanceof Error ? error.message : String(error) } };
+          }
+        }));
+        const validRuns = results.filter((result) => result.run).map((result) => result.run);
+        if (validRuns.length > 0) runs = [...runs.filter((run) => !run.isDemo), ...validRuns];
+        fileErrors = [...fileErrors, ...results.filter((result) => result.error).map((result) => result.error)];
+        $("#trace-files").value = "";
+        renderAll();
+      }
+
+      function applyPrices() {
+        const input = $("#price-table").value.trim();
+        const message = $("#price-message");
+        if (!input) {
+          priceTable = null;
+          message.textContent = "No price table applied.";
+          message.classList.remove("error");
+          renderAll();
+          return;
+        }
+        try {
+          const value = JSON.parse(input);
+          if (!isRecord(value)) throw new Error("price table must be a JSON object");
+          for (const [model, price] of Object.entries(value)) {
+            if (!isRecord(price) || !nonNegative(price.inPerM) || !nonNegative(price.outPerM)) throw new Error(`${model} must have non-negative inPerM and outPerM numbers`);
+          }
+          priceTable = value;
+          message.textContent = `${Object.keys(value).length} model ${Object.keys(value).length === 1 ? "price" : "prices"} applied. Estimates are labeled throughout.`;
+          message.classList.remove("error");
+          renderAll();
+        } catch (error) {
+          priceTable = null;
+          message.textContent = `Price table ignored: ${error instanceof Error ? error.message : String(error)}`;
+          message.classList.add("error");
+          renderAll();
+        }
+      }
+
+      function loadDemo() {
+        const demo = validateTrace(JSON.parse($("#demo-trace").textContent));
+        runs = [{ label: "example-run", trace: demo, isDemo: true }];
+        fileErrors = [];
+        renderAll();
+      }
+
+      const dropZone = $("#drop-zone");
+      ["dragenter", "dragover"].forEach((type) => dropZone.addEventListener(type, (event) => { event.preventDefault(); dropZone.classList.add("is-over"); }));
+      ["dragleave", "drop"].forEach((type) => dropZone.addEventListener(type, (event) => { event.preventDefault(); dropZone.classList.remove("is-over"); }));
+      dropZone.addEventListener("drop", (event) => loadFiles(event.dataTransfer?.files || []));
+      $("#trace-files").addEventListener("change", (event) => loadFiles(event.target.files || []));
+      $("#apply-prices").addEventListener("click", applyPrices);
+      $("#reset-demo").addEventListener("click", loadDemo);
+      $("#time-metric").addEventListener("change", () => renderOverTime(sortedMetrics()));
+
+      const themeToggle = $("#theme-toggle");
+      const systemDark = matchMedia("(prefers-color-scheme: dark)");
+      function effectiveTheme() { return document.documentElement.dataset.theme || (systemDark.matches ? "dark" : "light"); }
+      function renderThemeButton() { themeToggle.textContent = `Theme: ${effectiveTheme()}`; themeToggle.setAttribute("aria-pressed", String(effectiveTheme() === "dark")); }
+      themeToggle.addEventListener("click", () => {
+        const next = effectiveTheme() === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem("bug-loop-theme", next); } catch {}
+        renderThemeButton();
+      });
+      systemDark.addEventListener?.("change", renderThemeButton);
+
+      renderThemeButton();
+      loadDemo();
+    })();
+  </script>
+</body>
+</html>
