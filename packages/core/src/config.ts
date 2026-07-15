@@ -85,11 +85,9 @@ export function definePipelineConfig(input: PipelineConfigInput): PipelineConfig
     branchPrefix: input.branchPrefix ?? "bugloop/fix-",
     regressionTests: input.regressionTests ?? "triage-decides",
     contractRegistry: contractRegistry.map((contract) => ({ ...contract })),
-    workload: input.workload ?? {
-      benchmarkId: "unknown",
-      seed: 0,
-      caseCount: 0,
-    },
+    workload: input.workload === undefined
+      ? { benchmarkId: "unknown", seed: 0, caseCount: 0 }
+      : { ...input.workload },
   };
 }
 

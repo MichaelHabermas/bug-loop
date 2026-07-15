@@ -22,6 +22,26 @@ export interface ResolveRuntimeInput {
   overrides?: RuntimeOverrides;
 }
 
+const GROK_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+
+function nonEmptyEnv(
+  env: Record<string, string | undefined>,
+  key: string,
+): string | undefined {
+  const value = env[key];
+  return value === undefined || value === "" ? undefined : value;
+}
+
+function grokEffort(env: Record<string, string | undefined>): string | undefined {
+  const value = nonEmptyEnv(env, "BUGLOOP_GROK_EFFORT");
+  if (value !== undefined && !GROK_EFFORTS.has(value)) {
+    throw new Error(
+      `BUGLOOP_GROK_EFFORT must be one of ${[...GROK_EFFORTS].join("|")}, received ${value}`,
+    );
+  }
+  return value;
+}
+
 function injectedAgent(): ResolvedAgent {
   return {
     harness: "injected",
@@ -39,17 +59,18 @@ function resolveTriage(
 ): ResolvedAgent {
   if (injected) return injectedAgent();
   if (pipeline === "agent-sdk") {
-    const model = env["BUGLOOP_TRIAGE_MODEL"] ?? "sonnet";
+    const configuredModel = nonEmptyEnv(env, "BUGLOOP_TRIAGE_MODEL");
+    const model = configuredModel ?? "sonnet";
     return {
       harness: "claude-agent-sdk",
       requestedModel: model,
       effectiveModel: model,
       effort: null,
-      source: env["BUGLOOP_TRIAGE_MODEL"] === undefined ? "default" : "env",
+      source: configuredModel === undefined ? "default" : "env",
     };
   }
   if (env["OPENAI_API_KEY"] !== undefined) {
-    const model = env["BUGLOOP_CLASSIFIER_MODEL"] ?? "gpt-4o-mini";
+    const model = nonEmptyEnv(env, "BUGLOOP_CLASSIFIER_MODEL") ?? "gpt-4o-mini";
     return {
       harness: "openai-api",
       requestedModel: model,
@@ -73,18 +94,21 @@ function resolveFixer(
   injected: boolean,
 ): ResolvedAgent {
   if (injected) return injectedAgent();
-  const harness = env["BUGLOOP_FIXER"] ?? config.fixer;
+  const configuredHarness = nonEmptyEnv(env, "BUGLOOP_FIXER");
+  const harness = configuredHarness ?? config.fixer;
   if (harness !== "codex" && harness !== "grok") {
     throw new Error(`BUGLOOP_FIXER must be codex or grok, received ${harness}`);
   }
-  const requestedModel = harness === "codex" ? env["BUGLOOP_CODEX_MODEL"] ?? null : null;
-  const effort = harness === "grok" ? env["BUGLOOP_GROK_EFFORT"] ?? null : null;
+  const requestedModel = harness === "codex"
+    ? nonEmptyEnv(env, "BUGLOOP_CODEX_MODEL") ?? null
+    : null;
+  const effort = harness === "grok" ? grokEffort(env) ?? null : null;
   return {
     harness,
     requestedModel,
     effectiveModel: requestedModel,
     effort,
-    source: env["BUGLOOP_FIXER"] !== undefined || requestedModel !== null || effort !== null
+    source: configuredHarness !== undefined || requestedModel !== null || effort !== null
       ? "env"
       : "default",
   };
@@ -95,18 +119,21 @@ function resolveTestWriter(
   injected: boolean,
 ): ResolvedAgent {
   if (injected) return injectedAgent();
-  const harness = env["BUGLOOP_TESTWRITER"] ?? "grok";
+  const configuredHarness = nonEmptyEnv(env, "BUGLOOP_TESTWRITER");
+  const harness = configuredHarness ?? "grok";
   if (harness !== "codex" && harness !== "grok") {
     throw new Error(`BUGLOOP_TESTWRITER must be codex or grok, received ${harness}`);
   }
-  const requestedModel = harness === "codex" ? env["BUGLOOP_CODEX_MODEL"] ?? null : null;
-  const effort = harness === "grok" ? env["BUGLOOP_GROK_EFFORT"] ?? null : null;
+  const requestedModel = harness === "codex"
+    ? nonEmptyEnv(env, "BUGLOOP_CODEX_MODEL") ?? null
+    : null;
+  const effort = harness === "grok" ? grokEffort(env) ?? null : null;
   return {
     harness,
     requestedModel,
     effectiveModel: requestedModel,
     effort,
-    source: env["BUGLOOP_TESTWRITER"] !== undefined || requestedModel !== null || effort !== null
+    source: configuredHarness !== undefined || requestedModel !== null || effort !== null
       ? "env"
       : "default",
   };
