@@ -4,8 +4,13 @@ import { join } from "node:path";
 import {
   FakeFixer,
   FakeTestWriter,
+  FINGERPRINT_MARKER,
+  fingerprintEvent,
+  OUTCOME_FIXED_LABEL,
+  OUTCOME_GAVE_UP_LABEL,
   type FixInput,
   type IssueInput,
+  type LogEvent,
   type PRInput,
   type ReproStrategy,
   type ReproStrategyInput,
@@ -109,8 +114,10 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   };
 
   const issues: IssueInput[] = [];
+  const issueRecords = new Map<number, { title: string; body: string }>();
   const comments: string[] = [];
   const labelSwaps: string[] = [];
+  const labelsAdded: string[] = [];
   const pullRequests: PRInput[] = [];
   let issueListCalls = 0;
   let issueReadCalls = 0;
@@ -122,14 +129,18 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     async createIssue(input) {
       issues.push(input);
       const number = issues.length;
+      issueRecords.set(number, { title: input.title, body: input.body });
       return { number, url: `https://example.test/issues/${number}` };
     },
-    async readIssue() {
+    async readIssue(number) {
       issueReadCalls += 1;
-      return null;
+      return issueRecords.get(number) ?? null;
     },
     async commentIssue(number, body) {
       comments.push(`${number}:${body}`);
+    },
+    async addLabels(number, labels) {
+      for (const label of labels) labelsAdded.push(`${number}:${label}`);
     },
     async replaceIssueLabel(number, remove, add) {
       labelSwaps.push(`${number}:${remove}:${add}`);
@@ -216,6 +227,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   });
   expect(issues).toHaveLength(4);
   expect(issueListCalls).toBe(1);
+  // Issue reads: once per mechanical worker setup (outcome labels do not re-read bodies).
   expect(issueReadCalls).toBe(3);
   expect(worktreeCalls.filter((call) => call.startsWith("create:"))).toHaveLength(3);
   expect(fixInputs.some((input) => input.issueTitle.includes("WarnInvariant"))).toBe(false);
@@ -227,6 +239,8 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(typeErrorRetry?.fixBrief).toContain("handleCreate");
 
   expect(labelSwaps).toEqual(["3:auto-fix-candidate:needs-human"]);
+  expect(labelsAdded).toContain(`3:${OUTCOME_GAVE_UP_LABEL}`);
+  expect(labelsAdded.filter((entry) => entry.endsWith(`:${OUTCOME_FIXED_LABEL}`))).toHaveLength(2);
   expect(comments.join("\n")).toContain("3:Automated fix gave up after 2 attempts");
   expect(pullRequests).toHaveLength(2);
   expect(result.state.errors).toEqual([]);
@@ -300,6 +314,7 @@ test("records a failed stage before finalizing the trace", async () => {
       return null;
     },
     async commentIssue() {},
+    async addLabels() {},
     async replaceIssueLabel() {},
     async createPullRequest() {
       throw new Error("unused");
@@ -369,6 +384,7 @@ test("watch mode commits cursor to batch end so mid-pass events are seen next pa
       return null;
     },
     async commentIssue() {},
+    async addLabels() {},
     async replaceIssueLabel() {},
     async createPullRequest() {
       throw new Error("unused");
@@ -450,24 +466,38 @@ test("watch --fix: same fingerprint routes/tickets twice but fix loop only once 
 
   const sessionFixFingerprints = new Set<string>();
   const fixCalls: number[] = [];
-  const openIssues: Array<{ number: number; url: string; body: string }> = [];
+  const openIssues: Array<{ number: number; url: string; body: string; labels: string[] }> = [];
 
   const github: GitHubOperations = {
     async listOpenIssues() {
-      return openIssues.map((issue) => ({ ...issue }));
+      return openIssues.map((issue) => ({ ...issue, labels: [...issue.labels] }));
     },
     async createIssue(input) {
       const number = openIssues.length + 1;
-      const issue = { number, url: `https://example.test/issues/${number}`, body: input.body };
+      const issue = {
+        number,
+        url: `https://example.test/issues/${number}`,
+        body: input.body,
+        labels: [...(input.labels ?? [])],
+      };
       openIssues.push(issue);
       return { number, url: issue.url };
     },
-    async readIssue() {
-      return null;
+    async readIssue(number) {
+      const issue = openIssues.find((item) => item.number === number);
+      return issue ? { title: "issue", body: issue.body } : null;
     },
     async commentIssue(number, body) {
       const issue = openIssues.find((item) => item.number === number);
       if (issue) issue.body = `${issue.body}\n${body}`;
+    },
+    async addLabels(number, labels) {
+      const issue = openIssues.find((item) => item.number === number);
+      if (issue) {
+        for (const label of labels) {
+          if (!issue.labels.includes(label)) issue.labels.push(label);
+        }
+      }
     },
     async replaceIssueLabel() {},
     async createPullRequest() {
@@ -600,4 +630,305 @@ test("watch --fix: same fingerprint routes/tickets twice but fix loop only once 
   expect(trace2.events.filter((event) => event.stage === "fix")).toHaveLength(0);
   expect(trace2.events.some((event) => event.stage === "route")).toBe(true);
   expect(trace2.events.some((event) => event.stage === "ticket")).toBe(true);
+});
+
+function errorEvent(msg: string, name = "TypeError"): LogEvent {
+  return {
+    ts: "2026-07-15T12:00:00.000Z",
+    level: "error",
+    msg,
+    route: "POST /orders",
+    err: {
+      name,
+      message: name === "TypeError" ? "undefined customer" : "invalid since",
+      stack: name === "TypeError"
+        ? "TypeError: undefined customer\n    at handleCreate (src/server.ts:10:1)"
+        : "RangeError: invalid since\n    at listOrders (src/server.ts:20:1)",
+    },
+  };
+}
+
+test("empty-pass commits nextCursorOffset (not EOF) so mid-listOpenIssues event is seen next run", async () => {
+  // Invariant: cursor commits end of last fully-parsed, actually-ingested record.
+  const logPath = join(TMP, "empty-pass.jsonl");
+  const cursorPath = join(TMP, "empty-pass-cursor.json");
+  const first = errorEvent("already-ticketed");
+  await Bun.write(logPath, `${JSON.stringify(first)}\n`);
+  const ingestedEnd = Bun.file(logPath).size;
+  const fp = fingerprintEvent(first).hash;
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath,
+  });
+
+  let listCalls = 0;
+  const github: GitHubOperations = {
+    async listOpenIssues() {
+      listCalls += 1;
+      if (listCalls === 1) {
+        // Race: event lands after ingest, during open-issue lookup.
+        const mid = errorEvent("arrived-during-list", "RangeError");
+        await Bun.write(logPath, `${await Bun.file(logPath).text()}${JSON.stringify(mid)}\n`);
+      }
+      return [{
+        number: 1,
+        url: "https://example.test/issues/1",
+        body: `${FINGERPRINT_MARKER(fp)}\n\nopen`,
+       labels: [],
+        }];
+    },
+    async createIssue() {
+      throw new Error("should not file on empty-fresh pass");
+    },
+    async readIssue() {
+      return null;
+    },
+    async commentIssue() {},
+    async addLabels() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("unused");
+    },
+  };
+
+  const pass1 = await runAgentSdkPipeline(config, {
+    fromStart: false,
+    fix: false,
+    live: false,
+    watch: true,
+    commitCursorOffset: ingestedEnd,
+    tracePath: join(TMP, "empty-pass1.json"),
+  }, { github, repoRoot: TMP });
+
+  expect(pass1.summary.eventsRead).toBe(1);
+  expect(pass1.summary.newIncidents).toBe(0);
+  const cursorAfter = await Bun.file(cursorPath).json() as { offset: number };
+  expect(cursorAfter.offset).toBe(ingestedEnd);
+  expect(cursorAfter.offset).toBeLessThan(Bun.file(logPath).size);
+
+  const pass2 = await runAgentSdkPipeline(config, {
+    fromStart: false,
+    fix: false,
+    live: false,
+    watch: true,
+    commitCursorOffset: Bun.file(logPath).size,
+    tracePath: join(TMP, "empty-pass2.json"),
+  }, {
+    github: {
+      ...github,
+      async listOpenIssues() {
+        return [{
+          number: 1,
+          url: "https://example.test/issues/1",
+          body: `${FINGERPRINT_MARKER(fp)}\n\nopen`,
+         labels: [],
+        }];
+      },
+      async createIssue() {
+        return { number: 2, url: "https://example.test/issues/2" };
+      },
+    },
+    repoRoot: TMP,
+    routingPolicy: {
+      authorizedClasses: [],
+      evaluate: () => ({ kind: "deny", reason: "ticket only" }),
+    },
+    reproStrategy: {
+      derive() {
+        return {
+          command: "curl",
+          async reproduce() {
+            return { reproduced: true, evidence: "HTTP 500" };
+          },
+          async verify() {
+            return { passes: true, detail: "ok" };
+          },
+        };
+      },
+    },
+  });
+
+  expect(pass2.summary.eventsRead).toBe(1);
+  expect(pass2.summary.newIncidents).toBe(1);
+});
+
+test("event after debounce-close is ingested exactly once across two passes", async () => {
+  // Read boundary == commit boundary: endOffset caps ingest at batch end.
+  const logPath = join(TMP, "debounce-boundary.jsonl");
+  const cursorPath = join(TMP, "debounce-boundary-cursor.json");
+  const inBatch = errorEvent("in-batch");
+  const afterBatch = errorEvent("after-batch", "RangeError");
+  await Bun.write(logPath, `${JSON.stringify(inBatch)}\n`);
+  const batchEnd = Bun.file(logPath).size;
+  await Bun.write(logPath, `${await Bun.file(logPath).text()}${JSON.stringify(afterBatch)}\n`);
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath,
+  });
+
+  const filed: string[] = [];
+  const github: GitHubOperations = {
+    async listOpenIssues() {
+      return [];
+    },
+    async createIssue(input) {
+      filed.push(input.title);
+      const number = filed.length;
+      return { number, url: `https://example.test/issues/${number}` };
+    },
+    async readIssue() {
+      return null;
+    },
+    async commentIssue() {},
+    async addLabels() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("unused");
+    },
+  };
+
+  const reproStrategy = {
+    derive() {
+      return {
+        command: "curl",
+        async reproduce() {
+          return { reproduced: true, evidence: "HTTP 500" };
+        },
+        async verify() {
+          return { passes: true, detail: "ok" };
+        },
+      };
+    },
+  } satisfies ReproStrategy;
+  const routingPolicy: RoutingPolicy = {
+    authorizedClasses: [],
+    evaluate: () => ({ kind: "deny", reason: "ticket only" }),
+  };
+
+  const pass1 = await runAgentSdkPipeline(config, {
+    fromStart: false,
+    fix: false,
+    live: false,
+    watch: true,
+    commitCursorOffset: batchEnd,
+    tracePath: join(TMP, "boundary-pass1.json"),
+  }, { github, reproStrategy, routingPolicy, repoRoot: TMP });
+
+  expect(pass1.summary.eventsRead).toBe(1);
+  expect(pass1.summary.newIncidents).toBe(1);
+  const cursor1 = await Bun.file(cursorPath).json() as { offset: number };
+  expect(cursor1.offset).toBe(batchEnd);
+
+  const pass2 = await runAgentSdkPipeline(config, {
+    fromStart: false,
+    fix: false,
+    live: false,
+    watch: true,
+    commitCursorOffset: Bun.file(logPath).size,
+    tracePath: join(TMP, "boundary-pass2.json"),
+  }, { github, reproStrategy, routingPolicy, repoRoot: TMP });
+
+  expect(pass2.summary.eventsRead).toBe(1);
+  expect(pass2.summary.newIncidents).toBe(1);
+  // Each event filed exactly once (no duplicate re-ingest of after-batch).
+  expect(filed).toHaveLength(2);
+});
+
+test("restarted session with outcome label does not re-enter fix workers", async () => {
+  const logPath = join(TMP, "restart-marker.jsonl");
+  const cursorPath = join(TMP, "restart-marker-cursor.json");
+  const event = errorEvent("handler error");
+  await Bun.write(logPath, `${JSON.stringify(event)}\n`);
+  const fp = fingerprintEvent(event).hash;
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath,
+  });
+
+  const fixCalls: number[] = [];
+  // Empty in-memory set (restarted session); durable outcome label lives on the issue.
+  const sessionFixFingerprints = new Set<string>();
+  const openIssues = [{
+    number: 1,
+    url: "https://example.test/issues/1",
+    body: FINGERPRINT_MARKER(fp),
+    labels: ["bug-loop", "auto-fix-candidate", OUTCOME_FIXED_LABEL],
+  }];
+
+  const github: GitHubOperations = {
+    async listOpenIssues() {
+      return openIssues.map((issue) => ({ ...issue, labels: [...issue.labels] }));
+    },
+    async createIssue() {
+      throw new Error("should not create");
+    },
+    async readIssue(number) {
+      const issue = openIssues.find((item) => item.number === number);
+      return issue ? { title: "issue", body: issue.body } : null;
+    },
+    async commentIssue() {},
+    async addLabels() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("unused");
+    },
+  };
+
+  const pass = await runAgentSdkPipeline(config, {
+    fromStart: true,
+    fix: true,
+    live: false,
+    watch: true,
+    sessionFixFingerprints,
+    watchSessionId: "sess-restart",
+    watchPass: 1,
+    tracePath: join(TMP, "restart-pass.json"),
+  }, {
+    github,
+    createFixer: () => new FakeFixer(async () => {
+      fixCalls.push(1);
+      return { description: "patch", filesChanged: ["apps/leaky-service/src/server.ts"] };
+    }),
+    reproStrategy: {
+      derive() {
+        return {
+          command: "curl",
+          async reproduce() {
+            return { reproduced: true, evidence: "HTTP 500" };
+          },
+          async verify() {
+            return { passes: true, detail: "ok" };
+          },
+        };
+      },
+    },
+    routingPolicy: {
+      authorizedClasses: ["leaky-service.missing-customer"],
+      evaluate: () => ({ kind: "unknown", reason: "agent" }),
+    },
+    triageAgent: new FakeTriageAgent(async () => ({
+      kind: "authorized",
+      incidentClass: "leaky-service.missing-customer",
+      reason: "mapped",
+      fixBrief: "fix missing customer",
+    })),
+    repoRoot: TMP,
+  });
+
+  expect(pass.summary.newIncidents).toBe(0);
+  expect(fixCalls).toHaveLength(0);
+  expect(sessionFixFingerprints.size).toBe(0);
+  const trace = await Bun.file(join(TMP, "restart-pass.json")).json() as RunTrace;
+  expect(trace.events.filter((event) => event.stage === "fix")).toHaveLength(0);
+  // Gave-up label is also recognized by the restart guard.
+  expect(OUTCOME_GAVE_UP_LABEL).toBe("bug-loop:gave-up");
 });

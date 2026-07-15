@@ -58,11 +58,12 @@ describe("github DRY_RUN", () => {
 
 test("open issue markers are matched locally from one list snapshot", () => {
   const issues = [
-    { number: 1, url: "https://example.test/1", body: "unrelated" },
+    { number: 1, url: "https://example.test/1", body: "unrelated", labels: [] },
     {
       number: 2,
       url: "https://example.test/2",
       body: "bug-loop:fingerprint:deadbeef",
+      labels: ["bug-loop"],
     },
   ];
   expect(findOpenIssueByMarker(issues, "deadbeef")).toEqual({

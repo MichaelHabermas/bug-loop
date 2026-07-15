@@ -42,8 +42,8 @@ export async function ticketWithCreator(
   }
   const config = state.config;
   if (!ticketFailed && config) {
-    // One-shot commits at EOF (skip repro-emitted logs). Watch commits the
-    // debounced batch end so mid-pass service events are not skipped.
+    // Invariant: commit end of last fully-parsed, actually-ingested record
+    // (nextCursorOffset) — never current EOF.
     const cursorPath = state.pipelineConfig?.cursorPath;
     if (!cursorPath) throw new Error("ticket requires pipelineConfig.cursorPath");
     await writeCursor(cursorPath, {

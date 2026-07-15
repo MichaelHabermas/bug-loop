@@ -100,11 +100,15 @@ export interface PullRequestRef {
 /** Runtime inputs shared by one-shot triage implementations. */
 export interface TriageRunConfig {
   fromStart: boolean;
+  /**
+   * End byte offset of the last fully-parsed record actually ingested.
+   * Every successful cursor commit uses this (never current EOF).
+   */
   nextCursorOffset?: number;
   /**
-   * Exact byte offset to commit after a successful pass.
-   * Watch mode sets this to the debounced batch end so mid-pass log growth
-   * is not skipped; one-shot leaves it unset and commits at EOF.
+   * Exclusive end byte offset for watch-mode ingest (debounced batch end).
+   * Caps `readNewEvents` so the pass does not ingest mid-pass growth.
+   * After capped ingest, `nextCursorOffset` equals this boundary.
    */
   commitCursorOffset?: number;
   fix?: boolean;

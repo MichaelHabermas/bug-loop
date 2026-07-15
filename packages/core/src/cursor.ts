@@ -22,19 +22,25 @@ export async function writeCursor(path: string, cursor: Cursor): Promise<void> {
 }
 
 /**
- * Byte offset a successful pass should persist.
- * Watch passes pin the debounced batch end (commitCursorOffset) so mid-pass
- * growth is not skipped. One-shot commits at current EOF to skip repro logs.
+ * Byte offset a successful pass must persist.
+ *
+ * Invariant: commit exactly the end offset of the last fully-parsed,
+ * actually-ingested record (`nextCursorOffset`) — never current EOF.
+ * Watch may set `commitCursorOffset` as the ingest read boundary; after
+ * capped ingest those two agree. Prefer ingested over the pin when both
+ * are present so empty-pass and ticket paths cannot skip mid-listOpenIssues
+ * appends or clip partial trailing JSONL.
  */
 export function resolveCommitCursorOffset(
   config: TriageRunConfig | undefined,
   logPath: string,
 ): number {
+  if (config?.nextCursorOffset !== undefined) {
+    return config.nextCursorOffset;
+  }
   if (config?.commitCursorOffset !== undefined) {
     return config.commitCursorOffset;
   }
-  if (config?.watch === true && config.nextCursorOffset !== undefined) {
-    return config.nextCursorOffset;
-  }
+  // Last resort when ingest did not record an offset (should be rare).
   return Bun.file(logPath).size;
 }

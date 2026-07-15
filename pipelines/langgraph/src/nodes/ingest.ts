@@ -6,7 +6,14 @@ export async function ingestNode(state: TriageState): Promise<Partial<TriageStat
   const pipelineConfig = state.pipelineConfig;
   if (!config || !pipelineConfig) throw new Error("ingest requires pipeline and run config");
   const cursor = config.fromStart ? { offset: 0 } : await readCursor(pipelineConfig.cursorPath);
-  const result = await readNewEvents(state.logPath, cursor);
+  // Cap at commitCursorOffset (watch batch end) so read boundary == commit boundary.
+  const result = await readNewEvents(
+    state.logPath,
+    cursor,
+    config.commitCursorOffset === undefined
+      ? undefined
+      : { endOffset: config.commitCursorOffset },
+  );
   console.log(`[ingest] events=${result.events.length}`);
   return {
     events: result.events,

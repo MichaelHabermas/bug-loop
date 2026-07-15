@@ -3,7 +3,16 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { createInitialState, createTriageGraph } from "../src/graph";
 import { routeAfterTicket } from "../src/graph";
-import { resolvePipelineRuntime, TraceRecorder, type RunTrace } from "@bug-loop/core";
+import {
+  FINGERPRINT_MARKER,
+  FakeFixer,
+  fingerprintEvent,
+  OUTCOME_FIXED_LABEL,
+  resolvePipelineRuntime,
+  TraceRecorder,
+  type LogEvent,
+  type RunTrace,
+} from "@bug-loop/core";
 import {
   createLeakyServicePipelineConfig,
   leakyServiceReproStrategy,
@@ -71,6 +80,7 @@ test("graph processes all four signatures and tolerates an unreachable service",
         return null;
       },
       async commentIssue() {},
+      async addLabels() {},
       async replaceIssueLabel() {},
       async createPullRequest() {
         return { number: 1, url: "https://example.test/pull/1" };
@@ -115,6 +125,278 @@ test("graph processes all four signatures and tolerates an unreachable service",
     "route",
     "ticket",
   ]);
+});
+
+function errorEvent(msg: string, name = "TypeError"): LogEvent {
+  return {
+    ts: "2026-07-15T12:00:00.000Z",
+    level: "error",
+    msg,
+    route: "POST /orders",
+    err: {
+      name,
+      message: name === "TypeError" ? "undefined customer" : "invalid since",
+      stack: name === "TypeError"
+        ? "TypeError: undefined customer\n    at handleCreate (src/server.ts:10:1)"
+        : "RangeError: invalid since\n    at listOrders (src/server.ts:20:1)",
+    },
+  };
+}
+
+test("empty-pass commits nextCursorOffset (not EOF) so mid-listOpenIssues event is seen next run", async () => {
+  const logPath = join(TMP, "empty-pass.jsonl");
+  const cursorPath = join(TMP, "empty-pass-cursor.json");
+  const first = errorEvent("already-ticketed");
+  await Bun.write(logPath, `${JSON.stringify(first)}\n`);
+  const ingestedEnd = Bun.file(logPath).size;
+  const fp = fingerprintEvent(first).hash;
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "codex",
+    logPath,
+  });
+
+  let listCalls = 0;
+  const graph = createTriageGraph(config, {
+    routingPolicy: leakyServiceRoutingPolicy,
+    reproStrategy: leakyServiceReproStrategy,
+    github: {
+      async listOpenIssues() {
+        listCalls += 1;
+        if (listCalls === 1) {
+          const mid = errorEvent("arrived-during-list", "RangeError");
+          await Bun.write(logPath, `${await Bun.file(logPath).text()}${JSON.stringify(mid)}\n`);
+        }
+        return [{
+          number: 1,
+          url: "https://example.test/issues/1",
+          body: `${FINGERPRINT_MARKER(fp)}\n\nopen`,
+         labels: [],
+        }];
+      },
+      async createIssue() {
+        throw new Error("should not file on empty-fresh pass");
+      },
+      async readIssue() {
+        return null;
+      },
+      async commentIssue() {},
+      async addLabels() {},
+      async replaceIssueLabel() {},
+      async createPullRequest() {
+        throw new Error("unused");
+      },
+    },
+  });
+
+  const pass1 = await graph.invoke(
+    createInitialState(config, {
+      fromStart: false,
+      watch: true,
+      commitCursorOffset: ingestedEnd,
+    }),
+    { configurable: { thread_id: "empty-pass-1" } },
+  );
+  expect(pass1.summary?.eventsRead).toBe(1);
+  expect(pass1.summary?.newIncidents).toBe(0);
+  const cursorAfter = await Bun.file(cursorPath).json() as { offset: number };
+  expect(cursorAfter.offset).toBe(ingestedEnd);
+  expect(cursorAfter.offset).toBeLessThan(Bun.file(logPath).size);
+
+  let filed = 0;
+  const graph2 = createTriageGraph(config, {
+    routingPolicy: {
+      authorizedClasses: [],
+      evaluate: () => ({ kind: "deny", reason: "ticket only" }),
+    },
+    reproStrategy: leakyServiceReproStrategy,
+    github: {
+      async listOpenIssues() {
+        return [{
+          number: 1,
+          url: "https://example.test/issues/1",
+          body: `${FINGERPRINT_MARKER(fp)}\n\nopen`,
+         labels: [],
+        }];
+      },
+      async createIssue() {
+        filed += 1;
+        return { number: 2, url: "https://example.test/issues/2" };
+      },
+      async readIssue() {
+        return null;
+      },
+      async commentIssue() {},
+      async addLabels() {},
+      async replaceIssueLabel() {},
+      async createPullRequest() {
+        throw new Error("unused");
+      },
+    },
+  });
+  const pass2 = await graph2.invoke(
+    createInitialState(config, {
+      fromStart: false,
+      watch: true,
+      commitCursorOffset: Bun.file(logPath).size,
+    }),
+    { configurable: { thread_id: "empty-pass-2" } },
+  );
+  expect(pass2.summary?.eventsRead).toBe(1);
+  expect(pass2.summary?.newIncidents).toBe(1);
+  expect(filed).toBe(1);
+});
+
+test("event after debounce-close is ingested exactly once across two passes", async () => {
+  const logPath = join(TMP, "debounce-boundary.jsonl");
+  const cursorPath = join(TMP, "debounce-boundary-cursor.json");
+  const inBatch = errorEvent("in-batch");
+  const afterBatch = errorEvent("after-batch", "RangeError");
+  await Bun.write(logPath, `${JSON.stringify(inBatch)}\n`);
+  const batchEnd = Bun.file(logPath).size;
+  await Bun.write(logPath, `${await Bun.file(logPath).text()}${JSON.stringify(afterBatch)}\n`);
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "codex",
+    logPath,
+  });
+  const filed: string[] = [];
+  const github = {
+    async listOpenIssues() {
+      return [];
+    },
+    async createIssue(input: { title: string }) {
+      filed.push(input.title);
+      return { number: filed.length, url: `https://example.test/issues/${filed.length}` };
+    },
+    async readIssue() {
+      return null;
+    },
+    async commentIssue() {},
+    async addLabels() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("unused");
+    },
+  };
+  const routingPolicy = {
+    authorizedClasses: [] as string[],
+    evaluate: () => ({ kind: "deny" as const, reason: "ticket only" }),
+  };
+
+  const graph = createTriageGraph(config, {
+    routingPolicy,
+    reproStrategy: leakyServiceReproStrategy,
+    github,
+  });
+  const pass1 = await graph.invoke(
+    createInitialState(config, {
+      fromStart: false,
+      watch: true,
+      commitCursorOffset: batchEnd,
+    }),
+    { configurable: { thread_id: "boundary-1" } },
+  );
+  expect(pass1.summary?.eventsRead).toBe(1);
+  expect(pass1.summary?.newIncidents).toBe(1);
+  const cursor1 = await Bun.file(cursorPath).json() as { offset: number };
+  expect(cursor1.offset).toBe(batchEnd);
+
+  const pass2 = await graph.invoke(
+    createInitialState(config, {
+      fromStart: false,
+      watch: true,
+      commitCursorOffset: Bun.file(logPath).size,
+    }),
+    { configurable: { thread_id: "boundary-2" } },
+  );
+  expect(pass2.summary?.eventsRead).toBe(1);
+  expect(pass2.summary?.newIncidents).toBe(1);
+  expect(filed).toHaveLength(2);
+});
+
+test("restarted session with outcome label does not re-enter fix workers", async () => {
+  const logPath = join(TMP, "restart-marker.jsonl");
+  const cursorPath = join(TMP, "restart-marker-cursor.json");
+  const event = errorEvent("handler error");
+  await Bun.write(logPath, `${JSON.stringify(event)}\n`);
+  const fp = fingerprintEvent(event).hash;
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "codex",
+    logPath,
+  });
+  const fixCalls: number[] = [];
+  const sessionFixFingerprints = new Set<string>();
+  const openIssues = [{
+    number: 1,
+    url: "https://example.test/issues/1",
+    body: FINGERPRINT_MARKER(fp),
+    labels: ["bug-loop", "auto-fix-candidate", OUTCOME_FIXED_LABEL],
+  }];
+
+  const graph = createTriageGraph(config, {
+    sessionFixFingerprints,
+    routingPolicy: {
+      authorizedClasses: ["leaky-service.missing-customer"],
+      evaluate: () => ({
+        kind: "authorized" as const,
+        incidentClass: "leaky-service.missing-customer",
+        reason: "mapped",
+      }),
+    },
+    reproStrategy: {
+      derive() {
+        return {
+          command: "curl",
+          async reproduce() {
+            return { reproduced: true, evidence: "HTTP 500" };
+          },
+          async verify() {
+            return { passes: true, detail: "ok" };
+          },
+        };
+      },
+    },
+    createFixer: () => new FakeFixer(async () => {
+      fixCalls.push(1);
+      return { description: "patch", filesChanged: ["apps/leaky-service/src/server.ts"] };
+    }),
+    github: {
+      async listOpenIssues() {
+        return openIssues.map((issue) => ({ ...issue, labels: [...issue.labels] }));
+      },
+      async createIssue() {
+        throw new Error("should not create");
+      },
+      async readIssue(number) {
+        const issue = openIssues.find((item) => item.number === number);
+        return issue ? { title: "issue", body: issue.body } : null;
+      },
+      async commentIssue() {},
+      async addLabels() {},
+      async replaceIssueLabel() {},
+      async createPullRequest() {
+        throw new Error("unused");
+      },
+    },
+  });
+
+  const result = await graph.invoke(
+    createInitialState(config, {
+      fromStart: true,
+      fix: true,
+      watch: true,
+    }),
+    { configurable: { thread_id: "restart-marker" } },
+  );
+  expect(result.summary?.newIncidents).toBe(0);
+  expect(fixCalls).toHaveLength(0);
+  expect(sessionFixFingerprints.size).toBe(0);
 });
 
 test("compiled graph exposes the fix cycle and only routes fix-enabled mechanical work into it", () => {

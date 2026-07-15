@@ -1,10 +1,11 @@
 import {
   formatPrFilesList,
   formatRegressionTestIntent,
+  OUTCOME_FIXED_LABEL,
+  OUTCOME_GAVE_UP_LABEL,
   rewritePathsForPrBody,
   GitWorktreeOperations,
   GitHubClient,
-  type IssueDetails,
   type PRInput,
   type PRRef,
   type TriageState,
@@ -13,8 +14,8 @@ import {
 } from "@bug-loop/core";
 
 export interface GitHubOperations {
-  readIssue(number: number): Promise<IssueDetails | null>;
   commentIssue(number: number, body: string): Promise<void>;
+  addLabels(number: number, labels: string[]): Promise<void>;
   replaceIssueLabel(number: number, remove: string, add: string): Promise<void>;
   createPullRequest(input: PRInput): Promise<PRRef>;
 }
@@ -95,6 +96,11 @@ export async function giveUpWithDependencies(
     } catch (error: unknown) {
       errors.push(`give-up label issue ${number}: ${errorDetail(error)}`);
     }
+    try {
+      await github.addLabels(number, [OUTCOME_GAVE_UP_LABEL]);
+    } catch (error: unknown) {
+      errors.push(`give-up outcome label issue ${number}: ${errorDetail(error)}`);
+    }
     console.log(`[give-up] issue=${number} attempts=${state.retryCount}`);
   } finally {
     if (worktreeDir) {
@@ -168,7 +174,16 @@ export async function prWithDependencies(
       base: "main",
       labels: [input.config.labels.pipeline],
     });
-    await github.commentIssue(number, `Fix verified and PR opened: ${pullRequest.url}`);
+    try {
+      await github.commentIssue(number, `Fix verified and PR opened: ${pullRequest.url}`);
+    } catch (error: unknown) {
+      errors.push(`pr comment issue ${number}: ${errorDetail(error)}`);
+    }
+    try {
+      await github.addLabels(number, [OUTCOME_FIXED_LABEL]);
+    } catch (error: unknown) {
+      errors.push(`pr outcome label issue ${number}: ${errorDetail(error)}`);
+    }
     console.log(`[pr] issue=${number} url=${pullRequest.url}`);
   } catch (error: unknown) {
     errors.push(`pr issue ${number}: ${errorDetail(error)}`);

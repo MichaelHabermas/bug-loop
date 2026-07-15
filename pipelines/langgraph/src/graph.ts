@@ -114,6 +114,7 @@ export function createInitialState(
 interface PipelineGitHubOperations extends GitHubOperations {
   listOpenIssues(): Promise<OpenIssue[]>;
   createIssue(input: IssueInput): Promise<IssueRef>;
+  readIssue(number: number): Promise<IssueDetails | null>;
   createPullRequest(input: PRInput): Promise<PRRef>;
 }
 
@@ -273,17 +274,19 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     if (state.config?.watch === true) {
       const sessionProcessed = options.sessionFixFingerprints ?? new Set<string>();
       const openIssues = await github.listOpenIssues();
-      const bodyByNumber = new Map(openIssues.map((issue) => [issue.number, issue.body]));
+      const labelsByNumber = new Map(
+        openIssues.map((issue) => [issue.number, issue.labels]),
+      );
       mechanical = mechanical.filter((item) => {
         const fingerprint = item.incident.fingerprint.hash;
         const issueNumber = item.ticket?.issueNumber;
-        const openIssueBody = issueNumber === undefined
+        const openIssueLabels = issueNumber === undefined
           ? undefined
-          : bodyByNumber.get(issueNumber);
+          : labelsByNumber.get(issueNumber);
         return shouldEnterWatchFixLoop({
           fingerprint,
           sessionProcessed,
-          ...(openIssueBody === undefined ? {} : { openIssueBody }),
+          ...(openIssueLabels === undefined ? {} : { openIssueLabels }),
         });
       });
     }

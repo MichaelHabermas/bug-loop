@@ -107,7 +107,8 @@ describe("dedupeEvents", () => {
       number: 42,
       url: "https://example.test/issues/42",
       body: FINGERPRINT_MARKER(target.fingerprint.hash),
-    }]);
+     labels: [],
+        }]);
     expect(result.all).toHaveLength(1);
     expect(result.fresh).toHaveLength(0);
   });
@@ -118,7 +119,8 @@ describe("dedupeEvents", () => {
       number: 3,
       url: "https://example.test/issues/3",
       body: FINGERPRINT_MARKER(incident(sample).fingerprint.hash),
-    }];
+     labels: [],
+        }];
     const fixResult = await dedupeWithLookup(state({
       actionableEvents: [sample],
       config: {

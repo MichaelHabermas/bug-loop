@@ -1,28 +1,39 @@
 /**
- * Detect issue bodies/comments that indicate a prior fix attempt already
- * finished (PR opened or give-up), so watch --fix must not re-enter workers.
+ * Detect issue labels that indicate a prior fix attempt already finished
+ * (PR opened or give-up), so watch --fix must not re-enter workers.
+ *
+ * Durable machine-readable labels are applied on outcome so a restarted
+ * session (empty in-memory set) can still skip re-entry using data
+ * listOpenIssues() already returns.
  */
-export function issueLooksFixResolved(body: string): boolean {
+
+/** Applied when a verified fix opens a PR. */
+export const OUTCOME_FIXED_LABEL = "bug-loop:fixed";
+
+/** Applied when the fix loop gives up (alongside needs-human). */
+export const OUTCOME_GAVE_UP_LABEL = "bug-loop:gave-up";
+
+export function issueLooksFixResolved(labels: readonly string[]): boolean {
   return (
-    body.includes("Fix verified and PR opened:") ||
-    body.includes("Automated fix gave up after")
+    labels.includes(OUTCOME_FIXED_LABEL) ||
+    labels.includes(OUTCOME_GAVE_UP_LABEL)
   );
 }
 
 /**
  * Whether a mechanical incident may enter the fix loop during a watch session.
  * Skips fingerprints already processed this session and issues that already
- * show a linked PR or give-up outcome.
+ * carry a durable outcome label.
  */
 export function shouldEnterWatchFixLoop(input: {
   fingerprint: string;
   sessionProcessed: ReadonlySet<string>;
-  openIssueBody?: string;
+  openIssueLabels?: readonly string[];
 }): boolean {
   if (input.sessionProcessed.has(input.fingerprint)) return false;
   if (
-    input.openIssueBody !== undefined &&
-    issueLooksFixResolved(input.openIssueBody)
+    input.openIssueLabels !== undefined &&
+    issueLooksFixResolved(input.openIssueLabels)
   ) {
     return false;
   }

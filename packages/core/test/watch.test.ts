@@ -337,7 +337,7 @@ describe("runWatchDaemon", () => {
 });
 
 describe("watch fix re-entry guards", () => {
-  test("session fingerprint + resolved issue body block fix re-entry", () => {
+  test("session fingerprint + outcome labels block fix re-entry", () => {
     const session = new Set<string>(["fp-done"]);
     expect(shouldEnterWatchFixLoop({
       fingerprint: "fp-done",
@@ -346,18 +346,27 @@ describe("watch fix re-entry guards", () => {
     expect(shouldEnterWatchFixLoop({
       fingerprint: "fp-new",
       sessionProcessed: session,
-      openIssueBody: "Fix verified and PR opened: https://example.test/pull/1",
+      openIssueLabels: ["bug-loop", "auto-fix-candidate", "bug-loop:fixed"],
     })).toBe(false);
     expect(shouldEnterWatchFixLoop({
       fingerprint: "fp-new",
       sessionProcessed: session,
-      openIssueBody: "Automated fix gave up after 2 attempts.",
+      openIssueLabels: ["bug-loop", "needs-human", "bug-loop:gave-up"],
+    })).toBe(false);
+    // Restart-safe: empty in-memory set, durable outcome label on the issue.
+    expect(shouldEnterWatchFixLoop({
+      fingerprint: "fp-restart",
+      sessionProcessed: new Set(),
+      openIssueLabels: ["bug-loop:fixed"],
     })).toBe(false);
     expect(shouldEnterWatchFixLoop({
       fingerprint: "fp-new",
       sessionProcessed: session,
-      openIssueBody: "bug-loop:fingerprint:fp-new\n\nstill open",
+      openIssueLabels: ["bug-loop", "auto-fix-candidate"],
     })).toBe(true);
-    expect(issueLooksFixResolved("no markers")).toBe(false);
+    expect(issueLooksFixResolved([])).toBe(false);
+    expect(issueLooksFixResolved(["bug-loop", "auto-fix-candidate"])).toBe(false);
+    expect(issueLooksFixResolved(["bug-loop:fixed"])).toBe(true);
+    expect(issueLooksFixResolved(["bug-loop:gave-up"])).toBe(true);
   });
 });

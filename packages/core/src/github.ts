@@ -26,6 +26,8 @@ export interface IssueRef {
 
 export interface OpenIssue extends IssueRef {
   body: string;
+  /** Label names currently on the issue (from `gh issue list --json labels`). */
+  labels: string[];
 }
 
 export interface PRRef {
@@ -77,14 +79,19 @@ export class GitHubClient {
       return [];
     }
     const { stdout, stderr, exitCode } = await runGh([
-      "issue", "list", "--repo", this.repo, "--state", "open", "--json", "number,url,body",
+      "issue", "list", "--repo", this.repo, "--state", "open",
+      "--json", "number,url,body,labels",
       "--limit", "50",
     ]);
     if (exitCode !== 0) throw new Error(`gh issue list failed: ${stderr || stdout}`);
+    interface GhLabel {
+      name?: string;
+    }
     interface GhIssue {
       number: number;
       url: string;
       body: string | null;
+      labels?: Array<string | GhLabel> | null;
     }
     try {
       const issues = JSON.parse(stdout) as GhIssue[];
@@ -92,6 +99,7 @@ export class GitHubClient {
         number: issue.number,
         url: issue.url,
         body: issue.body ?? "",
+        labels: parseLabelNames(issue.labels),
       }));
     } catch {
       return [];
@@ -120,6 +128,11 @@ export class GitHubClient {
 
   async addLabels(number: number, labels: string[]): Promise<void> {
     if (labels.length === 0) return;
+    // Outcome labels may not exist yet on the repo; create them lazily
+    // (same pattern as other gh mutations: DRY_RUN prints and succeeds).
+    for (const label of labels) {
+      await this.ensureLabel(label);
+    }
     await this.runMutation([
       "issue", "edit", String(number), "--repo", this.repo,
       ...labels.flatMap((label) => ["--add-label", label]),
@@ -150,10 +163,28 @@ export class GitHubClient {
   }
 
   async replaceIssueLabel(number: number, remove: string, add: string): Promise<void> {
+    await this.ensureLabel(add);
     await this.runMutation([
       "issue", "edit", String(number), "--repo", this.repo,
       "--remove-label", remove, "--add-label", add,
     ], "gh issue edit (label swap)");
+  }
+
+  /**
+   * Create a label if missing. Uses `gh label create --force` so re-runs are
+   * idempotent. DRY_RUN-gated like all mutations.
+   */
+  async ensureLabel(name: string): Promise<void> {
+    if (isDryRun()) {
+      console.log(`[DRY_RUN] gh label create ${name} --repo ${this.repo} --force`);
+      return;
+    }
+    const { stdout, stderr, exitCode } = await runGh([
+      "label", "create", name, "--repo", this.repo, "--force",
+    ]);
+    if (exitCode !== 0) {
+      throw new Error(`gh label create failed: ${stderr || stdout}`);
+    }
   }
 
   private async runMutation(args: string[], description: string): Promise<void> {
@@ -164,6 +195,21 @@ export class GitHubClient {
     const { stdout, stderr, exitCode } = await runGh(args);
     if (exitCode !== 0) throw new Error(`${description} failed: ${stderr || stdout}`);
   }
+}
+
+function parseLabelNames(
+  labels: Array<string | { name?: string }> | null | undefined,
+): string[] {
+  if (!labels) return [];
+  const names: string[] = [];
+  for (const label of labels) {
+    if (typeof label === "string") {
+      names.push(label);
+      continue;
+    }
+    if (typeof label.name === "string") names.push(label.name);
+  }
+  return names;
 }
 
 function escapeRegExp(value: string): string {

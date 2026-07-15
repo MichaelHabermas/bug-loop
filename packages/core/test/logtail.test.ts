@@ -55,7 +55,7 @@ describe("readNewEvents", () => {
     const result = await readNewEvents(LOG);
     expect(result.events).toHaveLength(1);
     expect(result.events[0]?.msg).toBe("complete");
-    expect(result.cursor.offset).toBe(complete.length);
+    expect(result.cursor.offset).toBe(Buffer.byteLength(complete, "utf8"));
 
     // Finish the partial line
     appendFileSync(LOG, 'ial"}\n');
@@ -80,6 +80,59 @@ describe("readNewEvents", () => {
     const r2 = await readNewEvents(LOG, r1.cursor);
     expect(r2.events).toHaveLength(1);
     expect(r2.events[0]?.msg).toBe("second");
+  });
+
+  test("endOffset caps the read so post-boundary events stay unconsumed", async () => {
+    const first = line({ msg: "in-batch" });
+    const second = line({ msg: "after-batch" });
+    writeFileSync(LOG, first + second);
+    const batchEnd = Buffer.byteLength(first, "utf8");
+
+    const r1 = await readNewEvents(LOG, { offset: 0 }, { endOffset: batchEnd });
+    expect(r1.events.map((e) => e.msg)).toEqual(["in-batch"]);
+    expect(r1.cursor.offset).toBe(batchEnd);
+
+    const r2 = await readNewEvents(LOG, r1.cursor);
+    expect(r2.events.map((e) => e.msg)).toEqual(["after-batch"]);
+    expect(r2.cursor.offset).toBe(Bun.file(LOG).size);
+  });
+
+  test("multibyte log lines ingest exactly once across two runs", async () => {
+    const first = line({ msg: "emoji ✅ and café" });
+    const second = line({ msg: "second line 日本語" });
+    writeFileSync(LOG, first + second);
+    expect(Buffer.byteLength(first, "utf8")).toBeGreaterThan(first.length);
+
+    const r1 = await readNewEvents(LOG);
+    expect(r1.events.map((e) => e.msg)).toEqual([
+      "emoji ✅ and café",
+      "second line 日本語",
+    ]);
+    expect(r1.cursor.offset).toBe(Bun.file(LOG).size);
+    expect(r1.cursor.offset).toBe(Buffer.byteLength(first + second, "utf8"));
+
+    // Second run from committed cursor: nothing re-ingested.
+    const r2 = await readNewEvents(LOG, r1.cursor);
+    expect(r2.events).toEqual([]);
+    expect(r2.cursor.offset).toBe(r1.cursor.offset);
+  });
+
+  test("partial multibyte trailing line does not advance past incomplete bytes", async () => {
+    const complete = line({ msg: "done ✅" });
+    // Truncate mid-sequence of a multibyte character in a following line.
+    const partialPrefix = '{"ts":"2026-07-13T00:00:00.000Z","level":"info","msg":"café';
+    writeFileSync(LOG, complete + partialPrefix);
+
+    const r1 = await readNewEvents(LOG);
+    expect(r1.events.map((e) => e.msg)).toEqual(["done ✅"]);
+    expect(r1.cursor.offset).toBe(Buffer.byteLength(complete, "utf8"));
+    expect(r1.cursor.offset).toBeLessThan(Bun.file(LOG).size);
+
+    appendFileSync(LOG, '"}\n');
+    const r2 = await readNewEvents(LOG, r1.cursor);
+    expect(r2.events).toHaveLength(1);
+    expect(r2.events[0]?.msg).toBe("café");
+    expect(r2.cursor.offset).toBe(Bun.file(LOG).size);
   });
 });
 

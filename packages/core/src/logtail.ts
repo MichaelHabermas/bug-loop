@@ -34,13 +34,24 @@ function parseLine(line: string): LogEvent | null {
   }
 }
 
+export interface ReadNewEventsOptions {
+  /**
+   * Exclusive end byte offset. When set, only bytes in
+   * `[cursor.offset, endOffset)` are considered so the ingest read boundary
+   * matches the commit boundary (watch debounced batch end).
+   */
+  endOffset?: number;
+}
+
 /**
  * Read new complete JSONL lines from `path` starting at `cursor.offset`.
  * Tolerates a partial last line by not advancing past it.
+ * Optional `endOffset` caps the read so watch ingest stops at the batch end.
  */
 export async function readNewEvents(
   path: string,
   cursor: Cursor = { offset: 0 },
+  options?: ReadNewEventsOptions,
 ): Promise<ReadResult> {
   const file = Bun.file(path);
   if (!(await file.exists())) {
@@ -52,7 +63,15 @@ export async function readNewEvents(
     return { events: [], cursor: { offset: size } };
   }
 
-  const slice = file.slice(cursor.offset);
+  const limit =
+    options?.endOffset === undefined
+      ? size
+      : Math.min(size, Math.max(cursor.offset, options.endOffset));
+  if (cursor.offset >= limit) {
+    return { events: [], cursor };
+  }
+
+  const slice = file.slice(cursor.offset, limit);
   const text = await slice.text();
 
   const events: LogEvent[] = [];
@@ -72,11 +91,15 @@ export async function readNewEvents(
     searchFrom = nl + 1;
   }
 
-  // If the slice ends with a complete line (file ends with \n) or we only
-  // saw complete lines, advance. Partial remainder stays unconsumed.
+  // Cursor offsets are byte offsets. `consumed` is a JS string index into
+  // `text` (UTF-16 code units); convert the exact consumed slice to bytes so
+  // multibyte content (emoji, non-ASCII) does not undersize the cursor and
+  // re-ingest. Partial trailing lines leave `consumed` short of text.length.
+  const consumedBytes =
+    consumed === 0 ? 0 : Buffer.byteLength(text.slice(0, consumed), "utf8");
   return {
     events,
-    cursor: { offset: cursor.offset + consumed },
+    cursor: { offset: cursor.offset + consumedBytes },
   };
 }
 

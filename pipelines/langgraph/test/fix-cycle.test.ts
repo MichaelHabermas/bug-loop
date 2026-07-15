@@ -394,11 +394,11 @@ describe("give-up and PR nodes", () => {
   test("second failed verification comments, swaps labels, cleans up, and exits", async () => {
     const calls: string[] = [];
     const github: GitHubOperations = {
-      async readIssue() {
-        return { title: "issue", body: "body" };
-      },
       async commentIssue(number, body) {
         calls.push(`comment:${number}:${body}`);
+      },
+      async addLabels(number, labels) {
+        calls.push(`add-labels:${number}:${labels.join(",")}`);
       },
       async replaceIssueLabel(number, remove, add) {
         calls.push(`labels:${number}:${remove}:${add}`);
@@ -422,6 +422,7 @@ describe("give-up and PR nodes", () => {
       },
     }), { config: PIPELINE_CONFIG, github, worktrees: worktrees(calls) });
     expect(calls.join("\n")).toContain("comment:1:Automated fix gave up after 2 attempts");
+    expect(calls).toContain("add-labels:1:bug-loop:gave-up");
     expect(calls).toContain("labels:1:auto-fix-candidate:needs-human");
     expect(result.activeIncident).toBeNull();
   });
@@ -429,11 +430,11 @@ describe("give-up and PR nodes", () => {
   test("give-up still swaps labels and advances when the issue comment fails", async () => {
     const calls: string[] = [];
     const github: GitHubOperations = {
-      async readIssue() {
-        return null;
-      },
       async commentIssue() {
         throw new Error("comment unavailable");
+      },
+      async addLabels(number, labels) {
+        calls.push(`add-labels:${number}:${labels.join(",")}`);
       },
       async replaceIssueLabel(number, remove, add) {
         calls.push(`labels:${number}:${remove}:${add}`);
@@ -472,11 +473,11 @@ describe("give-up and PR nodes", () => {
       },
     }));
     const github: GitHubOperations = {
-      async readIssue() {
-        return { title: "issue", body: "body" };
-      },
       async commentIssue(number, body) {
         calls.push(`comment:${number}:${body}`);
+      },
+      async addLabels(number, labels) {
+        calls.push(`add-labels:${number}:${labels.join(",")}`);
       },
       async replaceIssueLabel() {},
       async createPullRequest(input) {
@@ -550,6 +551,7 @@ describe("give-up and PR nodes", () => {
     expect(captured).toContain(
       "commit:fix: TypeError on POST /orders (bug-loop pipeline)\n\nFixes #1",
     );
+    expect(captured).toContain("add-labels:1:bug-loop:fixed");
     expect(result.activeIncident?.fingerprint.hash).toBe(
       nextIncident.fingerprint.hash,
     );
@@ -561,10 +563,8 @@ describe("give-up and PR nodes", () => {
       "/Users/michaelhabermas/repos/CaS-tests/bug-loop/.worktrees/45b905d3/apps/leaky-service/src/server.ts:60";
     let prBody = "";
     const github: GitHubOperations = {
-      async readIssue() {
-        return { title: "issue", body: "body" };
-      },
       async commentIssue() {},
+      async addLabels() {},
       async replaceIssueLabel() {},
       async createPullRequest(input) {
         prBody = input.body;

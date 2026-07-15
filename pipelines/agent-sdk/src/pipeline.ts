@@ -13,6 +13,8 @@ import {
   groupIncidents,
   heuristicRegressionTestSpec,
   isStructuredActionable,
+  OUTCOME_FIXED_LABEL,
+  OUTCOME_GAVE_UP_LABEL,
   readCursor,
   readNewEvents,
   RealVerifyRunner,
@@ -78,6 +80,7 @@ export interface GitHubOperations {
   createIssue(input: IssueInput): Promise<IssueRef>;
   readIssue(number: number): Promise<IssueDetails | null>;
   commentIssue(number: number, body: string): Promise<void>;
+  addLabels(number: number, labels: string[]): Promise<void>;
   replaceIssueLabel(number: number, remove: string, add: string): Promise<void>;
   createPullRequest(input: PRInput): Promise<PRRef>;
 }
@@ -139,7 +142,14 @@ async function ingest(state: TriageState): Promise<void> {
   const pipelineConfig = state.pipelineConfig;
   if (!config || !pipelineConfig) throw new Error("ingest requires pipeline and run config");
   const cursor = config.fromStart ? { offset: 0 } : await readCursor(pipelineConfig.cursorPath);
-  const result = await readNewEvents(state.logPath, cursor);
+  // Cap at commitCursorOffset (watch batch end) so read boundary == commit boundary.
+  const result = await readNewEvents(
+    state.logPath,
+    cursor,
+    config.commitCursorOffset === undefined
+      ? undefined
+      : { endOffset: config.commitCursorOffset },
+  );
   state.events = result.events;
   state.config = { ...config, nextCursorOffset: result.cursor.offset };
   state.summary = { ...EMPTY_SUMMARY, eventsRead: result.events.length };
@@ -170,16 +180,12 @@ async function dedupe(
   );
   const fresh = all.filter((_, index) => existing[index] === null);
   const config = state.config;
-  if (
-    fresh.length === 0 &&
-    config &&
-    (config.commitCursorOffset !== undefined || config.nextCursorOffset !== undefined)
-  ) {
+  // Empty-pass: commit ingested end only (nextCursorOffset). Never EOF — events
+  // appended during listOpenIssues must remain available for the next run.
+  if (fresh.length === 0 && config?.nextCursorOffset !== undefined) {
     const cursorPath = state.pipelineConfig?.cursorPath;
     if (!cursorPath) throw new Error("dedupe requires pipelineConfig.cursorPath");
-    await writeCursor(cursorPath, {
-      offset: resolveCommitCursorOffset(config, state.logPath),
-    });
+    await writeCursor(cursorPath, { offset: config.nextCursorOffset });
   }
   const incidents = config?.fix ? all : fresh;
   state.incidents = incidents;
@@ -399,6 +405,11 @@ async function giveUp(
     } catch (error: unknown) {
       state.errors.push(`give-up label issue ${number}: ${errorDetail(error)}`);
     }
+    try {
+      await github.addLabels(number, [OUTCOME_GAVE_UP_LABEL]);
+    } catch (error: unknown) {
+      state.errors.push(`give-up outcome label issue ${number}: ${errorDetail(error)}`);
+    }
     console.log(`[give-up] issue=${number} attempts=${attempts}`);
   } finally {
     await removeWorktree(state, worktrees, worktreeDir);
@@ -475,7 +486,16 @@ async function openPullRequest(
       base: "main",
       labels: [config.labels.pipeline],
     });
-    await github.commentIssue(number, `Fix verified and PR opened: ${pullRequest.url}`);
+    try {
+      await github.commentIssue(number, `Fix verified and PR opened: ${pullRequest.url}`);
+    } catch (error: unknown) {
+      state.errors.push(`pr comment issue ${number}: ${errorDetail(error)}`);
+    }
+    try {
+      await github.addLabels(number, [OUTCOME_FIXED_LABEL]);
+    } catch (error: unknown) {
+      state.errors.push(`pr outcome label issue ${number}: ${errorDetail(error)}`);
+    }
     state.pullRequests = [...state.pullRequests ?? [], pullRequest];
     console.log(`[pr] issue=${number} url=${pullRequest.url}`);
   } catch (error: unknown) {
@@ -608,17 +628,19 @@ export async function runAgentSdkPipeline(
       if (state.config.watch === true) {
         const sessionProcessed = options.sessionFixFingerprints ?? new Set<string>();
         const openIssues = await github.listOpenIssues();
-        const bodyByNumber = new Map(openIssues.map((issue) => [issue.number, issue.body]));
+        const labelsByNumber = new Map(
+          openIssues.map((issue) => [issue.number, issue.labels]),
+        );
         mechanical = mechanical.filter((item) => {
           const fingerprint = item.incident.fingerprint.hash;
           const issueNumber = item.ticket?.issueNumber;
-          const openIssueBody = issueNumber === undefined
+          const openIssueLabels = issueNumber === undefined
             ? undefined
-            : bodyByNumber.get(issueNumber);
+            : labelsByNumber.get(issueNumber);
           return shouldEnterWatchFixLoop({
             fingerprint,
             sessionProcessed,
-            ...(openIssueBody === undefined ? {} : { openIssueBody }),
+            ...(openIssueLabels === undefined ? {} : { openIssueLabels }),
           });
         });
       }

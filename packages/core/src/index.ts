@@ -72,6 +72,8 @@ export type {
 
 export {
   issueLooksFixResolved,
+  OUTCOME_FIXED_LABEL,
+  OUTCOME_GAVE_UP_LABEL,
   shouldEnterWatchFixLoop,
 } from "./watch-fix";
 
@@ -112,7 +114,7 @@ export {
 } from "./fingerprint";
 
 export { readNewEvents, follow } from "./logtail";
-export type { Cursor, ReadResult } from "./logtail";
+export type { Cursor, ReadNewEventsOptions, ReadResult } from "./logtail";
 
 export { readCursor, writeCursor, resolveCommitCursorOffset } from "./cursor";
 
