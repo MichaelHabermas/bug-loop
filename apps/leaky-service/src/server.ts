@@ -63,13 +63,17 @@ function callShippingProvider(
 
 async function handleCreate(req: Request, id: string): Promise<Response> {
   const body = (await req.json()) as Partial<CreateOrderInput> & {
-    customer: CreateOrderInput["customer"];
+    customer?: CreateOrderInput["customer"];
     items?: OrderItem[];
   };
   const route = "POST /orders";
 
   const items: OrderItem[] = body.items ?? [];
   const discountPercent = body.discountPercent ?? 0;
+
+  if (!body.customer) {
+    return json({ error: "customer is required" }, 400);
+  }
 
   // Pull customer fields for the order record.
   const customerId = body.customer.id;
