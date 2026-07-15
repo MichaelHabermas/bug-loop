@@ -7,7 +7,7 @@ dist/
 *.tsbuildinfo
 .DS_Store
 *.log
-pipelines/langgraph/.cursor.json
+pipelines/*/.cursor.json
 .worktrees/
 traces/*
 !traces/example-run.json

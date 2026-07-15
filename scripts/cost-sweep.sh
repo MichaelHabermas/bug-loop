@@ -102,7 +102,8 @@ for row in "${CONFIG_MATRIX[@]}"; do
     --from-start \
     --fix \
     --base "${BASE_URL}" \
-    --trace "${trace_path}"
+    --trace "${trace_path}" \
+    --label "${name}"
   pipeline_status=$?
   set -e
 

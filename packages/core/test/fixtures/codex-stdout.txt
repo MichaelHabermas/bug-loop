@@ -1,5 +1,5 @@
 Applied the source fix and ran focused checks.
-model: gpt-5.5-codex
+model: gpt-5.6-luna
 input tokens: 12,345
 output tokens: 678
 tokens used

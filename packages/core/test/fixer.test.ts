@@ -7,6 +7,7 @@ import {
   FIX_SUMMARY_MARKER,
   GrokFixer,
   parseCliCost,
+  parseGrokJsonOutput,
   type ProcessResult,
   type ProcessRunner,
 } from "../src";
@@ -223,7 +224,7 @@ test("parseCliCost captures only usage present in CLI stdout fixtures", async ()
   );
   expect(codex).toMatchObject({
     harness: "codex",
-    model: "gpt-5.5-codex",
+    model: "gpt-5.6-luna",
     inputTokens: 12345,
     outputTokens: 678,
   });
@@ -240,4 +241,56 @@ test("parseCliCost captures only usage present in CLI stdout fixtures", async ()
     usd: 0.031,
   });
   expect(parseCliCost("No usage was printed.", "codex")).toBeUndefined();
+});
+
+test("parseCliCost tolerates realistic codex total-only footer with commas and model line", async () => {
+  const codex = parseCliCost(
+    await Bun.file(new URL("./fixtures/codex-stdout-total-only.txt", import.meta.url)).text(),
+    "codex",
+  );
+  expect(codex).toMatchObject({
+    harness: "codex",
+    model: "gpt-5.6-luna",
+  });
+  expect(codex?.inputTokens).toBeUndefined();
+  expect(codex?.outputTokens).toBeUndefined();
+  expect(codex?.raw).toContain("tokens used");
+  expect(codex?.raw).toContain("45,678");
+});
+
+test("parseCliCost accepts inline tokens-used and bullet-prefixed lines", () => {
+  const inline = parseCliCost("model: gpt-5.6-luna\ntokens used: 1,234\n", "codex");
+  expect(inline).toMatchObject({ harness: "codex", model: "gpt-5.6-luna" });
+  expect(inline?.raw).toMatch(/tokens used/i);
+
+  const bullet = parseCliCost("• tokens used: 9,876\n", "codex");
+  expect(bullet).toMatchObject({ harness: "codex" });
+  expect(bullet?.raw).toMatch(/9,876/);
+});
+
+test("parseGrokJsonOutput extracts text but finds no usage on documented envelope", () => {
+  const parsed = parseGrokJsonOutput(JSON.stringify({
+    text: `${FIX_SUMMARY_MARKER}\nGuarded input.`,
+    stopReason: "EndTurn",
+    sessionId: "abc123",
+    requestId: "xyz789",
+  }));
+  expect(parsed?.text).toContain(FIX_SUMMARY_MARKER);
+  expect(parsed?.cost).toBeUndefined();
+  expect(extractFixSummary(parsed?.text ?? "")).toBe("Guarded input.");
+});
+
+test("parseGrokJsonOutput captures usage when a future envelope includes it", () => {
+  const parsed = parseGrokJsonOutput(JSON.stringify({
+    text: "done",
+    model: "grok-code",
+    usage: { input_tokens: 100, output_tokens: 20, total_cost_usd: 0.01 },
+  }));
+  expect(parsed?.cost).toMatchObject({
+    harness: "grok",
+    model: "grok-code",
+    inputTokens: 100,
+    outputTokens: 20,
+    usd: 0.01,
+  });
 });

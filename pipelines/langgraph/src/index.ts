@@ -10,6 +10,7 @@ interface CliArgs {
   fix: boolean;
   baseUrl: string;
   tracePath?: string;
+  label?: string;
 }
 
 export function parseArgs(argv: string[]): CliArgs {
@@ -18,6 +19,7 @@ export function parseArgs(argv: string[]): CliArgs {
   let fix = false;
   let baseUrl = process.env["BUGLOOP_BASE_URL"] ?? "http://localhost:3000";
   let tracePath: string | undefined;
+  let label: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--from-start") {
@@ -36,6 +38,11 @@ export function parseArgs(argv: string[]): CliArgs {
       if (!value) throw new Error("--trace requires a path");
       tracePath = value;
       index += 1;
+    } else if (arg === "--label") {
+      const value = argv[index + 1];
+      if (!value) throw new Error("--label requires a name");
+      label = value;
+      index += 1;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -46,6 +53,7 @@ export function parseArgs(argv: string[]): CliArgs {
     fix,
     baseUrl: baseUrl.replace(/\/$/, ""),
     ...(tracePath === undefined ? {} : { tracePath }),
+    ...(label === undefined ? {} : { label }),
   };
 }
 
@@ -77,6 +85,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     config,
     traceRoot: resolve(import.meta.dir, "../../../traces"),
     ...(args.tracePath === undefined ? {} : { outputPath: args.tracePath }),
+    ...(args.label === undefined ? {} : { label: args.label }),
   });
   const graph = createTriageGraph(config, {
     reproStrategy: leakyServiceReproStrategy,

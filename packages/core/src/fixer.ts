@@ -106,7 +106,8 @@ export function buildFixPrompt(input: FixInput, fixScope: string[]): string {
 
 function parseInteger(value: string | undefined): number | undefined {
   if (value === undefined) return undefined;
-  const parsed = Number(value.replaceAll(",", ""));
+  // Codex often prints thousands separators: "12,345" or "1,234,567".
+  const parsed = Number(value.replaceAll(",", "").trim());
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
@@ -116,6 +117,16 @@ function parseDecimal(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/**
+ * Parse best-effort CLI usage from codex/grok plain stdout.
+ *
+ * Codex `exec` typically ends with a footer that may include a model line and a
+ * "tokens used" figure (often comma-separated, sometimes on the next line):
+ *   model: gpt-5.6-luna
+ *   tokens used
+ *   45,678
+ * or inline: `tokens used: 45,678`. Input/output lines are optional.
+ */
 export function parseCliCost(
   stdout: string,
   harness: "codex" | "grok",
@@ -126,13 +137,19 @@ export function parseCliCost(
   const outputTokens = parseInteger(
     stdout.match(/\boutput[ _-]?tokens(?:\s+used)?\s*[:=]?\s*([\d,]+)/i)?.[1],
   );
-  const totalMatch = stdout.match(/\btokens used\s*[:=]?\s*(?:\r?\n\s*)?([\d,]+)/i);
+  // Tolerate: "tokens used: 1,234", "tokens used 1,234", "tokens used\n1,234",
+  // and bullet-prefixed lines ("• tokens used: 1,234").
+  const totalMatch = stdout.match(
+    /(?:^|\n)\s*(?:[•*\-]\s*)?tokens used\s*[:=]?\s*(?:\r?\n\s*)?([\d,]+)/i,
+  );
   const usdMatch = stdout.match(/(?:\btotal cost|\bcost)\s*[:=]?\s*\$?([\d.]+)/i);
   const usd = parseDecimal(usdMatch?.[1]);
-  const model = stdout.match(/\bmodel\s*[:=]\s*([^\s,]+)/i)?.[1];
+  const model = stdout.match(/(?:^|\n)\s*model\s*[:=]\s*([^\s,]+)/im)?.[1];
   const relevant = stdout.split("\n").filter((line, index, lines) =>
     /\b(input[ _-]?tokens|output[ _-]?tokens|tokens used|total cost|cost\s*[:=]|model\s*[:=])/i.test(line) ||
-    (index > 0 && /\btokens used\s*$/i.test(lines[index - 1] ?? "") && /^\s*[\d,]+\s*$/.test(line))
+    (index > 0 &&
+      /(?:^|\s)(?:[•*\-]\s*)?tokens used\s*$/i.test((lines[index - 1] ?? "").trim()) &&
+      /^\s*[\d,]+\s*$/.test(line))
   );
   if (
     inputTokens === undefined && outputTokens === undefined && totalMatch === null &&
@@ -144,8 +161,100 @@ export function parseCliCost(
     ...(inputTokens === undefined ? {} : { inputTokens }),
     ...(outputTokens === undefined ? {} : { outputTokens }),
     ...(usd === undefined ? {} : { usd }),
-    raw: relevant.join("\n").trim() || totalMatch?.[0] || stdout.trim(),
+    raw: relevant.join("\n").trim() || totalMatch?.[0]?.trim() || stdout.trim(),
   };
+}
+
+/**
+ * Grok headless `--output-format json` envelope (documented shape).
+ * Used only if we ever switch GrokFixer to JSON mode.
+ */
+export interface GrokJsonEnvelope {
+  text?: string;
+  stopReason?: string;
+  sessionId?: string;
+  requestId?: string;
+  thought?: string;
+  type?: string;
+  message?: string;
+  // No usage/token fields are documented or observed in the JSON envelope.
+  usage?: unknown;
+  model?: string;
+}
+
+/**
+ * Parse grok `--output-format json` stdout.
+ * Returns the assistant text (for FIX SUMMARY extraction) and any CostSample
+ * if usage fields are ever present. Today the envelope has no token/cost fields
+ * (only text/stopReason/sessionId/requestId[/thought]), so cost is always undefined.
+ */
+export function parseGrokJsonOutput(stdout: string): {
+  text: string;
+  cost?: CostSample;
+} | undefined {
+  const trimmed = stdout.trim();
+  if (!trimmed.startsWith("{")) return undefined;
+  try {
+    const value: unknown = JSON.parse(trimmed);
+    if (typeof value !== "object" || value === null) return undefined;
+    const record = value as GrokJsonEnvelope;
+    if (record.type === "error") return undefined;
+    if (typeof record.text !== "string") return undefined;
+
+    // Defensive: if a future CLI adds usage, capture it without requiring a code path rewrite.
+    let cost: CostSample | undefined;
+    if (typeof record.usage === "object" && record.usage !== null) {
+      const usage = record.usage as Record<string, unknown>;
+      const inputTokens = parseInteger(
+        typeof usage["input_tokens"] === "number" || typeof usage["input_tokens"] === "string"
+          ? String(usage["input_tokens"])
+          : typeof usage["inputTokens"] === "number" || typeof usage["inputTokens"] === "string"
+            ? String(usage["inputTokens"])
+            : typeof usage["prompt_tokens"] === "number" || typeof usage["prompt_tokens"] === "string"
+              ? String(usage["prompt_tokens"])
+              : undefined,
+      );
+      const outputTokens = parseInteger(
+        typeof usage["output_tokens"] === "number" || typeof usage["output_tokens"] === "string"
+          ? String(usage["output_tokens"])
+          : typeof usage["outputTokens"] === "number" || typeof usage["outputTokens"] === "string"
+            ? String(usage["outputTokens"])
+            : typeof usage["completion_tokens"] === "number" || typeof usage["completion_tokens"] === "string"
+              ? String(usage["completion_tokens"])
+              : undefined,
+      );
+      const usd = parseDecimal(
+        typeof usage["usd"] === "number" || typeof usage["usd"] === "string"
+          ? String(usage["usd"])
+          : typeof usage["total_cost_usd"] === "number" || typeof usage["total_cost_usd"] === "string"
+            ? String(usage["total_cost_usd"])
+            : undefined,
+      );
+      const model =
+        typeof record.model === "string"
+          ? record.model
+          : typeof usage["model"] === "string"
+            ? usage["model"]
+            : undefined;
+      if (inputTokens !== undefined || outputTokens !== undefined || usd !== undefined || model !== undefined) {
+        cost = {
+          harness: "grok",
+          ...(model === undefined ? {} : { model }),
+          ...(inputTokens === undefined ? {} : { inputTokens }),
+          ...(outputTokens === undefined ? {} : { outputTokens }),
+          ...(usd === undefined ? {} : { usd }),
+          raw: JSON.stringify(record.usage),
+        };
+      }
+    }
+
+    return {
+      text: record.text,
+      ...(cost === undefined ? {} : { cost }),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 export function parseChangedFiles(status: string): string[] {
@@ -264,6 +373,11 @@ export class GrokFixer extends CliFixer {
   }
 
   protected command(input: FixInput): string[] {
+    // Stay on plain mode. Grok's --output-format json envelope only documents
+    // text/stopReason/sessionId/requestId[/thought] — no usage/token/cost fields
+    // (verified against grok --help + headless docs). Switching to json would not
+    // improve CostSample capture; parseGrokJsonOutput exists if that changes.
+    // Plain stdout also prints no usage lines today, so cost often stays omitted.
     const command = ["grok"];
     if (this.effort !== undefined) command.push("--effort", this.effort);
     command.push("-p", buildFixPrompt(input, this.fixScope));

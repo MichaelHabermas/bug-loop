@@ -9,6 +9,7 @@ interface CliArgs {
   fix: boolean;
   baseUrl: string;
   tracePath?: string;
+  label?: string;
 }
 
 export function parseArgs(argv: string[]): CliArgs {
@@ -17,6 +18,7 @@ export function parseArgs(argv: string[]): CliArgs {
   let fix = false;
   let baseUrl = process.env["BUGLOOP_BASE_URL"] ?? "http://localhost:3000";
   let tracePath: string | undefined;
+  let label: string | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--from-start") fromStart = true;
@@ -32,6 +34,11 @@ export function parseArgs(argv: string[]): CliArgs {
       if (!value) throw new Error("--trace requires a path");
       tracePath = value;
       index += 1;
+    } else if (arg === "--label") {
+      const value = argv[index + 1];
+      if (!value) throw new Error("--label requires a name");
+      label = value;
+      index += 1;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -42,6 +49,7 @@ export function parseArgs(argv: string[]): CliArgs {
     fix,
     baseUrl: baseUrl.replace(/\/$/, ""),
     ...(tracePath === undefined ? {} : { tracePath }),
+    ...(label === undefined ? {} : { label }),
   };
 }
 
@@ -71,6 +79,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     fix: args.fix,
     live: args.live,
     ...(args.tracePath === undefined ? {} : { tracePath: args.tracePath }),
+    ...(args.label === undefined ? {} : { label: args.label }),
   }, {
     reproStrategy: leakyServiceReproStrategy,
   });

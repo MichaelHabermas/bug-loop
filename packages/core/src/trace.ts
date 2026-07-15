@@ -46,6 +46,8 @@ export interface RunTrace {
   startedAt: string;
   finishedAt: string;
   pipeline: PipelineKind;
+  /** Optional human label for sweep/comparison rows (e.g. cost-sweep config name). */
+  label?: string;
   config: PipelineConfigSummary;
   events: TraceEvent[];
 }
@@ -56,6 +58,8 @@ export interface TraceRecorderOptions {
   outputPath?: string;
   traceRoot?: string;
   runId?: string;
+  /** Optional label stored on the finished RunTrace when set. */
+  label?: string;
   now?: () => Date;
 }
 
@@ -73,6 +77,7 @@ export class TraceRecorder {
   private readonly now: () => Date;
   private readonly startedAt: string;
   private readonly pipeline: PipelineKind;
+  private readonly label: string | undefined;
   private readonly config: PipelineConfigSummary;
   private readonly events: TraceEvent[] = [];
   private finishedAt: string | undefined;
@@ -82,6 +87,7 @@ export class TraceRecorder {
     this.runId = options.runId ?? crypto.randomUUID();
     this.outputPath = options.outputPath ?? join(options.traceRoot ?? "traces", `${this.runId}.json`);
     this.pipeline = options.pipeline;
+    this.label = options.label;
     this.config = {
       ...options.config,
       labels: { ...options.config.labels },
@@ -121,6 +127,7 @@ export class TraceRecorder {
       startedAt: this.startedAt,
       finishedAt: this.finishedAt ?? this.now().toISOString(),
       pipeline: this.pipeline,
+      ...(this.label === undefined ? {} : { label: this.label }),
       config: this.config,
       events: [...this.events],
     };

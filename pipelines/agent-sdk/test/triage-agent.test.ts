@@ -1,9 +1,14 @@
 import { expect, test } from "bun:test";
 import { fingerprintEvent, type Incident, type LogEvent } from "@bug-loop/core";
 import {
+  ClaudeTriageAgent,
   costFromSdkResult,
   parseTriageResult,
+  TRIAGE_MAX_TURNS,
+  TRIAGE_RETRY_COUNT,
   type TriageAgentInput,
+  type TriageSdkAttempt,
+  type TriageSdkAttemptResult,
 } from "../src/triage-agent";
 
 function input(level: LogEvent["level"] = "error"): TriageAgentInput {
@@ -102,4 +107,88 @@ test("captures exact Claude Agent SDK result usage and cost fields", () => {
     outputTokens: 765,
     usd: 0.0842,
   });
+});
+
+test("triage turn budget and retry count are fixed constants", () => {
+  expect(TRIAGE_MAX_TURNS).toBe(6);
+  expect(TRIAGE_RETRY_COUNT).toBe(1);
+});
+
+const VALID_TRIAGE_JSON = JSON.stringify({
+  decision: "mechanical",
+  reason: "reproduced",
+  fixBrief: "Inspect server.ts handleCreate. Add an input guard before dereferencing customer.",
+  regressionTest: {
+    warranted: true,
+    reason: "missing coverage",
+    mustPin: ["non-5xx status"],
+    mustNotPin: ["exact message text"],
+    suggestedLocation: "apps/leaky-service/test/orders.test.ts",
+  },
+});
+
+test("ClaudeTriageAgent retries once after invalid JSON then succeeds", async () => {
+  const logs: string[] = [];
+  let calls = 0;
+  const sdkAttempt: TriageSdkAttempt = async (_input, _fixScope, options) => {
+    calls += 1;
+    expect(options.maxTurns).toBe(TRIAGE_MAX_TURNS);
+    if (calls === 1) {
+      return { text: "not json", error: null };
+    }
+    return { text: VALID_TRIAGE_JSON, error: null };
+  };
+  const agent = new ClaudeTriageAgent(
+    "/tmp/repo",
+    ["apps/leaky-service/src"],
+    ["apps/leaky-service/test"],
+    (message) => logs.push(message),
+    sdkAttempt,
+  );
+  const decision = await agent.triage(input());
+  expect(calls).toBe(2);
+  expect(logs).toContain("[triage] retrying after SDK result was not valid triage JSON");
+  expect(decision.decision).toBe("mechanical");
+  expect(decision.fixBrief).toContain("handleCreate");
+});
+
+test("ClaudeTriageAgent retries once after SDK error then falls back to heuristic", async () => {
+  const logs: string[] = [];
+  let calls = 0;
+  const sdkAttempt: TriageSdkAttempt = async (): Promise<TriageSdkAttemptResult> => {
+    calls += 1;
+    return { text: null, error: "rate limited" };
+  };
+  const agent = new ClaudeTriageAgent(
+    "/tmp/repo",
+    ["apps/leaky-service/src"],
+    ["apps/leaky-service/test"],
+    (message) => logs.push(message),
+    sdkAttempt,
+  );
+  const decision = await agent.triage(input());
+  expect(calls).toBe(1 + TRIAGE_RETRY_COUNT);
+  expect(logs[0]).toBe("[triage] retrying after SDK result error: rate limited");
+  expect(logs[1]).toBe("[triage] SDK result error, using heuristic: rate limited");
+  expect(decision.decision).toBe("mechanical");
+  expect(decision.fixBrief).toBe("");
+});
+
+test("ClaudeTriageAgent does not retry when the first attempt is valid", async () => {
+  const logs: string[] = [];
+  let calls = 0;
+  const sdkAttempt: TriageSdkAttempt = async () => {
+    calls += 1;
+    return { text: VALID_TRIAGE_JSON, error: null };
+  };
+  const agent = new ClaudeTriageAgent(
+    "/tmp/repo",
+    ["apps/leaky-service/src"],
+    ["apps/leaky-service/test"],
+    (message) => logs.push(message),
+    sdkAttempt,
+  );
+  await agent.triage(input());
+  expect(calls).toBe(1);
+  expect(logs).toEqual([]);
 });

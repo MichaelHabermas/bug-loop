@@ -49,8 +49,38 @@ test("TraceRecorder accumulates sequenced events and writes the RunTrace shape",
   const written = await Bun.file(outputPath).json() as RunTrace;
   expect(written.runId).toBe("fixture-run");
   expect(written.pipeline).toBe("langgraph");
+  expect(written.label).toBeUndefined();
   expect(written.config.fixScope).toEqual(["src"]);
   expect(written.config.testScope).toEqual(["test"]);
   expect(written.config.regressionTests).toBe("triage-decides");
   expect(written.events).toHaveLength(1);
+});
+
+test("TraceRecorder includes optional label when provided", async () => {
+  const config = definePipelineConfig({
+    repo: "example/repo",
+    labels: { pipeline: "pipeline", mechanical: "mechanical", needsHuman: "human" },
+    logPath: "logs/app.jsonl",
+    baseUrl: "http://localhost:3000",
+    cursorPath: ".cursor.json",
+    fixScope: ["src"],
+    testScope: ["test"],
+    worktreeRoot: ".worktrees",
+    maxFixAttempts: 2,
+    fixer: "codex",
+    invariantWarnPrefixes: [],
+  });
+  const recorder = new TraceRecorder({
+    pipeline: "agent-sdk",
+    config,
+    outputPath,
+    runId: "labeled-run",
+    label: "grok-low",
+    now: () => new Date("2026-07-14T12:00:00.000Z"),
+  });
+  recorder.start("ingest").finish("ok");
+  const trace = await recorder.finish();
+  expect(trace.label).toBe("grok-low");
+  const written = await Bun.file(outputPath).json() as RunTrace;
+  expect(written.label).toBe("grok-low");
 });

@@ -1,0 +1,8 @@
+thinking… I'll inspect the handler and apply a minimal guard.
+
+codex
+model: gpt-5.6-luna
+tokens used
+45,678
+=== FIX SUMMARY ===
+Added a null check before dereferencing customer.id.

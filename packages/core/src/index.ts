@@ -75,6 +75,7 @@ export {
   extractFixSummary,
   buildFixPrompt,
   parseCliCost,
+  parseGrokJsonOutput,
   parseChangedFiles,
   configuredGrokEffort,
   configuredCodexModel,
@@ -88,6 +89,7 @@ export type {
   FixerKind,
   FakeFixCallback,
   GrokEffort,
+  GrokJsonEnvelope,
 } from "./fixer";
 
 export {

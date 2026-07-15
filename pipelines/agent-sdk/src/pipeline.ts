@@ -52,6 +52,7 @@ const EMPTY_SUMMARY: TriageSummary = {
 
 export interface AgentSdkPipelineOptions extends TriageRunConfig {
   tracePath?: string;
+  label?: string;
 }
 
 export interface GitHubOperations {
@@ -606,6 +607,7 @@ export async function runAgentSdkPipeline(
     config,
     traceRoot: resolve(repoRoot, "traces"),
     ...(options.tracePath === undefined ? {} : { outputPath: options.tracePath }),
+    ...(options.label === undefined ? {} : { label: options.label }),
   });
   const state = initialState(config, options);
 
