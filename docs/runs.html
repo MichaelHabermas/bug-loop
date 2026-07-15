@@ -227,6 +227,19 @@
     }
     .headline-detail { margin: 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.72rem; line-height: 1.6; }
 
+    .tldr {
+      margin-top: 24px;
+      padding: clamp(20px, 2.5vw, 28px);
+      border: 1px solid var(--rule-strong);
+      border-left: 7px solid var(--agent);
+      background: color-mix(in srgb, var(--paper-raised) 86%, transparent);
+    }
+
+    .tldr .eyebrow { margin-bottom: 10px; }
+    .tldr ul { display: grid; gap: 6px; margin: 0; padding-left: 1.2rem; }
+    .tldr li { padding-left: 4px; }
+    .tldr li::marker { color: var(--agent); }
+
     .term { position: relative; display: inline-block; border-bottom: 1px dotted currentColor; cursor: help; }
     .term-tip {
       position: absolute;
@@ -431,6 +444,16 @@
   </header>
 
   <main>
+    <aside class="shell tldr" aria-labelledby="tldr-title">
+      <p class="eyebrow" id="tldr-title">TL;DR</p>
+      <ul>
+        <li>This dashboard compares six real pipeline runs by time, retries, tokens, and dollars per independently verified fix.</li>
+        <li>Every published run found 4 incidents and produced 3 verified fixes.</li>
+        <li>The fastest was grok-low at 5 minutes 15 seconds; haiku-triage cost the least at about $0.08 per verified fix, with 1 retry.</li>
+        <li>Compare configurations by fixes that passed independent checks, and leave missing dollar data as n/a instead of guessing.</li>
+      </ul>
+    </aside>
+
     <section class="loader-section shell" aria-labelledby="load-title">
       <h2 id="load-title" class="section-kicker">Load run traces</h2>
       <div class="loader-grid">

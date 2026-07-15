@@ -294,6 +294,19 @@
 
     .hero-note { color: var(--ink-soft); font-size: 0.94rem; }
 
+    .tldr {
+      margin-top: 24px;
+      padding: clamp(20px, 2.5vw, 28px);
+      border: 1px solid var(--rule-strong);
+      border-left: 7px solid var(--agent);
+      background: color-mix(in srgb, var(--paper-raised) 86%, transparent);
+    }
+
+    .tldr .eyebrow { margin-bottom: 10px; }
+    .tldr ul { display: grid; gap: 6px; margin: 0; padding-left: 1.2rem; }
+    .tldr li { padding-left: 4px; }
+    .tldr li::marker { color: var(--agent); }
+
     .section {
       padding: 104px 0;
       border-bottom: 1px solid var(--rule-strong);
@@ -858,6 +871,16 @@
   </header>
 
   <main>
+    <aside class="shell tldr" aria-labelledby="tldr-title">
+      <p class="eyebrow" id="tldr-title">TL;DR</p>
+      <ul>
+        <li>This pipeline reads live logs, sorts each bug, proves it with a failing test, proposes a fix, and verifies the result.</li>
+        <li>Fixed rules handle routine steps while AI workers are limited to the places that need judgment.</li>
+        <li>It ran on real infrastructure, and the page can replay a live run from logs through a verified fix.</li>
+        <li>No fix ships unless it removes the bug, stays inside its allowed files, and passes every test and code check.</li>
+      </ul>
+    </aside>
+
     <section class="section shell" id="pieces" aria-labelledby="pieces-title">
       <div class="section-head">
         <span class="section-number">02 / COMPONENT REGISTER</span>
