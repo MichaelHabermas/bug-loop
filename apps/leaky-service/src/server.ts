@@ -129,7 +129,11 @@ async function handleList(req: Request, id: string): Promise<Response> {
   let since: Date | undefined;
   if (sinceParam !== null) {
     // Normalize the filter bound to an ISO string for consistent comparison.
-    const normalized = new Date(sinceParam).toISOString();
+    const parsed = new Date(sinceParam);
+    if (Number.isNaN(parsed.getTime())) {
+      return json({ error: "invalid since" }, 400);
+    }
+    const normalized = parsed.toISOString();
     since = new Date(normalized);
   }
 
