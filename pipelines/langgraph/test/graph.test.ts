@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { createInitialState, createTriageGraph } from "../src/graph";
 import { routeAfterTicket } from "../src/graph";
 import { HeuristicClassifier } from "../src/classifier";
-import { TraceRecorder, type RunTrace } from "@bug-loop/core";
+import { resolvePipelineRuntime, TraceRecorder, type RunTrace } from "@bug-loop/core";
 import {
   createLeakyServicePipelineConfig,
   leakyServiceReproStrategy,
@@ -37,10 +37,17 @@ afterEach(() => {
 
 test("graph processes all four signatures and tolerates an unreachable service", async () => {
   const config = pipelineConfig();
+  const resolved = resolvePipelineRuntime({
+    pipeline: "langgraph",
+    config,
+    mode: { fromStart: true, fix: false, live: false },
+    overrides: { triage: true },
+  });
   const tracePath = join(TMP, "langgraph-trace.json");
   const recorder = new TraceRecorder({
     pipeline: "langgraph",
-    config,
+    resolved,
+    workload: { ...config.workload, codeRevision: "test-revision" },
     outputPath: tracePath,
     runId: "langgraph-test-run",
   });
@@ -48,6 +55,7 @@ test("graph processes all four signatures and tolerates an unreachable service",
     classifier: new HeuristicClassifier(config.invariantWarnPrefixes),
     reproStrategy: leakyServiceReproStrategy,
     recorder,
+    resolved,
   });
   const result = await graph.invoke(
     createInitialState(config, {

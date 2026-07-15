@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   FakeTestWriter,
   assessRegressionTestEligibility,
+  authorizeRegressionTestSpec,
   definePipelineConfig,
+  formatRegressionTestIntent,
   heuristicRegressionTestSpec,
   runRegressionTestStage,
   shouldGenerateRegressionTest,
@@ -65,15 +67,25 @@ const mechanical: RouteDecision = {
 function worktrees(calls: string[]): WorktreeOperations {
   return {
     async create(input) {
-      return { worktreeDir: "/tmp/worktree", branch: input.branch };
+      return { worktreeDir: "/tmp/worktree", branch: input.branch, baseCommit: "base" };
     },
     async commit(input) {
       calls.push(`commit:${input.scope ?? "fix"}`);
+      return { commit: "pipeline-test" };
     },
     async push() {},
     async remove() {},
     async reset() {
       calls.push("reset");
+    },
+    async verifyProvenance() {
+      return {
+        passes: true,
+        changedPaths: ["services/api/test/orders.test.ts"],
+        outOfScopePaths: [],
+        unexpectedCommits: [],
+        detail: "trusted working tree",
+      };
     },
   };
 }
@@ -141,6 +153,54 @@ describe("regression-test eligibility and policy", () => {
     expect(spec.reason).toContain("discount policy is ambiguous");
     expect(spec.mustPin).toEqual([]);
   });
+
+  test("downgrades uncited behavior claims to unratified todo notes", () => {
+    const spec = authorizeRegressionTestSpec({
+      warranted: true,
+      reason: "model proposal",
+      mustPin: [
+        { claim: "TypeError signature is absent", class: "signature-absence" },
+        { claim: "returns 200 and ships after provider rejection", class: "behavior" },
+      ],
+      mustNotPin: [],
+      suggestedLocation: "services/api/test",
+    }, []);
+
+    expect(spec.mustPin).toEqual([
+      { claim: "TypeError signature is absent", class: "signature-absence" },
+    ]);
+    expect(spec.unratifiedBehavior).toEqual([
+      { claim: "returns 200 and ships after provider rejection", class: "behavior" },
+    ]);
+    expect(formatRegressionTestIntent({
+      spec,
+      status: "skipped",
+      detail: "todo",
+      filesChanged: [],
+      attempts: [],
+    })).toContain("### Unratified behavior (not pinned - needs human ratification)");
+  });
+
+  test("keeps behavior claims backed by the consumer contract registry", () => {
+    const spec = authorizeRegressionTestSpec({
+      warranted: true,
+      reason: "ratified contract",
+      mustPin: [{
+        claim: "valid create returns 201",
+        class: "behavior",
+        source: "orders.create.valid.status",
+      }],
+      mustNotPin: [],
+      suggestedLocation: "services/api/test",
+    }, [{ id: "orders.create.valid.status", statement: "A valid create returns HTTP 201." }]);
+
+    expect(spec.mustPin).toEqual([{
+      claim: "valid create returns 201",
+      class: "behavior",
+      source: "orders.create.valid.status",
+    }]);
+    expect(spec.unratifiedBehavior).toEqual([]);
+  });
 });
 
 describe("red-pre and green-post enforcement", () => {
@@ -162,6 +222,8 @@ describe("red-pre and green-post enforcement", () => {
         { passes: false, detail: "unused" },
       ]),
       worktrees: worktrees(calls),
+      baseCommit: "base",
+      expectedHead: "base",
     });
     expect(result.record.status).toBe("failed");
     expect(result.record.detail).toContain("scope: fail");
@@ -185,6 +247,8 @@ describe("red-pre and green-post enforcement", () => {
         { passes: true, detail: "1 pass" },
       ]),
       worktrees: worktrees(greenCalls),
+      baseCommit: "base",
+      expectedHead: "base",
     });
     expect(greenPre.record.status).toBe("failed");
     expect(greenPre.record.detail).toContain("red: fail");
@@ -205,6 +269,8 @@ describe("red-pre and green-post enforcement", () => {
         { passes: false, detail: "expected non-5xx, received 500" },
       ]),
       worktrees: worktrees(redCalls),
+      baseCommit: "base",
+      expectedHead: "base",
     });
     expect(redPre.record.status).toBe("established");
     expect(redCalls).toEqual(["commit:test"]);
@@ -216,11 +282,14 @@ describe("red-pre and green-post enforcement", () => {
       incidents: [incident],
       activeIncident: incident,
       worktreeDir: "/tmp/worktree",
+      worktreeBaseCommit: "base",
+      pipelineHeadCommit: "pipeline-test",
       activeFix: {
         attempt: 1,
         branch: "bugloop/fix-abcdef01",
         description: "fix",
         filesChanged: ["services/api/src/handler.ts"],
+        stageBaseCommit: "pipeline-test",
       },
       activeRegressionTest,
       retryCount: 0,
@@ -229,7 +298,18 @@ describe("red-pre and green-post enforcement", () => {
     const verified = await verifyWithRunner(state, runner([
       { passes: true, detail: "regression green" },
       { passes: true, detail: "suite green" },
-    ]), config.fixScope);
+    ]), config.fixScope, {
+      ...worktrees([]),
+      async verifyProvenance() {
+        return {
+          passes: true,
+          changedPaths: ["services/api/src/handler.ts"],
+          outOfScopePaths: [],
+          unexpectedCommits: [],
+          detail: "trusted working tree",
+        };
+      },
+    });
     expect(verified.activeVerify?.verified).toBe(true);
     expect(verified.activeVerify?.regressionTestPasses).toBe(true);
     expect(verified.activeRegressionTest?.greenEvidence).toBe("regression green");

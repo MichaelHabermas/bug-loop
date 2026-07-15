@@ -1,20 +1,16 @@
-/**
- * Publish sweep RunTrace files into docs/runs-data.js for the runs dashboard.
- *
- * Usage:
- *   bun run scripts/publish-traces.ts
- *   bun run scripts/publish-traces.ts traces/sweep-baseline.json traces/sweep-grok-low.json
- *   bun run publish:traces
- *
- * Writes docs/runs-data.js with:
- *   window.BUGLOOP_RUNS = [{ label, trace }, ...];
- *   window.BUGLOOP_PRICES = { ... };
- *   window.BUGLOOP_PRICES_META = { ... };
- */
-
 import { basename, resolve } from "node:path";
 import { readdir } from "node:fs/promises";
-import type { CostSample, PipelineKind, RunTrace, TraceEvent } from "@bug-loop/core/trace";
+import type {
+  AgentCall,
+  AgentUsage,
+  CostSample,
+  PipelineKind,
+  ResolvedAgent,
+  ResolvedPipeline,
+  RunTrace,
+  TraceEvent,
+  TraceWorkload,
+} from "@bug-loop/core/trace";
 
 export interface ModelPrice {
   inPerM: number;
@@ -28,23 +24,84 @@ export interface PricesMeta {
   notes: Record<string, string>;
 }
 
-export interface PublishedRun {
-  label: string;
-  trace: RunTrace;
+interface LegacyWorkload {
+  benchmarkId: "unknown-v1";
+  seed: null;
+  caseCount: null;
+  codeRevision: "unknown-v1";
 }
 
-/** USD per million tokens (input / output). Verified list prices as of 2026-07-14. */
+interface LegacyResolvedAgent {
+  harness: "unknown-v1";
+  requestedModel: null;
+  effectiveModel: null;
+  effort: null;
+  source: "unknown-v1";
+}
+
+interface LegacyResolvedPipeline {
+  pipeline: PipelineKind;
+  triage: LegacyResolvedAgent;
+  testWriter: LegacyResolvedAgent;
+  fixer: LegacyResolvedAgent;
+  regressionTests: "always" | "triage-decides" | "never";
+  maxFixAttempts: number;
+  mode: {
+    fix: "unknown-v1";
+    live: "unknown-v1";
+    fromStart: "unknown-v1";
+  };
+}
+
+export interface PublishedTraceV1 {
+  schemaVersion: 1;
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  pipeline: PipelineKind;
+  config: {
+    fixer: "unknown-v1";
+    regressionTests: "always" | "triage-decides" | "never";
+    maxFixAttempts: number;
+  };
+  resolved: LegacyResolvedPipeline;
+  workload: LegacyWorkload;
+  label?: string;
+  events: TraceEvent[];
+  agentCalls: [];
+  compatibility: {
+    resolved: "unknown-v1";
+    workload: "unknown-v1";
+  };
+}
+
+export type PublishedTraceV2 = RunTrace & {
+  pipeline: PipelineKind;
+  config: {
+    fixer: string;
+    regressionTests: "always" | "triage-decides" | "never";
+    maxFixAttempts: number;
+  };
+};
+
+export type PublishedTrace = PublishedTraceV2 | PublishedTraceV1;
+
+export interface PublishedRun {
+  label: string;
+  workloadKey: string;
+  resolvedConfigKey: string;
+  trace: PublishedTrace;
+}
+
 export const DEFAULT_PRICES: Record<string, ModelPrice> = {
   "grok-4.5": { inPerM: 2.0, outPerM: 6.0 },
   "gpt-5.6-sol": { inPerM: 5.0, outPerM: 30.0 },
   "gpt-5.6-terra": { inPerM: 2.5, outPerM: 15.0 },
   "gpt-5.6-luna": { inPerM: 1.0, outPerM: 6.0 },
   "claude-sonnet-5": { inPerM: 3.0, outPerM: 15.0 },
-  // Alias used by BUGLOOP_TRIAGE_MODEL / Claude Agent SDK shorthand
   sonnet: { inPerM: 3.0, outPerM: 15.0 },
   "claude-haiku-4-5": { inPerM: 1.0, outPerM: 5.0 },
   haiku: { inPerM: 1.0, outPerM: 5.0 },
-  // Exact model id observed in sweep cost samples (Anthropic dated snapshot id)
   "claude-haiku-4-5-20251001": { inPerM: 1.0, outPerM: 5.0 },
   "claude-opus-4-8": { inPerM: 5.0, outPerM: 25.0 },
   opus: { inPerM: 5.0, outPerM: 25.0 },
@@ -57,10 +114,10 @@ export const DEFAULT_PRICES_META: PricesMeta = {
     "OpenAI developers.openai.com/api/docs/pricing (gpt-5.6)",
     "Anthropic platform docs cached 2026-06-24 (claude)",
   ],
-  note: "Enterprise API list prices — for subscription users this is the API-equivalent cost of the same tokens.",
+  note: "Enterprise API list prices - for subscription users this is the API-equivalent cost of the same tokens.",
   notes: {
     "grok-4.5":
-      "Under-200K-token prompt rate (2.00/6.00 USD per MTok); at/above 200K is 4.00/12.00 — this table uses the under-200K rate.",
+      "Under-200K-token prompt rate (2.00/6.00 USD per MTok); at/above 200K is 4.00/12.00 - this table uses the under-200K rate.",
     "claude-sonnet-5":
       "Standard rate 3.00/15.00 USD per MTok; intro pricing 2.00/10.00 through 2026-08-31.",
   },
@@ -68,6 +125,9 @@ export const DEFAULT_PRICES_META: PricesMeta = {
 
 const PIPELINES = new Set<PipelineKind>(["langgraph", "agent-sdk"]);
 const HARNESSES = new Set<CostSample["harness"]>(["claude-agent-sdk", "codex", "grok"]);
+const SOURCES = new Set(["default", "env", "arg"]);
+const DENIED_KEYS = /(?:^|_)(?:raw|argv|prompt|systemPrompt)(?:$|_)/i;
+const LOCAL_PATH = /\/(?:Users|home|private|tmp|var\/folders)\/[^\s)\]`'"\\]+/g;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -75,6 +135,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function nonNegative(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function cleanString(value: string): string {
+  return value.replace(LOCAL_PATH, "[local-path-redacted]");
+}
+
+function safeValue(value: unknown): unknown {
+  if (typeof value === "string") return cleanString(value);
+  if (Array.isArray(value)) return value.map(safeValue);
+  if (!isRecord(value)) return value;
+  const projected: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (DENIED_KEYS.test(key)) continue;
+    projected[key] = safeValue(child);
+  }
+  return projected;
 }
 
 function parseCostSample(value: unknown, path: string): CostSample {
@@ -87,22 +163,18 @@ function parseCostSample(value: unknown, path: string): CostSample {
   if (model !== undefined && typeof model !== "string") {
     throw new Error(`${path}.model must be a string`);
   }
-  for (const key of ["inputTokens", "outputTokens", "usd"] as const) {
+  for (const key of ["inputTokens", "outputTokens", "totalTokens", "usd"] as const) {
     if (value[key] !== undefined && !nonNegative(value[key])) {
       throw new Error(`${path}.${key} must be a non-negative number`);
     }
-  }
-  const raw = value["raw"];
-  if (raw !== undefined && typeof raw !== "string") {
-    throw new Error(`${path}.raw must be a string`);
   }
   return {
     harness: harness as CostSample["harness"],
     ...(typeof model === "string" ? { model } : {}),
     ...(nonNegative(value["inputTokens"]) ? { inputTokens: value["inputTokens"] } : {}),
     ...(nonNegative(value["outputTokens"]) ? { outputTokens: value["outputTokens"] } : {}),
+    ...(nonNegative(value["totalTokens"]) ? { totalTokens: value["totalTokens"] } : {}),
     ...(nonNegative(value["usd"]) ? { usd: value["usd"] } : {}),
-    ...(typeof raw === "string" ? { raw } : {}),
   };
 }
 
@@ -124,24 +196,167 @@ function parseTraceEvent(value: unknown, path: string): TraceEvent {
   if (value["detail"] !== undefined && !isRecord(value["detail"])) {
     throw new Error(`${path}.detail must be an object`);
   }
-  const cost =
-    value["cost"] === undefined ? undefined : parseCostSample(value["cost"], `${path}.cost`);
+  const cost = value["cost"] === undefined
+    ? undefined
+    : parseCostSample(value["cost"], `${path}.cost`);
+  const detail = isRecord(value["detail"])
+    ? safeValue(value["detail"]) as Record<string, unknown>
+    : undefined;
   return {
     seq: value["seq"] as number,
     stage: value["stage"] as string,
     startedAt: value["startedAt"] as string,
     durationMs: value["durationMs"] as number,
-    outcome: value["outcome"] as string,
+    outcome: cleanString(value["outcome"] as string),
     ...(typeof value["fingerprint"] === "string" ? { fingerprint: value["fingerprint"] } : {}),
-    ...(isRecord(value["detail"]) ? { detail: value["detail"] } : {}),
+    ...(detail === undefined ? {} : { detail }),
     ...(cost === undefined ? {} : { cost }),
   };
 }
 
-/** Validate unknown JSON as a RunTrace (dashboard-compatible shape). */
-export function parseRunTrace(value: unknown): RunTrace {
-  if (!isRecord(value)) throw new Error("trace root must be an object");
-  for (const key of ["runId", "startedAt", "finishedAt", "pipeline"] as const) {
+function parseResolvedAgent(value: unknown, path: string): ResolvedAgent {
+  if (!isRecord(value)) throw new Error(`${path} must be an object`);
+  if (typeof value["harness"] !== "string") throw new Error(`${path}.harness must be a string`);
+  for (const key of ["requestedModel", "effectiveModel", "effort"] as const) {
+    if (value[key] !== null && typeof value[key] !== "string") {
+      throw new Error(`${path}.${key} must be a string or null`);
+    }
+  }
+  if (typeof value["source"] !== "string" || !SOURCES.has(value["source"])) {
+    throw new Error(`${path}.source is invalid`);
+  }
+  return {
+    harness: value["harness"] as string,
+    requestedModel: value["requestedModel"] as string | null,
+    effectiveModel: value["effectiveModel"] as string | null,
+    effort: value["effort"] as string | null,
+    source: value["source"] as ResolvedAgent["source"],
+  };
+}
+
+function parseResolved(value: unknown): ResolvedPipeline {
+  if (!isRecord(value)) throw new Error("resolved must be an object");
+  if (typeof value["pipeline"] !== "string" || !PIPELINES.has(value["pipeline"] as PipelineKind)) {
+    throw new Error("resolved.pipeline must be langgraph or agent-sdk");
+  }
+  if (value["regressionTests"] !== "always" && value["regressionTests"] !== "triage-decides" &&
+      value["regressionTests"] !== "never") {
+    throw new Error("resolved.regressionTests is invalid");
+  }
+  if (!Number.isInteger(value["maxFixAttempts"]) || (value["maxFixAttempts"] as number) < 1) {
+    throw new Error("resolved.maxFixAttempts must be a positive integer");
+  }
+  if (!isRecord(value["mode"])) throw new Error("resolved.mode must be an object");
+  const mode = value["mode"];
+  for (const key of ["fix", "live", "fromStart"] as const) {
+    if (typeof mode[key] !== "boolean") throw new Error(`resolved.mode.${key} must be boolean`);
+  }
+  return {
+    pipeline: value["pipeline"] as PipelineKind,
+    triage: parseResolvedAgent(value["triage"], "resolved.triage"),
+    testWriter: parseResolvedAgent(value["testWriter"], "resolved.testWriter"),
+    fixer: parseResolvedAgent(value["fixer"], "resolved.fixer"),
+    regressionTests: value["regressionTests"],
+    maxFixAttempts: value["maxFixAttempts"] as number,
+    mode: {
+      fix: mode["fix"] as boolean,
+      live: mode["live"] as boolean,
+      fromStart: mode["fromStart"] as boolean,
+    },
+  };
+}
+
+function parseWorkload(value: unknown): TraceWorkload {
+  if (!isRecord(value)) throw new Error("workload must be an object");
+  for (const key of ["benchmarkId", "codeRevision"] as const) {
+    if (typeof value[key] !== "string") throw new Error(`workload.${key} must be a string`);
+  }
+  for (const key of ["seed", "caseCount"] as const) {
+    if (!nonNegative(value[key])) throw new Error(`workload.${key} must be non-negative`);
+  }
+  return {
+    benchmarkId: value["benchmarkId"] as string,
+    seed: value["seed"] as number,
+    caseCount: value["caseCount"] as number,
+    codeRevision: value["codeRevision"] as string,
+  };
+}
+
+function parseUsage(value: unknown, path: string): AgentUsage {
+  if (!isRecord(value)) throw new Error(`${path} must be an object`);
+  if (value["status"] === "unavailable") {
+    if (typeof value["reason"] !== "string") throw new Error(`${path}.reason must be a string`);
+    return { status: "unavailable", reason: value["reason"] };
+  }
+  if (value["status"] !== "reported" && value["status"] !== "tokens-only") {
+    throw new Error(`${path}.status is invalid`);
+  }
+  for (const key of ["inputTokens", "outputTokens", "totalTokens"] as const) {
+    if (value[key] !== undefined && !nonNegative(value[key])) {
+      throw new Error(`${path}.${key} must be non-negative`);
+    }
+  }
+  if (value["status"] === "reported") {
+    if (!nonNegative(value["usd"])) throw new Error(`${path}.usd must be non-negative`);
+    return {
+      status: "reported",
+      ...(nonNegative(value["inputTokens"]) ? { inputTokens: value["inputTokens"] } : {}),
+      ...(nonNegative(value["outputTokens"]) ? { outputTokens: value["outputTokens"] } : {}),
+      ...(nonNegative(value["totalTokens"]) ? { totalTokens: value["totalTokens"] } : {}),
+      usd: value["usd"],
+    };
+  }
+  return {
+    status: "tokens-only",
+    ...(nonNegative(value["inputTokens"]) ? { inputTokens: value["inputTokens"] } : {}),
+    ...(nonNegative(value["outputTokens"]) ? { outputTokens: value["outputTokens"] } : {}),
+    ...(nonNegative(value["totalTokens"]) ? { totalTokens: value["totalTokens"] } : {}),
+  };
+}
+
+function parseAgentCall(value: unknown, path: string): AgentCall {
+  if (!isRecord(value)) throw new Error(`${path} must be an object`);
+  if (!Number.isInteger(value["seq"])) throw new Error(`${path}.seq must be an integer`);
+  for (const key of ["stage", "harness", "outcome"] as const) {
+    if (typeof value[key] !== "string") throw new Error(`${path}.${key} must be a string`);
+  }
+  if (value["effectiveModel"] !== null && typeof value["effectiveModel"] !== "string") {
+    throw new Error(`${path}.effectiveModel must be a string or null`);
+  }
+  if (value["effort"] !== null && typeof value["effort"] !== "string") {
+    throw new Error(`${path}.effort must be a string or null`);
+  }
+  if (!nonNegative(value["durationMs"])) throw new Error(`${path}.durationMs is invalid`);
+  const fallback = isRecord(value["fallback"]) &&
+    typeof value["fallback"]["type"] === "string" &&
+    typeof value["fallback"]["reason"] === "string"
+      ? {
+          type: value["fallback"]["type"] as string,
+          reason: cleanString(value["fallback"]["reason"] as string),
+        }
+      : undefined;
+  return {
+    seq: value["seq"] as number,
+    stage: value["stage"] as string,
+    ...(typeof value["fingerprint"] === "string" ? { fingerprint: value["fingerprint"] } : {}),
+    harness: value["harness"] as string,
+    effectiveModel: value["effectiveModel"] as string | null,
+    effort: value["effort"] as string | null,
+    durationMs: value["durationMs"] as number,
+    outcome: cleanString(value["outcome"] as string),
+    usage: parseUsage(value["usage"], `${path}.usage`),
+    ...(fallback === undefined ? {} : { fallback }),
+  };
+}
+
+function commonTrace(value: Record<string, unknown>): {
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  label?: string;
+  events: TraceEvent[];
+} {
+  for (const key of ["runId", "startedAt", "finishedAt"] as const) {
     if (typeof value[key] !== "string") throw new Error(`${key} must be a string`);
   }
   if (!Number.isFinite(Date.parse(value["startedAt"] as string))) {
@@ -150,48 +365,142 @@ export function parseRunTrace(value: unknown): RunTrace {
   if (!Number.isFinite(Date.parse(value["finishedAt"] as string))) {
     throw new Error("finishedAt must be a valid date");
   }
-  const pipeline = value["pipeline"] as string;
-  if (!PIPELINES.has(pipeline as PipelineKind)) {
-    throw new Error("pipeline must be langgraph or agent-sdk");
-  }
-  if (!isRecord(value["config"])) throw new Error("config must be an object");
   if (!Array.isArray(value["events"])) throw new Error("events must be an array");
-  const events = value["events"].map((event, index) =>
-    parseTraceEvent(event, `events[${index}]`),
-  );
-  const label = value["label"];
-  if (label !== undefined && typeof label !== "string") {
+  if (value["label"] !== undefined && typeof value["label"] !== "string") {
     throw new Error("label must be a string");
   }
   return {
     runId: value["runId"] as string,
     startedAt: value["startedAt"] as string,
     finishedAt: value["finishedAt"] as string,
-    pipeline: pipeline as PipelineKind,
-    ...(typeof label === "string" ? { label } : {}),
-    config: value["config"] as RunTrace["config"],
-    events,
+    ...(typeof value["label"] === "string" ? { label: value["label"] } : {}),
+    events: value["events"].map((event, index) => parseTraceEvent(event, `events[${index}]`)),
   };
 }
 
-/** Label from basename: strip .json and optional sweep- prefix. */
+function unknownAgent(): LegacyResolvedAgent {
+  return {
+    harness: "unknown-v1",
+    requestedModel: null,
+    effectiveModel: null,
+    effort: null,
+    source: "unknown-v1",
+  };
+}
+
+export function parseRunTrace(value: unknown): PublishedTrace {
+  if (!isRecord(value)) throw new Error("trace root must be an object");
+  const common = commonTrace(value);
+  if (value["schemaVersion"] === 2) {
+    const resolved = parseResolved(value["resolved"]);
+    const workload = parseWorkload(value["workload"]);
+    if (!Array.isArray(value["agentCalls"])) throw new Error("agentCalls must be an array");
+    return {
+      schemaVersion: 2,
+      ...common,
+      resolved,
+      workload,
+      pipeline: resolved.pipeline,
+      config: {
+        fixer: resolved.fixer.harness,
+        regressionTests: resolved.regressionTests,
+        maxFixAttempts: resolved.maxFixAttempts,
+      },
+      agentCalls: value["agentCalls"].map((call, index) =>
+        parseAgentCall(call, `agentCalls[${index}]`)
+      ),
+    };
+  }
+  if (value["schemaVersion"] !== undefined && value["schemaVersion"] !== 1) {
+    throw new Error("schemaVersion must be 1 or 2");
+  }
+  if (typeof value["pipeline"] !== "string" || !PIPELINES.has(value["pipeline"] as PipelineKind)) {
+    throw new Error("pipeline must be langgraph or agent-sdk");
+  }
+  if (!isRecord(value["config"])) throw new Error("config must be an object");
+  const config = value["config"];
+  const regressionTests = config["regressionTests"] === "always" ||
+    config["regressionTests"] === "never" || config["regressionTests"] === "triage-decides"
+      ? config["regressionTests"]
+      : "triage-decides";
+  const maxFixAttempts = Number.isInteger(config["maxFixAttempts"]) &&
+    (config["maxFixAttempts"] as number) > 0
+      ? config["maxFixAttempts"] as number
+      : 1;
+  return {
+    schemaVersion: 1,
+    ...common,
+    pipeline: value["pipeline"] as PipelineKind,
+    config: {
+      fixer: "unknown-v1",
+      regressionTests,
+      maxFixAttempts,
+    },
+    resolved: {
+      pipeline: value["pipeline"] as PipelineKind,
+      triage: unknownAgent(),
+      testWriter: unknownAgent(),
+      fixer: unknownAgent(),
+      regressionTests,
+      maxFixAttempts,
+      mode: {
+        fix: "unknown-v1",
+        live: "unknown-v1",
+        fromStart: "unknown-v1",
+      },
+    },
+    workload: {
+      benchmarkId: "unknown-v1",
+      seed: null,
+      caseCount: null,
+      codeRevision: "unknown-v1",
+    },
+    agentCalls: [],
+    compatibility: { resolved: "unknown-v1", workload: "unknown-v1" },
+  };
+}
+
 export function labelFromFilename(path: string): string {
   const base = basename(path).replace(/\.json$/i, "");
   const trimmed = base.startsWith("sweep-") ? base.slice("sweep-".length) : base;
   return trimmed || base || "unnamed-run";
 }
 
-/** Prefer trace.label when non-empty; otherwise derive from the file path. */
-export function labelForTrace(trace: RunTrace, path: string): string {
+export function labelForTrace(trace: PublishedTrace, path: string): string {
   const fromTrace = trace.label?.trim();
-  if (fromTrace) return fromTrace;
-  return labelFromFilename(path);
+  return fromTrace || labelFromFilename(path);
+}
+
+export function workloadKey(trace: PublishedTrace): string {
+  const workload = trace.workload;
+  return [
+    workload.benchmarkId,
+    String(workload.seed),
+    String(workload.caseCount),
+    workload.codeRevision,
+  ].join("|");
+}
+
+export function resolvedConfigKey(trace: PublishedTrace): string {
+  const resolved = trace.resolved;
+  const agent = (value: ResolvedAgent | LegacyResolvedAgent) => [
+    value.harness,
+    value.effectiveModel ?? "unknown",
+    value.effort ?? "none",
+  ].join(":");
+  return [
+    resolved.pipeline,
+    agent(resolved.triage),
+    agent(resolved.testWriter),
+    agent(resolved.fixer),
+    resolved.regressionTests,
+    String(resolved.maxFixAttempts),
+    `${resolved.mode.fix}:${resolved.mode.live}:${resolved.mode.fromStart}`,
+  ].join("|");
 }
 
 export async function resolveTracePaths(argv: string[]): Promise<string[]> {
-  if (argv.length > 0) {
-    return argv.map((path) => resolve(path));
-  }
+  if (argv.length > 0) return argv.map((path) => resolve(path));
   const tracesDir = resolve("traces");
   const entries = await readdir(tracesDir).catch(() => [] as string[]);
   return entries
@@ -205,14 +514,13 @@ export function buildRunsDataSource(
   prices: Record<string, ModelPrice> = DEFAULT_PRICES,
   meta: PricesMeta = DEFAULT_PRICES_META,
 ): string {
-  const body = [
-    "/* Generated by scripts/publish-traces.ts — do not edit by hand. */",
+  return [
+    "/* Generated by scripts/publish-traces.ts - do not edit by hand. */",
     `window.BUGLOOP_RUNS = ${JSON.stringify(runs, null, 2)};`,
     `window.BUGLOOP_PRICES = ${JSON.stringify(prices, null, 2)};`,
     `window.BUGLOOP_PRICES_META = ${JSON.stringify(meta, null, 2)};`,
     "",
   ].join("\n");
-  return body;
 }
 
 export async function loadPublishedRuns(paths: string[]): Promise<PublishedRun[]> {
@@ -220,7 +528,12 @@ export async function loadPublishedRuns(paths: string[]): Promise<PublishedRun[]
   for (const path of paths) {
     const raw: unknown = await Bun.file(path).json();
     const trace = parseRunTrace(raw);
-    runs.push({ label: labelForTrace(trace, path), trace });
+    runs.push({
+      label: labelForTrace(trace, path),
+      workloadKey: workloadKey(trace),
+      resolvedConfigKey: resolvedConfigKey(trace),
+      trace,
+    });
   }
   return runs;
 }
@@ -234,8 +547,7 @@ export async function publishTraces(
     throw new Error("No sweep traces found. Pass paths or place files at traces/sweep-*.json");
   }
   const runs = await loadPublishedRuns(paths);
-  const source = buildRunsDataSource(runs);
-  await Bun.write(outputPath, source);
+  await Bun.write(outputPath, buildRunsDataSource(runs));
   return { runs, outputPath };
 }
 
@@ -244,7 +556,9 @@ if (import.meta.main) {
     .then(({ runs, outputPath }) => {
       console.log(`Wrote ${runs.length} run(s) to ${outputPath}`);
       for (const run of runs) {
-        console.log(`  - ${run.label} (${run.trace.pipeline}, ${run.trace.events.length} events)`);
+        console.log(
+          `  - ${run.label} (${run.trace.resolved.pipeline}, ${run.trace.events.length} events)`,
+        );
       }
     })
     .catch((error: unknown) => {

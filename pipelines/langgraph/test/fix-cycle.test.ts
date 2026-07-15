@@ -94,6 +94,8 @@ function state(overrides: Partial<TriageState> = {}): TriageState {
       live: false,
     },
     activeIncident: active,
+    worktreeBaseCommit: "base",
+    pipelineHeadCommit: "base",
     activeFix: {
       attempt: 1,
       branch: `bugloop/fix-${active.fingerprint.hash.slice(0, 8)}`,
@@ -107,14 +109,18 @@ function state(overrides: Partial<TriageState> = {}): TriageState {
   };
 }
 
-function worktrees(calls: string[]): WorktreeOperations {
+function worktrees(
+  calls: string[],
+  changedPaths = ["apps/leaky-service/src/server.ts"],
+): WorktreeOperations {
   return {
     async create(input) {
       calls.push(`create:${input.branch}`);
-      return { worktreeDir: `/tmp/${input.fingerprint8}`, branch: input.branch };
+      return { worktreeDir: `/tmp/${input.fingerprint8}`, branch: input.branch, baseCommit: "base" };
     },
     async commit(input) {
       calls.push(`commit:${input.message}`);
+      return { commit: input.scope === "test" ? "pipeline-test" : "pipeline-fix" };
     },
     async push(input) {
       calls.push(`push:${input.branch}`);
@@ -124,6 +130,18 @@ function worktrees(calls: string[]): WorktreeOperations {
     },
     async reset(worktreeDir) {
       calls.push(`reset:${worktreeDir}`);
+    },
+    async verifyProvenance(input) {
+      const outOfScopePaths = changedPaths.filter(
+        (path) => !input.scope.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)),
+      );
+      return {
+        passes: changedPaths.length > 0 && outOfScopePaths.length === 0,
+        changedPaths,
+        outOfScopePaths,
+        unexpectedCommits: [],
+        detail: `changed paths: ${changedPaths.join(", ")}`,
+      };
     },
   };
 }
@@ -156,7 +174,14 @@ describe("fix node", () => {
         filesChanged: ["apps/leaky-service/test/missing-customer.test.ts"],
       })),
       verifier,
-      worktrees: worktrees(calls),
+      worktrees: worktrees(calls, ["apps/leaky-service/test/missing-customer.test.ts"]),
+      testWriterResolution: {
+        harness: "injected",
+        requestedModel: null,
+        effectiveModel: null,
+        effort: null,
+        source: "arg",
+      },
     });
     expect(result.activeRegressionTest?.status).toBe("established");
     expect(result.activeRegressionTest?.redEvidence).toContain("received 500");
@@ -229,7 +254,7 @@ describe("fix node", () => {
     const fakeWorktrees = worktrees(calls);
     fakeWorktrees.create = async (input) => {
       calls.push(`create:${input.branch}`);
-      return { worktreeDir: FIXER_TMP, branch: input.branch };
+      return { worktreeDir: FIXER_TMP, branch: input.branch, baseCommit: "base" };
     };
 
     const first = await fixWithDependencies(state(), {
@@ -294,6 +319,7 @@ describe("verify node", () => {
       state({ worktreeDir: "/tmp/worktree" }),
       runner,
       PIPELINE_CONFIG.fixScope,
+      worktrees([]),
     );
     expect(result.activeVerify).toMatchObject({
       reproPasses: true,
@@ -320,6 +346,7 @@ describe("verify node", () => {
       state({ worktreeDir: "/tmp/worktree" }),
       runner,
       PIPELINE_CONFIG.fixScope,
+      worktrees([]),
     );
     expect(result.activeVerify?.verified).toBe(false);
     expect(result.activeVerify?.detail).toContain("TypeError signature still present");
@@ -348,7 +375,10 @@ describe("verify node", () => {
           "apps/leaky-service/test/happy-path.test.ts",
         ],
       },
-    }), runner, PIPELINE_CONFIG.fixScope);
+    }), runner, PIPELINE_CONFIG.fixScope, worktrees([], [
+      "apps/leaky-service/src/server.ts",
+      "apps/leaky-service/test/happy-path.test.ts",
+    ]));
     expect(result.activeVerify?.verified).toBe(false);
     expect(result.activeVerify?.scopePasses).toBe(false);
     expect(result.activeVerify?.detail).toContain("apps/leaky-service/test/happy-path.test.ts");
@@ -507,9 +537,16 @@ describe("give-up and PR nodes", () => {
         spec: {
           warranted: true,
           reason: "missing durable coverage",
-          mustPin: ["status is outside the 5xx class", "TypeError signature is absent"],
+          mustPin: [
+            { claim: "status is outside the 5xx class", class: "status-class" },
+            { claim: "TypeError signature is absent", class: "signature-absence" },
+          ],
           mustNotPin: ["exact response message text"],
           suggestedLocation: "apps/leaky-service/test/orders.test.ts",
+          unratifiedBehavior: [{
+            claim: "returns 200 and ships after provider rejection",
+            class: "behavior",
+          }],
         },
         status: "established",
         detail: "red established",
@@ -527,6 +564,10 @@ describe("give-up and PR nodes", () => {
     expect(captured).toContain("## Regression test intent");
     expect(captured).toContain("status is outside the 5xx class");
     expect(captured).toContain("exact response message text");
+    expect(captured).toContain(
+      "### Unratified behavior (not pinned - needs human ratification)",
+    );
+    expect(captured).toContain("test.todo(\\\"returns 200 and ships after provider rejection\\\")");
     expect(captured).toContain('"labels":["bug-loop"]');
     expect(captured).toContain(
       "commit:fix: TypeError on POST /orders (bug-loop pipeline)\n\nFixes #1",

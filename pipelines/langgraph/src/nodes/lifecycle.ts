@@ -53,6 +53,8 @@ function advance(state: TriageState): Partial<TriageState> {
     activeIncident: queue[0] ?? null,
     fixQueue: queue.slice(1),
     worktreeDir: null,
+    worktreeBaseCommit: undefined,
+    pipelineHeadCommit: undefined,
     retryCount: 0,
     activeFix: undefined,
     activeVerify: undefined,

@@ -49,12 +49,25 @@ export interface TicketRef {
 
 export type RouteKind = "mechanical" | "needs-human";
 
+export type RegressionClaimClass =
+  | "signature-absence"
+  | "status-class"
+  | "invariant"
+  | "behavior";
+
+export interface RegressionAssertionClaim {
+  claim: string;
+  class: RegressionClaimClass;
+  source?: string;
+}
+
 export interface RegressionTestSpec {
   warranted: boolean;
   reason: string;
-  mustPin: string[];
+  mustPin: RegressionAssertionClaim[];
   mustNotPin: string[];
   suggestedLocation: string;
+  unratifiedBehavior?: RegressionAssertionClaim[];
 }
 
 export interface RouteDecision {
@@ -100,6 +113,7 @@ export interface FixAttempt {
   branch: string;
   description: string;
   filesChanged: string[];
+  stageBaseCommit?: string;
 }
 
 export interface RegressionTestAttempt {
@@ -151,6 +165,8 @@ export interface TriageState {
   activeIncident?: Incident | null;
   fixQueue?: Incident[];
   worktreeDir?: string | null;
+  worktreeBaseCommit?: string;
+  pipelineHeadCommit?: string;
   activeRepro?: ReproResult;
   activeTicket?: TicketRef;
   activeFix?: FixAttempt;

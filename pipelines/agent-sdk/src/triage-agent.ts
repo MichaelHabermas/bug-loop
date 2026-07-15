@@ -6,6 +6,7 @@ import {
   type Incident,
   type ReproResult,
   type RouteKind,
+  type RegressionAssertionClaim,
   type RegressionTestSpec,
 } from "@bug-loop/core";
 
@@ -30,6 +31,17 @@ export interface TriageAgentDecision {
 
 export interface TriageAgent {
   triage(input: TriageAgentInput): Promise<TriageAgentDecision>;
+  takeAgentCalls?(): TriageAgentCall[];
+}
+
+export interface TriageAgentCall {
+  durationMs: number;
+  outcome: string;
+  cost?: CostSample;
+  fallback?: {
+    type: "heuristic";
+    reason: string;
+  };
 }
 
 interface SdkResultCostFields {
@@ -115,6 +127,36 @@ function stringArray(value: unknown): string[] | null {
   return value;
 }
 
+const REGRESSION_CLAIM_CLASSES = new Set([
+  "signature-absence",
+  "status-class",
+  "invariant",
+  "behavior",
+]);
+
+function assertionClaims(value: unknown): RegressionAssertionClaim[] | null {
+  if (!Array.isArray(value)) return null;
+  const claims: RegressionAssertionClaim[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) return null;
+    const record = item as Record<string, unknown>;
+    const claim = record["claim"];
+    const claimClass = record["class"];
+    const source = record["source"];
+    if (
+      typeof claim !== "string" || claim.trim() === "" ||
+      typeof claimClass !== "string" || !REGRESSION_CLAIM_CLASSES.has(claimClass) ||
+      (source !== undefined && typeof source !== "string")
+    ) return null;
+    claims.push({
+      claim,
+      class: claimClass as RegressionAssertionClaim["class"],
+      ...(typeof source === "string" ? { source } : {}),
+    });
+  }
+  return claims;
+}
+
 function parseDecision(text: string): TriageAgentDecision | null {
   const object = firstJsonObject(text);
   if (!object) return null;
@@ -135,7 +177,7 @@ function parseDecision(text: string): TriageAgentDecision | null {
     const regression = regressionValue as Record<string, unknown>;
     const warranted = regression["warranted"];
     const regressionReason = regression["reason"];
-    const mustPin = stringArray(regression["mustPin"]);
+    const mustPin = assertionClaims(regression["mustPin"]);
     const mustNotPin = stringArray(regression["mustNotPin"]);
     const suggestedLocation = regression["suggestedLocation"];
     if (
@@ -184,12 +226,13 @@ function promptFor(input: TriageAgentInput, fixScope: string[]): string {
     "Triage this incident.",
     `Inspect only these source paths with read-only tools when useful: ${fixScope.join(", ")}.`,
     "Return only one JSON object with exactly this shape:",
-    '{"decision":"mechanical"|"needs-human","reason":"string","fixBrief":"string","regressionTest":{"warranted":boolean,"reason":"string","mustPin":["string"],"mustNotPin":["string"],"suggestedLocation":"string"}}',
+    '{"decision":"mechanical"|"needs-human","reason":"string","fixBrief":"string","regressionTest":{"warranted":boolean,"reason":"string","mustPin":[{"claim":"string","class":"signature-absence"|"status-class"|"invariant"|"behavior","source":"optional contract id"}],"mustNotPin":["string"],"suggestedLocation":"string"}}',
     "Use mechanical only when the crash has a deterministic reproduction and the fix is unambiguous.",
     "Use needs-human for warnings, policy ambiguity, or unreproduced crashes.",
     "fixBrief must be 2-4 sentences naming the likely file and function plus the intended fix approach.",
     "For needs-human, explain the uncertainty in fixBrief instead of inventing a code change.",
-    "For mechanical incidents, regressionTest mustPin names only durable contracts such as status-code classes, failure-signature absence, and invariants.",
+    "Classify every mustPin claim. Use signature-absence, status-class, or invariant for durable safety properties.",
+    "Use behavior only for a specific success code or business outcome, and include source only when an authorized consumer contract id is supplied in the evidence.",
     "regressionTest mustNotPin names incidental message text, timestamps, IDs, and ordering.",
     "For needs-human, set warranted=false; the pipeline will replace the spec with a test.todo ambiguity question.",
     "",
@@ -255,7 +298,7 @@ async function defaultSdkAttempt(
 }
 
 export class ClaudeTriageAgent implements TriageAgent {
-  private readonly costs: CostSample[] = [];
+  private readonly agentCalls: TriageAgentCall[] = [];
   private readonly sdkAttempt: TriageSdkAttempt;
 
   constructor(
@@ -264,17 +307,30 @@ export class ClaudeTriageAgent implements TriageAgent {
     private readonly testScope: string[],
     private readonly log: (message: string) => void = (message) => console.warn(message),
     sdkAttempt: TriageSdkAttempt = defaultSdkAttempt,
+    private readonly model = "sonnet",
   ) {
     this.sdkAttempt = sdkAttempt;
   }
 
-  takeCost(): CostSample | undefined {
-    return this.costs.shift();
+  takeAgentCalls(): TriageAgentCall[] {
+    return this.agentCalls.splice(0);
   }
 
   async triage(input: TriageAgentInput): Promise<TriageAgentDecision> {
     const scopedInput = { ...input, testScope: input.testScope ?? this.testScope };
     const maxAttempts = 1 + TRIAGE_RETRY_COUNT;
+    const calls: TriageAgentCall[] = [];
+    const finish = (
+      decision: TriageAgentDecision,
+      fallbackReason?: string,
+    ): TriageAgentDecision => {
+      if (fallbackReason !== undefined) {
+        const last = calls.at(-1);
+        if (last) last.fallback = { type: "heuristic", reason: fallbackReason };
+      }
+      this.agentCalls.push(...calls);
+      return decision;
+    };
     try {
       let lastFailureReason: string | null = null;
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -282,40 +338,70 @@ export class ClaudeTriageAgent implements TriageAgent {
           this.log(`[triage] retrying after ${lastFailureReason}`);
         }
 
-        const result = await this.sdkAttempt(scopedInput, this.fixScope, {
-          maxTurns: TRIAGE_MAX_TURNS,
-          model: Bun.env["BUGLOOP_TRIAGE_MODEL"] ?? "sonnet",
-          cwd: this.repoRoot,
-        });
-        if (result.cost !== undefined) this.costs.push(result.cost);
+        const started = performance.now();
+        let result: TriageSdkAttemptResult;
+        try {
+          result = await this.sdkAttempt(scopedInput, this.fixScope, {
+            maxTurns: TRIAGE_MAX_TURNS,
+            model: this.model,
+            cwd: this.repoRoot,
+          });
+        } catch (error: unknown) {
+          const reason = error instanceof Error ? error.message : String(error);
+          calls.push({ durationMs: Math.max(0, performance.now() - started), outcome: "error" });
+          this.log(`[triage] SDK failed, using heuristic: ${reason}`);
+          return finish(heuristicTriage(scopedInput), `SDK threw: ${reason}`);
+        }
 
         if (result.error) {
+          calls.push({
+            durationMs: Math.max(0, performance.now() - started),
+            outcome: "error",
+            ...(result.cost === undefined ? {} : { cost: result.cost }),
+          });
           lastFailureReason = `SDK result error: ${result.error}`;
           if (attempt < maxAttempts) continue;
           this.log(`[triage] SDK result error, using heuristic: ${result.error}`);
-          return heuristicTriage(scopedInput);
+          return finish(heuristicTriage(scopedInput), lastFailureReason);
         }
         if (result.text === null) {
+          calls.push({
+            durationMs: Math.max(0, performance.now() - started),
+            outcome: "no-result",
+            ...(result.cost === undefined ? {} : { cost: result.cost }),
+          });
           lastFailureReason = "SDK returned no result";
           if (attempt < maxAttempts) continue;
           this.log("[triage] SDK returned no result, using heuristic");
-          return heuristicTriage(scopedInput);
+          return finish(heuristicTriage(scopedInput), lastFailureReason);
         }
         const parsed = parseDecision(result.text);
         if (!parsed) {
+          calls.push({
+            durationMs: Math.max(0, performance.now() - started),
+            outcome: "invalid-result",
+            ...(result.cost === undefined ? {} : { cost: result.cost }),
+          });
           lastFailureReason = "SDK result was not valid triage JSON";
           if (attempt < maxAttempts) continue;
           this.log("[triage] SDK result was not valid triage JSON, using heuristic");
-          return heuristicTriage(scopedInput);
+          return finish(heuristicTriage(scopedInput), lastFailureReason);
         }
-        return parseTriageResult(result.text, scopedInput);
+        calls.push({
+          durationMs: Math.max(0, performance.now() - started),
+          outcome: "success",
+          ...(result.cost === undefined ? {} : { cost: result.cost }),
+        });
+        return finish(parseTriageResult(result.text, scopedInput));
       }
-      return heuristicTriage(scopedInput);
-    } catch (error: unknown) {
-      this.log(
-        `[triage] SDK failed, using heuristic: ${error instanceof Error ? error.message : String(error)}`,
+      return finish(
+        heuristicTriage(scopedInput),
+        lastFailureReason ?? "triage attempts exhausted",
       );
-      return heuristicTriage(scopedInput);
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.log(`[triage] SDK failed, using heuristic: ${reason}`);
+      return finish(heuristicTriage(scopedInput), `triage failed: ${reason}`);
     }
   }
 }

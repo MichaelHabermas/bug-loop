@@ -81,6 +81,8 @@ export async function fixWithDependencies(
     );
   }
   const attempt = state.retryCount + 1;
+  const stageBaseCommit = state.pipelineHeadCommit ?? state.worktreeBaseCommit;
+  if (!stageBaseCommit) throw new Error("fix requires a trusted pipeline HEAD");
   try {
     const output = await fixer.fix({
       worktreeDir,
@@ -97,10 +99,10 @@ export async function fixWithDependencies(
       worktreeDir,
       activeTicket: item.ticket,
       activeRepro: item.repro,
-      activeFix: { attempt, branch, ...output },
+      activeFix: { attempt, branch, ...output, stageBaseCommit },
       fixAttempts: [
         ...(state.fixAttempts ?? []),
-        { attempt, branch, ...output },
+        { attempt, branch, ...output, stageBaseCommit },
       ],
     };
   } catch (error: unknown) {
@@ -112,10 +114,10 @@ export async function fixWithDependencies(
       worktreeDir,
       activeTicket: item.ticket,
       activeRepro: item.repro,
-      activeFix: { attempt, branch, description, filesChanged: [] },
+      activeFix: { attempt, branch, description, filesChanged: [], stageBaseCommit },
       fixAttempts: [
         ...(state.fixAttempts ?? []),
-        { attempt, branch, description, filesChanged: [] },
+        { attempt, branch, description, filesChanged: [], stageBaseCommit },
       ],
     };
   }

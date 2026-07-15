@@ -1,5 +1,10 @@
 import { resolve } from "node:path";
-import { TraceRecorder, type TriageSummary } from "@bug-loop/core";
+import {
+  resolvePipelineRuntime,
+  resolveTraceWorkload,
+  TraceRecorder,
+  type TriageSummary,
+} from "@bug-loop/core";
 import { leakyServiceReproStrategy } from "@bug-loop/leaky-service/bug-loop";
 import { createInitialState, createTriageGraph } from "./graph";
 import { createLangGraphConfig } from "./config";
@@ -80,16 +85,25 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   else process.env["DRY_RUN"] = "1";
 
   const config = createLangGraphConfig(args.baseUrl);
-  const recorder = new TraceRecorder({
+  const repoRoot = resolve(import.meta.dir, "../../..");
+  const resolvedRuntime = resolvePipelineRuntime({
     pipeline: "langgraph",
     config,
-    traceRoot: resolve(import.meta.dir, "../../../traces"),
+    mode: args,
+  });
+  const workload = await resolveTraceWorkload(config, repoRoot);
+  const recorder = new TraceRecorder({
+    pipeline: "langgraph",
+    resolved: resolvedRuntime,
+    workload,
+    traceRoot: resolve(repoRoot, "traces"),
     ...(args.tracePath === undefined ? {} : { outputPath: args.tracePath }),
     ...(args.label === undefined ? {} : { label: args.label }),
   });
   const graph = createTriageGraph(config, {
     reproStrategy: leakyServiceReproStrategy,
     recorder,
+    resolved: resolvedRuntime,
   });
   const state = createInitialState(config, {
     fromStart: args.fromStart,

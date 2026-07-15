@@ -22,6 +22,21 @@ export interface LeakyServiceConfigInput {
   logPath?: string;
 }
 
+export const LEAKY_SERVICE_CONTRACTS = [
+  {
+    id: "leaky-service.valid-create.status-201",
+    statement: "A valid create-order request returns HTTP 201.",
+  },
+  {
+    id: "leaky-service.valid-list.status-200",
+    statement: "A valid list-orders request returns HTTP 200.",
+  },
+  {
+    id: "leaky-service.valid-ship.status-200",
+    statement: "A valid ship-order request returns HTTP 200.",
+  },
+] as const;
+
 export function createLeakyServicePipelineConfig(
   input: LeakyServiceConfigInput,
 ): PipelineConfig {
@@ -40,7 +55,13 @@ export function createLeakyServicePipelineConfig(
     worktreeRoot: ".worktrees",
     maxFixAttempts: 2,
     fixer: input.fixer,
+    contractRegistry: LEAKY_SERVICE_CONTRACTS.map((contract) => ({ ...contract })),
     invariantWarnPrefixes: ["order total negative"],
+    workload: {
+      benchmarkId: "leaky-service-seeded-v1",
+      seed: 42,
+      caseCount: 50,
+    },
   });
 }
 

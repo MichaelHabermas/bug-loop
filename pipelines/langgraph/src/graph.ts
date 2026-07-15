@@ -4,7 +4,8 @@ import {
   GitHubClient,
   GitWorktreeOperations,
   RealVerifyRunner,
-  createDefaultFixer,
+  createResolvedFixer,
+  resolvePipelineRuntime,
   takeFixerCost,
   verifyWithRunner,
   type FixAttempt,
@@ -23,6 +24,7 @@ import {
   type RegressionTestRecord,
   type ReproResult,
   type ReproStrategy,
+  type ResolvedPipeline,
   type TicketRef,
   type TraceRecorder,
   type TriageRunConfig,
@@ -59,6 +61,8 @@ const TriageAnnotation = Annotation.Root({
   activeIncident: Annotation<Incident | null | undefined>,
   fixQueue: Annotation<Incident[] | undefined>,
   worktreeDir: Annotation<string | null | undefined>,
+  worktreeBaseCommit: Annotation<string | undefined>,
+  pipelineHeadCommit: Annotation<string | undefined>,
   activeRepro: Annotation<ReproResult | undefined>,
   activeTicket: Annotation<TicketRef | undefined>,
   activeFix: Annotation<FixAttempt | undefined>,
@@ -114,6 +118,7 @@ export interface GraphOptions {
   github?: PipelineGitHubOperations;
   reproStrategy?: ReproStrategy;
   recorder?: TraceRecorder;
+  resolved?: ResolvedPipeline;
   repoRoot?: string;
 }
 
@@ -166,8 +171,21 @@ async function tracedNode(
 export function createTriageGraph(config: PipelineConfig, options: GraphOptions = {}) {
   const checkpointer = new MemorySaver();
   const repoRoot = options.repoRoot ?? resolve(import.meta.dir, "../../..");
+  const resolvedRuntime = options.resolved ?? resolvePipelineRuntime({
+    pipeline: "langgraph",
+    config,
+    mode: { fromStart: false, fix: false, live: false },
+    overrides: {
+      triage: options.classifier !== undefined,
+      testWriter: options.testWriter !== undefined,
+      fixer: options.fixer !== undefined,
+    },
+  });
   const github = options.github ?? new GitHubClient(config.repo);
-  const classifier = options.classifier ?? selectClassifier(config.invariantWarnPrefixes);
+  const classifier = options.classifier ?? selectClassifier(
+    config.invariantWarnPrefixes,
+    resolvedRuntime.triage,
+  );
   const reproStrategy = options.reproStrategy;
   const worktrees = options.worktrees ?? new GitWorktreeOperations(
     repoRoot,
@@ -184,6 +202,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     worktrees,
     recorder: options.recorder,
     repoRoot,
+    testWriterResolution: resolvedRuntime.testWriter,
   });
 
   const ingest = (state: TriageState) => tracedNode(
@@ -198,7 +217,22 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
   const detect = (state: TriageState) => tracedNode(
     options.recorder,
     "detect",
-    () => detectNode(state, classifier, reproStrategy),
+    async () => {
+      const result = await detectNode(state, classifier, reproStrategy);
+      for (const call of classifier.takeAgentCalls?.() ?? []) {
+        options.recorder?.recordAgentCall({
+          stage: "triage",
+          resolution: "triage",
+          durationMs: call.durationMs,
+          outcome: call.outcome,
+          unavailableReason: "openai-chat-completions-usage-not-captured",
+          ...(call.fallbackReason === undefined
+            ? {}
+            : { fallback: { type: "heuristic", reason: call.fallbackReason } }),
+        });
+      }
+      return result;
+    },
     (result) => ({
       outcome: `${result.summary?.actionable ?? 0} actionable`,
       detail: { actionable: result.summary?.actionable ?? 0 },
@@ -248,7 +282,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     }),
   );
   const fix = async (state: TriageState): Promise<Partial<TriageState>> => {
-    fixer ??= createDefaultFixer(config.fixScope, config.fixer);
+    fixer ??= createResolvedFixer(config.fixScope, resolvedRuntime.fixer);
     const fingerprint = state.activeIncident?.fingerprint.hash;
     const event = options.recorder?.start("fix", fingerprint);
     try {
@@ -282,7 +316,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     const fingerprint = state.activeIncident?.fingerprint.hash;
     const event = options.recorder?.start("verify", fingerprint);
     try {
-      const result = await verifyWithRunner(state, verifier, config.fixScope);
+      const result = await verifyWithRunner(state, verifier, config.fixScope, worktrees);
       event?.finish(
         result.activeVerify?.verified ? "verified" : "failed",
         {

@@ -47,7 +47,7 @@ function input(level: LogEvent["level"] = "error"): TriageAgentInput {
 
 test("parses strict triage JSON", () => {
   expect(parseTriageResult(
-    '{"decision":"mechanical","reason":"reproduced","fixBrief":"Inspect server.ts handleCreate. Add an input guard before dereferencing customer.","regressionTest":{"warranted":true,"reason":"missing coverage","mustPin":["non-5xx status","TypeError signature absent"],"mustNotPin":["exact message text","generated IDs"],"suggestedLocation":"apps/leaky-service/test/orders.test.ts"}}',
+    '{"decision":"mechanical","reason":"reproduced","fixBrief":"Inspect server.ts handleCreate. Add an input guard before dereferencing customer.","regressionTest":{"warranted":true,"reason":"missing coverage","mustPin":[{"claim":"non-5xx status","class":"status-class"},{"claim":"TypeError signature absent","class":"signature-absence"}],"mustNotPin":["exact message text","generated IDs"],"suggestedLocation":"apps/leaky-service/test/orders.test.ts"}}',
     input(),
   )).toEqual({
     decision: "mechanical",
@@ -56,7 +56,10 @@ test("parses strict triage JSON", () => {
     regressionTest: {
       warranted: true,
       reason: "missing coverage",
-      mustPin: ["non-5xx status", "TypeError signature absent"],
+      mustPin: [
+        { claim: "non-5xx status", class: "status-class" },
+        { claim: "TypeError signature absent", class: "signature-absence" },
+      ],
       mustNotPin: ["exact message text", "generated IDs"],
       suggestedLocation: "apps/leaky-service/test/orders.test.ts",
     },
@@ -65,7 +68,7 @@ test("parses strict triage JSON", () => {
 
 test("extracts the first JSON object embedded in prose", () => {
   const result = parseTriageResult(
-    'Result follows: {"decision":"needs-human","reason":"policy","fixBrief":"The discount policy is ambiguous. Product input is required before changing server.ts.","regressionTest":{"warranted":true,"reason":"pin a guess","mustPin":["negative totals are accepted"],"mustNotPin":[],"suggestedLocation":"apps/leaky-service/test/orders.test.ts"}} trailing text',
+    'Result follows: {"decision":"needs-human","reason":"policy","fixBrief":"The discount policy is ambiguous. Product input is required before changing server.ts.","regressionTest":{"warranted":true,"reason":"pin a guess","mustPin":[{"claim":"negative totals are accepted","class":"behavior"}],"mustNotPin":[],"suggestedLocation":"apps/leaky-service/test/orders.test.ts"}} trailing text',
     input(),
   );
   expect(result.decision).toBe("needs-human");
@@ -82,8 +85,14 @@ test("falls back to the deterministic heuristic for garbage", () => {
     regressionTest: {
       warranted: true,
       mustPin: [
-        "the response stays outside the 5xx status-code class",
-        "the TypeError failure signature is absent",
+        {
+          claim: "the response stays outside the 5xx status-code class",
+          class: "status-class",
+        },
+        {
+          claim: "the TypeError failure signature is absent",
+          class: "signature-absence",
+        },
       ],
       mustNotPin: expect.arrayContaining(["exact response message text"]),
     },
@@ -121,7 +130,7 @@ const VALID_TRIAGE_JSON = JSON.stringify({
   regressionTest: {
     warranted: true,
     reason: "missing coverage",
-    mustPin: ["non-5xx status"],
+    mustPin: [{ claim: "non-5xx status", class: "status-class" }],
     mustNotPin: ["exact message text"],
     suggestedLocation: "apps/leaky-service/test/orders.test.ts",
   },
@@ -191,4 +200,35 @@ test("ClaudeTriageAgent does not retry when the first attempt is valid", async (
   await agent.triage(input());
   expect(calls).toBe(1);
   expect(logs).toEqual([]);
+});
+
+test("records one cost sample per SDK attempt without leaking samples into the next incident", async () => {
+  let calls = 0;
+  const sdkAttempt: TriageSdkAttempt = async () => {
+    calls += 1;
+    return {
+      text: calls === 1 ? "invalid" : VALID_TRIAGE_JSON,
+      error: null,
+      cost: {
+        harness: "claude-agent-sdk",
+        model: "sonnet",
+        inputTokens: calls * 10,
+        outputTokens: calls,
+        usd: calls / 100,
+      },
+    };
+  };
+  const agent = new ClaudeTriageAgent(
+    "/tmp/repo",
+    ["apps/leaky-service/src"],
+    ["apps/leaky-service/test"],
+    () => {},
+    sdkAttempt,
+  );
+
+  await agent.triage(input());
+  expect(agent.takeAgentCalls().map((call) => call.cost?.usd)).toEqual([0.01, 0.02]);
+  await agent.triage(input());
+  expect(agent.takeAgentCalls().map((call) => call.cost?.usd)).toEqual([0.03]);
+  expect(agent.takeAgentCalls()).toEqual([]);
 });

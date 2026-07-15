@@ -1,6 +1,6 @@
 import { requireSuccess, runProcess } from "./process";
 import type { ProcessRunner } from "./process";
-import type { CostSample } from "./trace";
+import type { CostSample, ResolvedAgent } from "./trace";
 
 export interface FixInput {
   worktreeDir: string;
@@ -142,6 +142,7 @@ export function parseCliCost(
   const totalMatch = stdout.match(
     /(?:^|\n)\s*(?:[•*\-]\s*)?tokens used\s*[:=]?\s*(?:\r?\n\s*)?([\d,]+)/i,
   );
+  const totalTokens = parseInteger(totalMatch?.[1]);
   const usdMatch = stdout.match(/(?:\btotal cost|\bcost)\s*[:=]?\s*\$?([\d.]+)/i);
   const usd = parseDecimal(usdMatch?.[1]);
   const model = stdout.match(/(?:^|\n)\s*model\s*[:=]\s*([^\s,]+)/im)?.[1];
@@ -160,6 +161,7 @@ export function parseCliCost(
     ...(model === undefined ? {} : { model }),
     ...(inputTokens === undefined ? {} : { inputTokens }),
     ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(totalTokens === undefined ? {} : { totalTokens }),
     ...(usd === undefined ? {} : { usd }),
     raw: relevant.join("\n").trim() || totalMatch?.[0]?.trim() || stdout.trim(),
   };
@@ -290,7 +292,7 @@ abstract class CliFixer implements Fixer {
   async fix(input: FixInput): Promise<FixOutput> {
     const command = this.command(input);
     const result = await this.runner(command, { cwd: input.worktreeDir });
-    this.cost = parseCliCost(result.stdout, this.harness);
+    this.cost = parseCliCost(`${result.stdout}\n${result.stderr}`, this.harness);
     requireSuccess(this.displayCommand(input), result);
     const statusCommand = ["git", "-C", input.worktreeDir, "status", "--porcelain"];
     const status = await this.runner(statusCommand, { cwd: input.worktreeDir });
@@ -411,6 +413,25 @@ export function createDefaultFixer(
   return kind === "grok"
     ? new GrokFixer(fixScope, runProcess, configuredGrokEffort())
     : new CodexFixer(fixScope, runProcess, configuredCodexModel());
+}
+
+export function createResolvedFixer(
+  fixScope: string[],
+  resolution: ResolvedAgent,
+): Fixer {
+  if (resolution.harness !== "codex" && resolution.harness !== "grok") {
+    throw new Error(`cannot create fixer for harness ${resolution.harness}`);
+  }
+  if (Bun.which(resolution.harness) === null) {
+    throw new Error(`--fix requires the ${resolution.harness} CLI on PATH`);
+  }
+  if (resolution.harness === "codex") {
+    return new CodexFixer(fixScope, runProcess, resolution.requestedModel ?? undefined);
+  }
+  const effort = resolution.effort === null
+    ? undefined
+    : configuredGrokEffort({ BUGLOOP_GROK_EFFORT: resolution.effort });
+  return new GrokFixer(fixScope, runProcess, effort);
 }
 
 export function takeFixerCost(fixer: Fixer): CostSample | undefined {

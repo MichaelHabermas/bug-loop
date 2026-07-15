@@ -78,10 +78,11 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   const worktrees: WorktreeOperations = {
     async create(input) {
       worktreeCalls.push(`create:${input.fingerprint8}`);
-      return { worktreeDir: join(TMP, input.fingerprint8), branch: input.branch };
+      return { worktreeDir: join(TMP, input.fingerprint8), branch: input.branch, baseCommit: "base" };
     },
     async commit(input) {
       worktreeCalls.push(`commit:${input.message}`);
+      return { commit: input.scope === "test" ? "pipeline-test" : "pipeline-fix" };
     },
     async push(input) {
       worktreeCalls.push(`push:${input.branch}`);
@@ -91,6 +92,18 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     },
     async reset(worktreeDir) {
       worktreeCalls.push(`reset:${worktreeDir}`);
+    },
+    async verifyProvenance(input) {
+      const changedPaths = input.scope[0]?.includes("test")
+        ? ["apps/leaky-service/test/regression.test.ts"]
+        : ["apps/leaky-service/src/server.ts"];
+      return {
+        passes: true,
+        changedPaths,
+        outOfScopePaths: [],
+        unexpectedCommits: [],
+        detail: "trusted working tree",
+      };
     },
   };
 
@@ -137,7 +150,13 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
           : "The deterministic crash is missing regression coverage.",
         mustPin: incident.sampleEvents[0]?.level === "warn"
           ? []
-          : ["status is outside the 5xx class", `${incident.fingerprint.errName} signature is absent`],
+          : [
+              { claim: "status is outside the 5xx class", class: "status-class" },
+              {
+                claim: `${incident.fingerprint.errName} signature is absent`,
+                class: "signature-absence",
+              },
+            ],
         mustNotPin: ["exact response message text", "generated IDs"],
         suggestedLocation: "apps/leaky-service/test",
       },
@@ -205,6 +224,14 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(pullRequests).toHaveLength(2);
   expect(result.state.errors).toEqual([]);
   const trace = await Bun.file(join(TMP, "trace.json")).json() as RunTrace;
+  expect(trace.schemaVersion).toBe(2);
+  expect(trace.resolved.pipeline).toBe("agent-sdk");
+  expect(trace.resolved.fixer).toMatchObject({ harness: "injected", source: "arg" });
+  expect(trace.workload).toMatchObject({
+    benchmarkId: "leaky-service-seeded-v1",
+    seed: 42,
+    caseCount: 50,
+  });
   expect(trace.events.slice(0, 6).map((event) => event.stage)).toEqual([
     "ingest",
     "detect",
@@ -217,6 +244,9 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(trace.events.filter((event) => event.stage === "verify")).toHaveLength(5);
   expect(trace.events.filter((event) => event.stage === "testgen")).toHaveLength(3);
   expect(trace.events.filter((event) => event.stage === "verify-test-red")).toHaveLength(3);
+  expect(trace.agentCalls.filter((call) => call.stage === "triage")).toHaveLength(4);
+  expect(trace.agentCalls.filter((call) => call.stage === "fixer")).toHaveLength(5);
+  expect(trace.agentCalls.filter((call) => call.stage === "testWriter")).toHaveLength(3);
   expect(pullRequests.every((pr) => pr.body.includes("## Regression test intent"))).toBe(true);
   expect(pullRequests.every((pr) => pr.body.includes("### Must pin"))).toBe(true);
 

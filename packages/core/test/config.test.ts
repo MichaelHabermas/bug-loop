@@ -8,6 +8,7 @@ import {
   type ProcessRunner,
   type TriageState,
   type VerifyRunner,
+  type WorktreeOperations,
 } from "../src";
 
 const config = definePipelineConfig({
@@ -67,21 +68,52 @@ test("fixScope reaches the fixer prompt and verification guard", async () => {
       lastSeen: "2026-07-14T00:00:00.000Z",
     },
     worktreeDir: "/tmp/worktree",
+    worktreeBaseCommit: "base",
+    pipelineHeadCommit: "base",
     activeFix: {
       attempt: 1,
       branch: "bugloop/fix-abc",
       description: "patch",
       filesChanged: ["services/api/src/handler.ts"],
+      stageBaseCommit: "base",
     },
     retryCount: 0,
     errors: [],
   };
-  const accepted = await verifyWithRunner(state, runner, config.fixScope);
+  const provenance = (changedPaths: string[]): WorktreeOperations => ({
+    async create(input) {
+      return { worktreeDir: "/tmp/worktree", branch: input.branch, baseCommit: "base" };
+    },
+    async commit() {
+      return { commit: "pipeline" };
+    },
+    async push() {},
+    async remove() {},
+    async reset() {},
+    async verifyProvenance(input) {
+      const outOfScopePaths = changedPaths.filter(
+        (path) => !input.scope.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)),
+      );
+      return {
+        passes: changedPaths.length > 0 && outOfScopePaths.length === 0,
+        changedPaths,
+        outOfScopePaths,
+        unexpectedCommits: [],
+        detail: `changed paths: ${changedPaths.join(", ")}`,
+      };
+    },
+  });
+  const accepted = await verifyWithRunner(
+    state,
+    runner,
+    config.fixScope,
+    provenance(["services/api/src/handler.ts"]),
+  );
   expect(accepted.activeVerify?.scopePasses).toBe(true);
   const rejected = await verifyWithRunner({
     ...state,
     activeFix: { ...state.activeFix!, filesChanged: ["services/api/test/handler.test.ts"] },
-  }, runner, config.fixScope);
+  }, runner, config.fixScope, provenance(["services/api/test/handler.test.ts"]));
   expect(rejected.activeVerify?.scopePasses).toBe(false);
 });
 
@@ -112,7 +144,7 @@ test("fixScope reaches worktree commit pathspecs", async () => {
     message: "test",
     scope: "test",
   });
-  expect(commands[2]).toEqual([
+  expect(commands[3]).toEqual([
     "git",
     "-C",
     "/repo/.scratch/worktrees/abc",

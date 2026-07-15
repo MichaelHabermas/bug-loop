@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import { runProcess } from "./process";
 import type { PipelineConfig } from "./config";
-import { isPathInFixScope } from "./config";
 import type { ReproStrategy } from "./reproduction";
 import type { Incident, TriageState } from "./types";
+import type { WorktreeOperations } from "./worktree";
 
 export interface CheckResult {
   passes: boolean;
@@ -103,6 +103,7 @@ export async function verifyWithRunner(
   state: TriageState,
   runner: VerifyRunner,
   fixScope: string[],
+  worktrees: WorktreeOperations,
 ): Promise<Partial<TriageState>> {
   const incident = state.activeIncident;
   const worktreeDir = state.worktreeDir;
@@ -120,13 +121,24 @@ export async function verifyWithRunner(
     : { passes: true, detail: "No established regression test to verify." };
   const tests = await safeCheck(() => runner.runTests(worktreeDir));
   const typecheck = await safeCheck(() => runner.runTypecheck(worktreeDir));
-  const filesChanged = state.activeFix?.filesChanged ?? [];
-  const scopePasses = filesChanged.length > 0 && filesChanged.every(
-    (path) => isPathInFixScope(path, fixScope),
-  );
+  const stageBaseCommit = state.activeFix?.stageBaseCommit ?? state.pipelineHeadCommit ??
+    state.worktreeBaseCommit;
+  if (!stageBaseCommit) throw new Error("verify requires a trusted fix-stage base commit");
+  const expectedHead = state.pipelineHeadCommit ?? state.worktreeBaseCommit;
+  if (!expectedHead) throw new Error("verify requires a trusted pipeline HEAD");
+  const provenance = await safeCheck(async () => {
+    const result = await worktrees.verifyProvenance({
+      worktreeDir,
+      baseCommit: stageBaseCommit,
+      expectedHead,
+      scope: fixScope,
+    });
+    return { passes: result.passes, detail: result.detail };
+  });
+  const scopePasses = provenance.passes;
   const verified = scopePasses && repro.passes && regression.passes && tests.passes && typecheck.passes;
   const detail = [
-    `scope: ${scopePasses ? "pass" : "fail"} - ${filesChanged.join(", ") || "no changed files recorded"}`,
+    `scope: ${scopePasses ? "pass" : "fail"} - ${provenance.detail}`,
     `repro: ${repro.passes ? "pass" : "fail"} - ${repro.detail}`,
     `regression test: ${regression.passes ? "pass" : "fail"} - ${regression.detail}`,
     `tests: ${tests.passes ? "pass" : "fail"} - ${tests.detail}`,

@@ -5,6 +5,8 @@ import {
   groupIncidents,
   parseCliCost,
   readNewEvents,
+  resolvePipelineRuntime,
+  resolveTraceWorkload,
 } from "../src";
 
 const repoRoot = resolve(import.meta.dir, "../../..");
@@ -31,10 +33,18 @@ const config = definePipelineConfig({
   maxFixAttempts: 2,
   fixer: "codex",
   invariantWarnPrefixes: ["order total negative"],
+  workload: { benchmarkId: "leaky-service-seeded-v1", seed: 42, caseCount: 50 },
+});
+const resolved = resolvePipelineRuntime({
+  pipeline: "langgraph",
+  config,
+  mode: { fromStart: true, fix: true, live: false },
+  env: { BUGLOOP_FIXER: "codex", BUGLOOP_CODEX_MODEL: "gpt-5.6-luna" },
 });
 const recorder = new TraceRecorder({
   pipeline: "langgraph",
-  config,
+  resolved,
+  workload: await resolveTraceWorkload(config, repoRoot),
   outputPath,
   runId: "example-langgraph-run",
   now,

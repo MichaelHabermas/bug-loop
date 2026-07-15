@@ -8,7 +8,7 @@ import {
   parseRunTrace,
   publishTraces,
 } from "./publish-traces";
-import type { RunTrace } from "@bug-loop/core/trace";
+import type { TraceEvent } from "@bug-loop/core/trace";
 
 const tmpRoot = join(import.meta.dir, ".tmp-publish-traces");
 
@@ -16,7 +16,17 @@ afterEach(async () => {
   await rm(tmpRoot, { recursive: true, force: true });
 });
 
-function minimalTrace(overrides: Partial<RunTrace> = {}): RunTrace {
+interface LegacyTrace {
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  pipeline: string;
+  label?: string;
+  config: Record<string, unknown>;
+  events: TraceEvent[];
+}
+
+function minimalTrace(overrides: Partial<LegacyTrace> = {}): LegacyTrace {
   return {
     runId: "run-1",
     startedAt: "2026-07-14T12:00:00.000Z",
@@ -54,7 +64,9 @@ describe("parseRunTrace", () => {
   test("accepts a valid RunTrace", () => {
     const trace = parseRunTrace(minimalTrace({ label: "baseline" }));
     expect(trace.runId).toBe("run-1");
-    expect(trace.pipeline).toBe("agent-sdk");
+    expect(trace.schemaVersion).toBe(1);
+    expect(trace.resolved.pipeline).toBe("agent-sdk");
+    expect(trace.workload.codeRevision).toBe("unknown-v1");
     expect(trace.label).toBe("baseline");
     expect(trace.events).toHaveLength(1);
   });
@@ -65,7 +77,7 @@ describe("parseRunTrace", () => {
   });
 
   test("rejects invalid pipeline", () => {
-    expect(() => parseRunTrace(minimalTrace({ pipeline: "other" as RunTrace["pipeline"] }))).toThrow(
+    expect(() => parseRunTrace(minimalTrace({ pipeline: "other" }))).toThrow(
       "pipeline must be langgraph or agent-sdk",
     );
   });
@@ -103,13 +115,13 @@ describe("labelFromFilename / labelForTrace", () => {
   });
 
   test("prefers non-empty trace.label over filename", () => {
-    const labeled = minimalTrace({ label: "from-trace" });
+    const labeled = parseRunTrace(minimalTrace({ label: "from-trace" }));
     expect(labelForTrace(labeled, "traces/sweep-baseline.json")).toBe("from-trace");
   });
 
   test("falls back to filename when label is missing or blank", () => {
-    expect(labelForTrace(minimalTrace(), "traces/sweep-codex-luna.json")).toBe("codex-luna");
-    expect(labelForTrace(minimalTrace({ label: "   " }), "traces/sweep-haiku-triage.json")).toBe(
+    expect(labelForTrace(parseRunTrace(minimalTrace()), "traces/sweep-codex-luna.json")).toBe("codex-luna");
+    expect(labelForTrace(parseRunTrace(minimalTrace({ label: "   " })), "traces/sweep-haiku-triage.json")).toBe(
       "haiku-triage",
     );
   });
@@ -117,13 +129,57 @@ describe("labelFromFilename / labelForTrace", () => {
 
 describe("buildRunsDataSource / publishTraces", () => {
   test("emits window.BUGLOOP_RUNS, PRICES, and PRICES_META assignments", () => {
-    const source = buildRunsDataSource([{ label: "baseline", trace: minimalTrace() }]);
+    const trace = parseRunTrace(minimalTrace());
+    const source = buildRunsDataSource([{
+      label: "baseline",
+      workloadKey: "unknown-v1|null|null|unknown-v1",
+      resolvedConfigKey: "legacy",
+      trace,
+    }]);
     expect(source).toContain("window.BUGLOOP_RUNS = ");
     expect(source).toContain("window.BUGLOOP_PRICES = ");
     expect(source).toContain("window.BUGLOOP_PRICES_META = ");
     expect(source).toContain('"asOf": "2026-07-14"');
     expect(source).toContain("gpt-5.6-luna");
     expect(source).toContain("claude-haiku-4-5-20251001");
+  });
+
+  test("safe projection strips absolute paths, prompts, argv, and raw usage", () => {
+    const trace = parseRunTrace(minimalTrace({
+      config: {
+        logPath: "/Users/michael/secret/log.jsonl",
+        maxFixAttempts: 2,
+        regressionTests: "triage-decides",
+      },
+      events: [{
+        seq: 1,
+        stage: "fix",
+        startedAt: "2026-07-14T12:00:00.000Z",
+        durationMs: 1,
+        outcome: "edited /Users/michael/repo/src/app.ts",
+        detail: {
+          prompt: "private prompt",
+          argv: ["--secret"],
+          file: "/Users/michael/repo/src/app.ts",
+        },
+        cost: {
+          harness: "codex",
+          inputTokens: 1,
+          raw: "cwd=/Users/michael/repo",
+        },
+      }],
+    }));
+    const source = buildRunsDataSource([{
+      label: "safe",
+      workloadKey: "legacy",
+      resolvedConfigKey: "legacy",
+      trace,
+    }]);
+    expect(source).not.toContain("/Users/");
+    expect(source).not.toContain("private prompt");
+    expect(source).not.toContain("--secret");
+    expect(source).not.toContain('"raw"');
+    expect(source).toContain("[local-path-redacted]");
   });
 
   test("publishTraces writes valid JS from labeled and unlabeled files", async () => {

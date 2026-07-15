@@ -217,6 +217,27 @@ test("GrokFixer uses extractFixSummary for description", async () => {
   expect(output.description).not.toContain("I'll inspect");
 });
 
+test("CLI fixers parse usage emitted on stderr", async () => {
+  const runner: ProcessRunner = async (command): Promise<ProcessResult> => {
+    if (command[0] === "grok") {
+      return {
+        exitCode: 0,
+        stdout: `${FIX_SUMMARY_MARKER}\nFixed.`,
+        stderr: "input tokens: 40\noutput tokens: 10\ncost: $0.02\n",
+      };
+    }
+    return { exitCode: 0, stdout: " M apps/leaky-service/src/server.ts\n", stderr: "" };
+  };
+  const fixer = new GrokFixer(["apps/leaky-service/src"], runner);
+  await fixer.fix({
+    worktreeDir: "/tmp/bug-loop-worktree",
+    issueTitle: "bug",
+    issueBody: "body",
+    attempt: 1,
+  });
+  expect(fixer.takeCost()).toMatchObject({ inputTokens: 40, outputTokens: 10, usd: 0.02 });
+});
+
 test("parseCliCost captures only usage present in CLI stdout fixtures", async () => {
   const codex = parseCliCost(
     await Bun.file(new URL("./fixtures/codex-stdout.txt", import.meta.url)).text(),

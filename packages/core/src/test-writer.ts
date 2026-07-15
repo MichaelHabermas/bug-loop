@@ -6,7 +6,7 @@ import {
   parseChangedFiles,
   parseCliCost,
 } from "./fixer";
-import type { CostSample } from "./trace";
+import type { CostSample, ResolvedAgent } from "./trace";
 import type { Incident, RegressionTestSpec, ReproResult } from "./types";
 
 export interface TestWriteInput {
@@ -53,6 +53,8 @@ export function buildTestWriterPrompt(input: TestWriteInput, testScope: string[]
     "Do not edit source files or files outside that test scope.",
     "Do not commit or push.",
     "Honor every mustPin and mustNotPin item in the assertion specification.",
+    "Each mustPin entry is provenance-classed. Behavior entries have already been checked against the consumer contract registry.",
+    "Never turn unratifiedBehavior entries into assertions. Record each one only as a test.todo note that needs human ratification.",
     "Snapshot tests are forbidden.",
     "Exact-message assertions are forbidden unless the exact message appears in mustPin.",
     "The test must exercise the durable contract and fail against the current unfixed code.",
@@ -96,7 +98,7 @@ abstract class CliTestWriter implements TestWriter {
   async write(input: TestWriteInput): Promise<TestWriteOutput> {
     const command = this.command(input);
     const result = await this.runner(command, { cwd: input.worktreeDir });
-    this.cost = parseCliCost(result.stdout, this.harness);
+    this.cost = parseCliCost(`${result.stdout}\n${result.stderr}`, this.harness);
     requireSuccess(this.displayCommand(input), result);
     const statusCommand = ["git", "-C", input.worktreeDir, "status", "--porcelain"];
     const status = await this.runner(statusCommand, { cwd: input.worktreeDir });
@@ -112,15 +114,23 @@ export class CodexTestWriter extends CliTestWriter {
   protected fallbackDescription = "Codex completed without a textual test summary.";
   protected harness = "codex" as const;
 
+  constructor(
+    testScope: string[],
+    runner: ProcessRunner = runProcess,
+    private readonly model?: string,
+  ) {
+    super(testScope, runner);
+  }
+
   protected command(input: TestWriteInput): string[] {
-    return [
+    const command = [
       "codex",
       "exec",
       "--full-auto",
-      "-C",
-      input.worktreeDir,
-      buildTestWriterPrompt(input, this.testScope),
     ];
+    if (this.model !== undefined) command.push("-m", this.model);
+    command.push("-C", input.worktreeDir, buildTestWriterPrompt(input, this.testScope));
+    return command;
   }
 
   protected displayCommand(input: TestWriteInput): string[] {
@@ -132,8 +142,19 @@ export class GrokTestWriter extends CliTestWriter {
   protected fallbackDescription = "Grok completed without a textual test summary.";
   protected harness = "grok" as const;
 
+  constructor(
+    testScope: string[],
+    runner: ProcessRunner = runProcess,
+    private readonly effort?: string,
+  ) {
+    super(testScope, runner);
+  }
+
   protected command(input: TestWriteInput): string[] {
-    return ["grok", "-p", buildTestWriterPrompt(input, this.testScope)];
+    const command = ["grok"];
+    if (this.effort !== undefined) command.push("--effort", this.effort);
+    command.push("-p", buildTestWriterPrompt(input, this.testScope));
+    return command;
   }
 
   protected displayCommand(): string[] {
@@ -155,6 +176,21 @@ export function createDefaultTestWriter(testScope: string[]): TestWriter {
     throw new Error(`--fix regression tests require the ${kind} CLI on PATH`);
   }
   return kind === "grok" ? new GrokTestWriter(testScope) : new CodexTestWriter(testScope);
+}
+
+export function createResolvedTestWriter(
+  testScope: string[],
+  resolution: ResolvedAgent,
+): TestWriter {
+  if (resolution.harness !== "codex" && resolution.harness !== "grok") {
+    throw new Error(`cannot create test writer for harness ${resolution.harness}`);
+  }
+  if (Bun.which(resolution.harness) === null) {
+    throw new Error(`--fix regression tests require the ${resolution.harness} CLI on PATH`);
+  }
+  return resolution.harness === "grok"
+    ? new GrokTestWriter(testScope, runProcess, resolution.effort ?? undefined)
+    : new CodexTestWriter(testScope, runProcess, resolution.requestedModel ?? undefined);
 }
 
 export function takeTestWriterCost(writer: TestWriter): CostSample | undefined {

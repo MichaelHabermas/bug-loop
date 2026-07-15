@@ -1,12 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { PipelineConfig } from "./config";
+import type { RegressionTestPolicy } from "./config";
 
 export interface CostSample {
   harness: "claude-agent-sdk" | "codex" | "grok";
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
+  totalTokens?: number;
   usd?: number;
   raw?: string;
 }
@@ -23,44 +24,106 @@ export interface TraceEvent {
 }
 
 export type PipelineKind = "langgraph" | "agent-sdk";
+export type ResolutionSource = "default" | "env" | "arg";
 
-export type PipelineConfigSummary = Pick<
-  PipelineConfig,
-  | "repo"
-  | "labels"
-  | "logPath"
-  | "baseUrl"
-  | "cursorPath"
-  | "fixScope"
-  | "testScope"
-  | "branchPrefix"
-  | "worktreeRoot"
-  | "maxFixAttempts"
-  | "fixer"
-  | "regressionTests"
-  | "invariantWarnPrefixes"
->;
+export interface ResolvedAgent {
+  harness: string;
+  requestedModel: string | null;
+  effectiveModel: string | null;
+  effort: string | null;
+  source: ResolutionSource;
+}
+
+export interface ResolvedPipeline {
+  pipeline: PipelineKind;
+  triage: ResolvedAgent;
+  testWriter: ResolvedAgent;
+  fixer: ResolvedAgent;
+  regressionTests: RegressionTestPolicy;
+  maxFixAttempts: number;
+  mode: {
+    fix: boolean;
+    live: boolean;
+    fromStart: boolean;
+  };
+}
+
+export interface TraceWorkload {
+  benchmarkId: string;
+  seed: number;
+  caseCount: number;
+  codeRevision: string;
+}
+
+export type AgentUsage =
+  | {
+      status: "reported";
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+      usd: number;
+    }
+  | {
+      status: "tokens-only";
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+    }
+  | {
+      status: "unavailable";
+      reason: string;
+    };
+
+export interface AgentFallback {
+  type: string;
+  reason: string;
+}
+
+export interface AgentCall {
+  seq: number;
+  stage: string;
+  fingerprint?: string;
+  harness: string;
+  effectiveModel: string | null;
+  effort: string | null;
+  durationMs: number;
+  outcome: string;
+  usage: AgentUsage;
+  fallback?: AgentFallback;
+}
 
 export interface RunTrace {
+  schemaVersion: 2;
   runId: string;
   startedAt: string;
   finishedAt: string;
-  pipeline: PipelineKind;
-  /** Optional human label for sweep/comparison rows (e.g. cost-sweep config name). */
+  resolved: ResolvedPipeline;
+  workload: TraceWorkload;
   label?: string;
-  config: PipelineConfigSummary;
   events: TraceEvent[];
+  agentCalls: AgentCall[];
 }
 
 export interface TraceRecorderOptions {
   pipeline: PipelineKind;
-  config: PipelineConfig;
+  resolved: ResolvedPipeline;
+  workload: TraceWorkload;
   outputPath?: string;
   traceRoot?: string;
   runId?: string;
-  /** Optional label stored on the finished RunTrace when set. */
   label?: string;
   now?: () => Date;
+}
+
+export interface RecordAgentCallInput {
+  stage: "triage" | "testWriter" | "fixer" | string;
+  resolution: "triage" | "testWriter" | "fixer";
+  fingerprint?: string;
+  durationMs: number;
+  outcome: string;
+  cost?: CostSample;
+  unavailableReason?: string;
+  fallback?: AgentFallback;
 }
 
 export interface TraceEventHandle {
@@ -71,30 +134,62 @@ export interface TraceEventHandle {
   ): TraceEvent;
 }
 
+function cloneResolved(resolved: ResolvedPipeline): ResolvedPipeline {
+  return {
+    ...resolved,
+    triage: { ...resolved.triage },
+    testWriter: { ...resolved.testWriter },
+    fixer: { ...resolved.fixer },
+    mode: { ...resolved.mode },
+  };
+}
+
+function usageFromCost(cost: CostSample | undefined, reason: string): AgentUsage {
+  if (cost?.usd !== undefined) {
+    return {
+      status: "reported",
+      ...(cost.inputTokens === undefined ? {} : { inputTokens: cost.inputTokens }),
+      ...(cost.outputTokens === undefined ? {} : { outputTokens: cost.outputTokens }),
+      ...(cost.totalTokens === undefined ? {} : { totalTokens: cost.totalTokens }),
+      usd: cost.usd,
+    };
+  }
+  if (
+    cost?.inputTokens !== undefined || cost?.outputTokens !== undefined ||
+    cost?.totalTokens !== undefined
+  ) {
+    return {
+      status: "tokens-only",
+      ...(cost.inputTokens === undefined ? {} : { inputTokens: cost.inputTokens }),
+      ...(cost.outputTokens === undefined ? {} : { outputTokens: cost.outputTokens }),
+      ...(cost.totalTokens === undefined ? {} : { totalTokens: cost.totalTokens }),
+    };
+  }
+  return { status: "unavailable", reason };
+}
+
 export class TraceRecorder {
   readonly runId: string;
   readonly outputPath: string;
   private readonly now: () => Date;
   private readonly startedAt: string;
-  private readonly pipeline: PipelineKind;
   private readonly label: string | undefined;
-  private readonly config: PipelineConfigSummary;
+  private readonly resolved: ResolvedPipeline;
+  private readonly workload: TraceWorkload;
   private readonly events: TraceEvent[] = [];
+  private readonly agentCalls: AgentCall[] = [];
   private finishedAt: string | undefined;
 
   constructor(options: TraceRecorderOptions) {
+    if (options.pipeline !== options.resolved.pipeline) {
+      throw new Error("TraceRecorder pipeline must match resolved.pipeline");
+    }
     this.now = options.now ?? (() => new Date());
     this.runId = options.runId ?? crypto.randomUUID();
     this.outputPath = options.outputPath ?? join(options.traceRoot ?? "traces", `${this.runId}.json`);
-    this.pipeline = options.pipeline;
     this.label = options.label;
-    this.config = {
-      ...options.config,
-      labels: { ...options.config.labels },
-      fixScope: [...options.config.fixScope],
-      testScope: [...options.config.testScope],
-      invariantWarnPrefixes: [...options.config.invariantWarnPrefixes],
-    };
+    this.resolved = cloneResolved(options.resolved);
+    this.workload = { ...options.workload };
     this.startedAt = this.now().toISOString();
   }
 
@@ -116,20 +211,62 @@ export class TraceRecorder {
           ...(cost === undefined ? {} : { cost }),
         };
         this.events.push(event);
+        if (stage === "fix") {
+          this.recordAgentCall({
+            stage: "fixer",
+            resolution: "fixer",
+            ...(fingerprint === undefined ? {} : { fingerprint }),
+            durationMs: event.durationMs,
+            outcome,
+            ...(cost === undefined ? {} : { cost }),
+          });
+        } else if (stage === "testgen") {
+          this.recordAgentCall({
+            stage: "testWriter",
+            resolution: "testWriter",
+            ...(fingerprint === undefined ? {} : { fingerprint }),
+            durationMs: event.durationMs,
+            outcome,
+            ...(cost === undefined ? {} : { cost }),
+          });
+        }
         return event;
       },
     };
   }
 
+  recordAgentCall(input: RecordAgentCallInput): AgentCall {
+    const resolution = this.resolved[input.resolution];
+    const call: AgentCall = {
+      seq: this.agentCalls.length + 1,
+      stage: input.stage,
+      ...(input.fingerprint === undefined ? {} : { fingerprint: input.fingerprint }),
+      harness: resolution.harness,
+      effectiveModel: input.cost?.model ?? resolution.effectiveModel,
+      effort: resolution.effort,
+      durationMs: Math.max(0, input.durationMs),
+      outcome: input.outcome,
+      usage: usageFromCost(
+        input.cost,
+        input.unavailableReason ?? "harness-did-not-report-usage",
+      ),
+      ...(input.fallback === undefined ? {} : { fallback: { ...input.fallback } }),
+    };
+    this.agentCalls.push(call);
+    return call;
+  }
+
   snapshot(): RunTrace {
     return {
+      schemaVersion: 2,
       runId: this.runId,
       startedAt: this.startedAt,
       finishedAt: this.finishedAt ?? this.now().toISOString(),
-      pipeline: this.pipeline,
+      resolved: cloneResolved(this.resolved),
+      workload: { ...this.workload },
       ...(this.label === undefined ? {} : { label: this.label }),
-      config: this.config,
       events: [...this.events],
+      agentCalls: [...this.agentCalls],
     };
   }
 
@@ -153,6 +290,7 @@ export function combineCostSamples(samples: CostSample[]): CostSample | undefine
   };
   const inputTokens = sum((sample) => sample.inputTokens);
   const outputTokens = sum((sample) => sample.outputTokens);
+  const totalTokens = sum((sample) => sample.totalTokens);
   const usd = sum((sample) => sample.usd);
   const raw = samples.map((sample) => sample.raw).filter((value): value is string => value !== undefined);
   return {
@@ -160,6 +298,7 @@ export function combineCostSamples(samples: CostSample[]): CostSample | undefine
     ...(models.size === 1 ? { model: [...models][0] } : {}),
     ...(inputTokens === undefined ? {} : { inputTokens }),
     ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(totalTokens === undefined ? {} : { totalTokens }),
     ...(usd === undefined ? {} : { usd }),
     ...(raw.length === 0 ? {} : { raw: raw.join("\n") }),
   };

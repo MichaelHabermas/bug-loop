@@ -10,6 +10,8 @@ export type {
   RouteKind,
   RouteDecision,
   RegressionTestSpec,
+  RegressionAssertionClaim,
+  RegressionClaimClass,
   RegressionTestAttempt,
   RegressionTestRecord,
   RegressionTestStatus,
@@ -31,19 +33,34 @@ export type {
   PipelineConfig,
   PipelineConfigInput,
   PipelineLabels,
+  ContractRegistryEntry,
+  PipelineWorkloadDefinition,
   RegressionTestPolicy,
 } from "./config";
 
 export { TraceRecorder, combineCostSamples } from "./trace";
 export type {
   CostSample,
-  PipelineConfigSummary,
+  AgentCall,
+  AgentFallback,
+  AgentUsage,
   PipelineKind,
+  RecordAgentCallInput,
+  ResolutionSource,
+  ResolvedAgent,
+  ResolvedPipeline,
   RunTrace,
+  TraceWorkload,
   TraceEvent,
   TraceEventHandle,
   TraceRecorderOptions,
 } from "./trace";
+
+export { resolvePipelineRuntime, resolveTraceWorkload } from "./runtime";
+export type {
+  ResolveRuntimeInput,
+  RuntimeOverrides,
+} from "./runtime";
 
 export {
   normalizeFrame,
@@ -63,6 +80,8 @@ export { GitWorktreeOperations } from "./worktree";
 export type {
   WorktreeCreateInput,
   WorktreeCommitInput,
+  WorktreeProvenanceInput,
+  WorktreeProvenanceResult,
   WorktreePushInput,
   WorktreeOperations,
 } from "./worktree";
@@ -80,6 +99,7 @@ export {
   configuredGrokEffort,
   configuredCodexModel,
   createDefaultFixer,
+  createResolvedFixer,
   takeFixerCost,
 } from "./fixer";
 export type {
@@ -98,6 +118,7 @@ export {
   GrokTestWriter,
   buildTestWriterPrompt,
   createDefaultTestWriter,
+  createResolvedTestWriter,
   takeTestWriterCost,
 } from "./test-writer";
 export type {
@@ -110,6 +131,7 @@ export type {
 
 export {
   assessRegressionTestEligibility,
+  authorizeRegressionTestSpec,
   formatRegressionTestIntent,
   heuristicRegressionTestSpec,
   runRegressionTestStage,

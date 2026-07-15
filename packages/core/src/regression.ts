@@ -1,5 +1,9 @@
+import type {
+  ContractRegistryEntry,
+  PipelineConfig,
+  RegressionTestPolicy,
+} from "./config";
 import { isPathInTestScope } from "./config";
-import type { PipelineConfig, RegressionTestPolicy } from "./config";
 import type { CheckResult, VerifyRunner } from "./verifier";
 import type { TestWriter } from "./test-writer";
 import { takeTestWriterCost } from "./test-writer";
@@ -8,6 +12,7 @@ import type {
   Incident,
   RegressionTestAttempt,
   RegressionTestRecord,
+  RegressionAssertionClaim,
   RegressionTestSpec,
   ReproResult,
   RouteDecision,
@@ -51,8 +56,14 @@ export function heuristicRegressionTestSpec(
       ? "A deterministic mechanical failure is not covered by the passing suite."
       : "The failure is not deterministic enough to establish a behavioral regression test.",
     mustPin: [
-      "the response stays outside the 5xx status-code class",
-      `the ${incident.fingerprint.errName} failure signature is absent`,
+      {
+        claim: "the response stays outside the 5xx status-code class",
+        class: "status-class",
+      },
+      {
+        claim: `the ${incident.fingerprint.errName} failure signature is absent`,
+        class: "signature-absence",
+      },
     ],
     mustNotPin: [
       "exact response message text",
@@ -61,6 +72,33 @@ export function heuristicRegressionTestSpec(
       "result ordering unless ordering is the contract",
     ],
     suggestedLocation,
+  };
+}
+
+export function authorizeRegressionTestSpec(
+  spec: RegressionTestSpec,
+  contractRegistry: ContractRegistryEntry[],
+): RegressionTestSpec {
+  const authorizedSources = new Set(contractRegistry.map((contract) => contract.id));
+  const mustPin: RegressionAssertionClaim[] = [];
+  const unratifiedBehavior: RegressionAssertionClaim[] = [];
+  for (const assertion of spec.mustPin) {
+    if (
+      assertion.class === "behavior" &&
+      (assertion.source === undefined || !authorizedSources.has(assertion.source))
+    ) {
+      unratifiedBehavior.push(assertion);
+    } else {
+      mustPin.push(assertion);
+    }
+  }
+  return {
+    ...spec,
+    mustPin,
+    unratifiedBehavior: [
+      ...(spec.unratifiedBehavior ?? []),
+      ...unratifiedBehavior,
+    ],
   };
 }
 
@@ -104,12 +142,15 @@ export interface RegressionTestStageInput {
   createWriter?: () => TestWriter;
   verifier: VerifyRunner;
   worktrees: WorktreeOperations;
+  baseCommit: string;
+  expectedHead: string;
   recorder?: TraceRecorder;
 }
 
 export interface RegressionTestStageResult {
   record: RegressionTestRecord;
   eligibility: RegressionTestEligibility;
+  pipelineHeadCommit: string;
 }
 
 function skippedRecord(
@@ -142,22 +183,25 @@ async function safeCheck(check: () => Promise<CheckResult>): Promise<CheckResult
 export async function runRegressionTestStage(
   input: RegressionTestStageInput,
 ): Promise<RegressionTestStageResult> {
-  const spec = input.route.regressionTest ?? heuristicRegressionTestSpec(
+  const proposedSpec = input.route.regressionTest ?? heuristicRegressionTestSpec(
     input.route,
     input.incident,
     input.repro,
     input.config.testScope[0] ?? "test",
   );
+  const spec = authorizeRegressionTestSpec(proposedSpec, input.config.contractRegistry);
   if (input.config.regressionTests === "never") {
     return {
       eligibility: { eligible: false, detail: "regression tests disabled by policy" },
       record: skippedRecord(spec, "regression tests disabled by policy"),
+      pipelineHeadCommit: input.expectedHead,
     };
   }
   if (input.config.regressionTests === "triage-decides" && !spec.warranted) {
     return {
       eligibility: { eligible: false, detail: `triage declined: ${spec.reason}` },
       record: skippedRecord(spec, `triage declined: ${spec.reason}`),
+      pipelineHeadCommit: input.expectedHead,
     };
   }
 
@@ -182,6 +226,7 @@ export async function runRegressionTestStage(
     return {
       eligibility,
       record: skippedRecord(spec, reason, baseline.detail),
+      pipelineHeadCommit: input.expectedHead,
     };
   }
 
@@ -226,9 +271,14 @@ export async function runRegressionTestStage(
     }
     attempts.push(output);
 
-    const scopePasses = output.filesChanged.length > 0 && output.filesChanged.every(
-      (path) => isPathInTestScope(path, input.config.testScope),
-    );
+    const provenance = await input.worktrees.verifyProvenance({
+      worktreeDir: input.worktreeDir,
+      baseCommit: input.baseCommit,
+      expectedHead: input.expectedHead,
+      scope: input.config.testScope,
+    });
+    const scopePasses = provenance.passes && output.filesChanged.length > 0 &&
+      output.filesChanged.every((path) => isPathInTestScope(path, input.config.testScope));
     const redEvent = input.recorder?.start("verify-test-red", input.incident.fingerprint.hash);
     const red = scopePasses && input.verifier.runTestFiles
       ? await safeCheck(() => input.verifier.runTestFiles!(input.worktreeDir, output.filesChanged))
@@ -240,7 +290,7 @@ export async function runRegressionTestStage(
         };
     const redPasses = scopePasses && !red.passes;
     const detail = [
-      `scope: ${scopePasses ? "pass" : "fail"} - ${output.filesChanged.join(", ") || "no changed files recorded"}`,
+      `scope: ${scopePasses ? "pass" : "fail"} - ${provenance.detail}`,
       `red: ${redPasses ? "pass" : "fail"} - ${red.detail}`,
     ].join("\n");
     redEvent?.finish(redPasses ? "red established" : "rejected", {
@@ -251,7 +301,7 @@ export async function runRegressionTestStage(
     });
 
     if (redPasses) {
-      await input.worktrees.commit({
+      const committed = await input.worktrees.commit({
         worktreeDir: input.worktreeDir,
         message: `test: reproduce ${input.incident.fingerprint.errName} regression`,
         scope: "test",
@@ -267,11 +317,12 @@ export async function runRegressionTestStage(
           baselineEvidence: baseline.detail,
           redEvidence: red.detail,
         },
+        pipelineHeadCommit: committed.commit,
       };
     }
 
     previousFailure = detail;
-    await input.worktrees.reset(input.worktreeDir);
+    await input.worktrees.reset(input.worktreeDir, input.expectedHead);
   }
 
   return {
@@ -284,6 +335,7 @@ export async function runRegressionTestStage(
       attempts,
       baselineEvidence: baseline.detail,
     },
+    pipelineHeadCommit: input.expectedHead,
   };
 }
 
@@ -297,13 +349,16 @@ export function formatRegressionTestIntent(record: RegressionTestRecord | undefi
   }
   const mustPin = record.spec.mustPin.length === 0
     ? ["- none until a human ratifies behavior"]
-    : record.spec.mustPin.map((item) => `- ${item}`);
+    : record.spec.mustPin.map((item) =>
+        `- [${item.class}] ${item.claim}${item.source === undefined ? "" : ` (source: ${item.source})`}`
+      );
   const mustNotPin = record.spec.mustNotPin.length === 0
     ? ["- none recorded"]
     : record.spec.mustNotPin.map((item) => `- ${item}`);
   const outcome = record.status === "failed"
     ? "regression test could not be established"
     : `Status: ${record.status}`;
+  const unratified = record.spec.unratifiedBehavior ?? [];
   return [
     "## Regression test intent",
     "",
@@ -319,6 +374,14 @@ export function formatRegressionTestIntent(record: RegressionTestRecord | undefi
     "### Must not pin",
     "",
     ...mustNotPin,
+    ...(unratified.length === 0
+      ? []
+      : [
+          "",
+          "### Unratified behavior (not pinned - needs human ratification)",
+          "",
+          ...unratified.map((item) => `- test.todo(${JSON.stringify(item.claim)})`),
+        ]),
     ...(record.redEvidence === undefined ? [] : ["", `RED on base: ${record.redEvidence}`]),
     ...(record.greenEvidence === undefined ? [] : ["", `GREEN after fix: ${record.greenEvidence}`]),
   ].join("\n");

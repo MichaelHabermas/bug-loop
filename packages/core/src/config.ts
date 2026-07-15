@@ -6,6 +6,17 @@ export interface PipelineLabels {
   needsHuman: string;
 }
 
+export interface ContractRegistryEntry {
+  id: string;
+  statement: string;
+}
+
+export interface PipelineWorkloadDefinition {
+  benchmarkId: string;
+  seed: number;
+  caseCount: number;
+}
+
 export interface PipelineConfig {
   repo: string;
   labels: PipelineLabels;
@@ -19,14 +30,21 @@ export interface PipelineConfig {
   maxFixAttempts: number;
   fixer: FixerKind;
   regressionTests: RegressionTestPolicy;
+  contractRegistry: ContractRegistryEntry[];
   invariantWarnPrefixes: string[];
+  workload: PipelineWorkloadDefinition;
 }
 
 export type RegressionTestPolicy = "always" | "triage-decides" | "never";
 
-export type PipelineConfigInput = Omit<PipelineConfig, "branchPrefix" | "regressionTests"> & {
+export type PipelineConfigInput = Omit<
+  PipelineConfig,
+  "branchPrefix" | "regressionTests" | "contractRegistry" | "workload"
+> & {
   branchPrefix?: string;
   regressionTests?: RegressionTestPolicy;
+  contractRegistry?: ContractRegistryEntry[];
+  workload?: PipelineWorkloadDefinition;
 };
 
 function normalizePrefix(prefix: string): string {
@@ -48,6 +66,17 @@ export function definePipelineConfig(input: PipelineConfigInput): PipelineConfig
   if (!Number.isInteger(input.maxFixAttempts) || input.maxFixAttempts < 1) {
     throw new Error("maxFixAttempts must be a positive integer");
   }
+  const contractRegistry = input.contractRegistry ?? [];
+  const contractIds = new Set<string>();
+  for (const contract of contractRegistry) {
+    if (contract.id.trim() === "" || contract.statement.trim() === "") {
+      throw new Error("contractRegistry entries require non-empty id and statement values");
+    }
+    if (contractIds.has(contract.id)) {
+      throw new Error(`contractRegistry contains duplicate id ${contract.id}`);
+    }
+    contractIds.add(contract.id);
+  }
   return {
     ...input,
     baseUrl: input.baseUrl.replace(/\/$/, ""),
@@ -55,6 +84,12 @@ export function definePipelineConfig(input: PipelineConfigInput): PipelineConfig
     testScope,
     branchPrefix: input.branchPrefix ?? "bugloop/fix-",
     regressionTests: input.regressionTests ?? "triage-decides",
+    contractRegistry: contractRegistry.map((contract) => ({ ...contract })),
+    workload: input.workload ?? {
+      benchmarkId: "unknown",
+      seed: 0,
+      caseCount: 0,
+    },
   };
 }
 

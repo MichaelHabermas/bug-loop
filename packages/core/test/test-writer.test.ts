@@ -30,7 +30,10 @@ function input(): TestWriteInput {
     assertionSpec: {
       warranted: true,
       reason: "missing coverage",
-      mustPin: ["status is outside the 5xx class", "TypeError signature is absent"],
+      mustPin: [
+        { claim: "status is outside the 5xx class", class: "status-class" },
+        { claim: "TypeError signature is absent", class: "signature-absence" },
+      ],
       mustNotPin: ["exact response message text", "generated IDs"],
       suggestedLocation: "apps/leaky-service/test/orders.test.ts",
     },
@@ -85,4 +88,24 @@ test("GrokTestWriter mirrors CliFixer output and cost behavior", async () => {
     inputTokens: 120,
     outputTokens: 30,
   });
+});
+
+test("CLI test writers parse usage emitted on stderr", async () => {
+  const runner: ProcessRunner = async (command): Promise<ProcessResult> => {
+    if (command[0] === "grok") {
+      return {
+        exitCode: 0,
+        stdout: `${FIX_SUMMARY_MARKER}\nAdded regression.`,
+        stderr: "input tokens: 60\noutput tokens: 20\ncost: $0.03\n",
+      };
+    }
+    return {
+      exitCode: 0,
+      stdout: "?? apps/leaky-service/test/missing-customer.test.ts\n",
+      stderr: "",
+    };
+  };
+  const writer = new GrokTestWriter(["apps/leaky-service/test"], runner);
+  await writer.write(input());
+  expect(writer.takeCost()).toMatchObject({ inputTokens: 60, outputTokens: 20, usd: 0.03 });
 });

@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 import {
   buildIssueInput,
   combineCostSamples,
-  createDefaultFixer,
-  createDefaultTestWriter,
+  createResolvedFixer,
+  createResolvedTestWriter,
   formatRegressionTestIntent,
   formatPrFilesList,
   GitHubClient,
@@ -15,6 +15,8 @@ import {
   readNewEvents,
   RealVerifyRunner,
   reproduceIncident,
+  resolvePipelineRuntime,
+  resolveTraceWorkload,
   runRegressionTestStage,
   rewritePathsForPrBody,
   takeFixerCost,
@@ -33,6 +35,7 @@ import {
   type PRRef,
   type PipelineConfig,
   type ReproStrategy,
+  type ResolvedPipeline,
   type TriageRunConfig,
   type TriageState,
   type TriageSummary,
@@ -184,12 +187,11 @@ async function reproduce(
   console.log(`[reproduce] reproduced=${reproduced}/${triage.length}`);
 }
 
-function takeTriageCost(agent: TriageAgent): CostSample | undefined {
-  const candidate = agent as TriageAgent & { takeCost?: () => CostSample | undefined };
-  return candidate.takeCost?.();
-}
-
-async function route(state: TriageState, agent: TriageAgent): Promise<CostSample[]> {
+async function route(
+  state: TriageState,
+  agent: TriageAgent,
+  recorder: TraceRecorder,
+): Promise<CostSample[]> {
   const triage: IncidentTriage[] = [];
   const costs: CostSample[] = [];
   for (const item of state.triage ?? []) {
@@ -198,13 +200,35 @@ async function route(state: TriageState, agent: TriageAgent): Promise<CostSample
       command: "",
       evidence: "Reproduction stage did not return a result.",
     };
+    const started = performance.now();
     const decision = await agent.triage({
       incident: item.incident,
       repro,
       testScope: state.pipelineConfig?.testScope,
     });
-    const cost = takeTriageCost(agent);
-    if (cost) costs.push(cost);
+    const calls = agent.takeAgentCalls?.() ?? [];
+    if (calls.length === 0) {
+      recorder.recordAgentCall({
+        stage: "triage",
+        resolution: "triage",
+        fingerprint: item.incident.fingerprint.hash,
+        durationMs: Math.max(0, performance.now() - started),
+        outcome: "success",
+        unavailableReason: "agent-did-not-report-usage",
+      });
+    }
+    for (const call of calls) {
+      if (call.cost !== undefined) costs.push(call.cost);
+      recorder.recordAgentCall({
+        stage: "triage",
+        resolution: "triage",
+        fingerprint: item.incident.fingerprint.hash,
+        durationMs: call.durationMs,
+        outcome: call.outcome,
+        ...(call.cost === undefined ? {} : { cost: call.cost }),
+        ...(call.fallback === undefined ? {} : { fallback: call.fallback }),
+      });
+    }
     const route = {
       kind: decision.decision,
       reason: decision.reason,
@@ -449,10 +473,13 @@ async function fixIncident(
   github: GitHubOperations,
   config: PipelineConfig,
   recorder: TraceRecorder,
+  resolved: ResolvedPipeline,
 ): Promise<void> {
   const fingerprint8 = item.incident.fingerprint.hash.slice(0, 8);
   const branch = `${config.branchPrefix}${fingerprint8}`;
   const created = await worktrees.create({ branch, fingerprint8 });
+  state.worktreeBaseCommit = created.baseCommit;
+  state.pipelineHeadCommit = created.baseCommit;
   const generatedIssue = buildIssueInput(item, config.labels);
   let previousFailure: string | undefined;
   const route = item.route;
@@ -465,11 +492,14 @@ async function fixIncident(
     repro,
     route,
     writer: testWriter,
-    createWriter: () => createDefaultTestWriter(config.testScope),
+    createWriter: () => createResolvedTestWriter(config.testScope, resolved.testWriter),
     verifier,
     worktrees,
+    baseCommit: created.baseCommit,
+    expectedHead: created.baseCommit,
     recorder,
   });
+  state.pipelineHeadCommit = regression.pipelineHeadCommit;
   state.activeRegressionTest = regression.record;
   state.regressionTestAttempts = [
     ...(state.regressionTestAttempts ?? []),
@@ -495,7 +525,12 @@ async function fixIncident(
         fixBrief: item.route?.fixBrief ?? "",
         ...(previousFailure === undefined ? {} : { previousFailure }),
       });
-      fix = { attempt, branch, ...output };
+      fix = {
+        attempt,
+        branch,
+        ...output,
+        stageBaseCommit: regression.pipelineHeadCommit,
+      };
       fixEvent.finish(
         `attempt ${attempt}`,
         { attempt, filesChanged: output.filesChanged },
@@ -507,6 +542,7 @@ async function fixIncident(
         branch,
         description: `Fixer failed: ${errorDetail(error)}`,
         filesChanged: [],
+        stageBaseCommit: regression.pipelineHeadCommit,
       };
       fixEvent.finish(
         "error",
@@ -521,7 +557,7 @@ async function fixIncident(
     const verified = await runTracedStage(
       recorder,
       "verify",
-      () => verifyWithRunner(verifyState, verifier, config.fixScope),
+      () => verifyWithRunner(verifyState, verifier, config.fixScope, worktrees),
       (verifyResult) => {
         const result = verifyResult.activeVerify;
         if (!result) throw new Error("verify did not return a result");
@@ -601,10 +637,22 @@ export async function runAgentSdkPipeline(
   dependencies: PipelineDependencies = {},
 ): Promise<AgentSdkPipelineResult> {
   const repoRoot = dependencies.repoRoot ?? resolve(import.meta.dir, "../../..");
+  const resolvedRuntime = resolvePipelineRuntime({
+    pipeline: "agent-sdk",
+    config,
+    mode: options,
+    overrides: {
+      triage: dependencies.triageAgent !== undefined,
+      testWriter: dependencies.testWriter !== undefined,
+      fixer: dependencies.fixer !== undefined,
+    },
+  });
+  const workload = await resolveTraceWorkload(config, repoRoot);
   const github = dependencies.github ?? new GitHubClient(config.repo);
   const recorder = dependencies.recorder ?? new TraceRecorder({
     pipeline: "agent-sdk",
-    config,
+    resolved: resolvedRuntime,
+    workload,
     traceRoot: resolve(repoRoot, "traces"),
     ...(options.tracePath === undefined ? {} : { outputPath: options.tracePath }),
     ...(options.label === undefined ? {} : { label: options.label }),
@@ -652,11 +700,14 @@ export async function runAgentSdkPipeline(
       repoRoot,
       config.fixScope,
       config.testScope,
+      undefined,
+      undefined,
+      resolvedRuntime.triage.requestedModel ?? "sonnet",
     );
     await runTracedStage(
       recorder,
       "route",
-      () => route(state, agent),
+      () => route(state, agent, recorder),
       (routeCosts) => {
         const mechanicalCount = (state.triage ?? []).filter(
           (item) => item.route?.kind === "mechanical",
@@ -678,7 +729,7 @@ export async function runAgentSdkPipeline(
     }));
 
     if (state.config?.fix) {
-      const fixer = dependencies.fixer ?? createDefaultFixer(config.fixScope, config.fixer);
+      const fixer = dependencies.fixer ?? createResolvedFixer(config.fixScope, resolvedRuntime.fixer);
       const verifier = dependencies.verifier ?? new RealVerifyRunner(config, dependencies.reproStrategy);
       const worktrees = dependencies.worktrees ?? new GitWorktreeOperations(
         repoRoot,
@@ -701,6 +752,7 @@ export async function runAgentSdkPipeline(
             github,
             config,
             recorder,
+            resolvedRuntime,
           );
         } catch (error: unknown) {
           state.errors.push(`fix ${item.incident.fingerprint.hash}: ${errorDetail(error)}`);
