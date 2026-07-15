@@ -4,6 +4,7 @@ import {
   OpenCodeFixer,
   OpenCodeTestWriter,
   configuredOpenCodeModel,
+  extractFixSummary,
   normalizeOpenCodeModel,
   parseOpenCodeJsonOutput,
   type ProcessResult,
@@ -92,6 +93,39 @@ test("parseOpenCodeJsonOutput extracts text + generation id from NDJSON fixture"
   expect(parsed?.generationIds).toContain("gen-abc123xyz");
   expect(extractSummary(parsed?.text ?? "")).toContain("missing null guard");
   expect(parsed?.model).toBe("openrouter/deepseek/deepseek-v4-pro");
+});
+
+test("parseOpenCodeJsonOutput prefers last FIX SUMMARY over longer earlier narration", () => {
+  // Narration text is intentionally longer than the marked summary part.
+  const longNarration =
+    "I am carefully inspecting the handler, tracing the request path, " +
+    "reading middleware, and considering several possible root causes in detail. ".repeat(4);
+  const summaryBody = "Root cause: null customer.\nGuarded with 400.";
+  const stdout = [
+    JSON.stringify({ type: "text", part: { text: longNarration } }),
+    JSON.stringify({
+      type: "text",
+      part: { text: `${FIX_SUMMARY_MARKER}\n${summaryBody}\n` },
+    }),
+    JSON.stringify({ type: "step-finish", part: { reason: "stop" } }),
+  ].join("\n");
+
+  const parsed = parseOpenCodeJsonOutput(stdout);
+  expect(parsed).toBeDefined();
+  expect(longNarration.length).toBeGreaterThan(summaryBody.length);
+  // Ordered stream keeps the marker; extractFixSummary must win over narration.
+  expect(parsed!.text).toContain(FIX_SUMMARY_MARKER);
+  expect(extractFixSummary(parsed!.text)).toBe(summaryBody);
+  expect(extractFixSummary(parsed!.text)).not.toContain("carefully inspecting");
+});
+
+test("parseOpenCodeJsonOutput reads nested part.tokens from OpenCode fixture", async () => {
+  const stdout = await Bun.file(
+    new URL("./fixtures/opencode-stdout-with-gen.json", import.meta.url),
+  ).text();
+  const parsed = parseOpenCodeJsonOutput(stdout);
+  expect(parsed?.inputTokens).toBe(1200);
+  expect(parsed?.outputTokens).toBe(340);
 });
 
 test("parseOpenCodeJsonOutput missing gen-id leaves empty generationIds", async () => {

@@ -22,6 +22,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Shell-level env checks need .env; bun subprocesses already auto-load it.
+set -a
+[ -f "$ROOT/.env" ] && . "$ROOT/.env"
+set +a
+
 BASE_URL="http://127.0.0.1:3000"
 CONFIG_PATH="${ROOT}/scripts/model-sweep.config.json"
 PILOT=0

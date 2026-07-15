@@ -11,3 +11,4 @@ pipelines/*/.cursor.json
 .worktrees/
 traces/*
 !traces/example-run.json
+!.env.sample

@@ -465,18 +465,24 @@ function collectTextParts(value: unknown, parts: string[], depth = 0): void {
   const type = value["type"];
   if (type === "text" || type === "message" || type === "assistant") {
     const part = value["part"];
+    // Prefer part.text, then top-level text/content — once only. Do not recurse
+    // into `part` afterward or the same string is pushed twice and joins smash
+    // a second FIX SUMMARY onto the same line (breaking last-marker extract).
     if (isRecord(part) && typeof part["text"] === "string") {
       parts.push(part["text"]);
+    } else if (typeof value["text"] === "string") {
+      parts.push(value["text"]);
+    } else if (typeof value["content"] === "string") {
+      parts.push(value["content"]);
     }
-    if (typeof value["text"] === "string") parts.push(value["text"]);
-    if (typeof value["content"] === "string") parts.push(value["content"]);
     if (isRecord(value["message"])) {
       collectTextParts(value["message"], parts, depth + 1);
     }
-  } else {
-    if (typeof value["text"] === "string" && depth <= 2) {
-      parts.push(value["text"]);
-    }
+    return;
+  }
+
+  if (typeof value["text"] === "string" && depth <= 2) {
+    parts.push(value["text"]);
   }
   for (const child of Object.values(value)) {
     if (typeof child === "object" && child !== null) {
@@ -534,6 +540,39 @@ function firstTokenField(
 }
 
 /**
+ * OpenCode `step-finish` reports usage as nested `part.tokens.{input,output}`
+ * (not flat input_tokens / output_tokens). Walk the event tree for that shape.
+ */
+function firstNestedTokensField(
+  value: unknown,
+  key: "input" | "output" | "total",
+  depth = 0,
+): number | undefined {
+  if (depth > 8 || value === null || value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = firstNestedTokensField(item, key, depth + 1);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+  if (!isRecord(value)) return undefined;
+  const tokens = value["tokens"];
+  if (isRecord(tokens)) {
+    const raw = tokens[key];
+    const parsed = parseInteger(
+      typeof raw === "number" || typeof raw === "string" ? String(raw) : undefined,
+    );
+    if (parsed !== undefined) return parsed;
+  }
+  for (const child of Object.values(value)) {
+    const found = firstNestedTokensField(child, key, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/**
  * Parse `opencode run --format json` stdout (single JSON or NDJSON events).
  * Returns undefined only when stdout is empty / non-JSON.
  */
@@ -569,6 +608,9 @@ export function parseOpenCodeJsonOutput(
   }
   if (events.length === 0) return undefined;
 
+  // Preserve event order: concatenate text parts as they appear so the last
+  // === FIX SUMMARY === marker across the full stream wins (longest-part
+  // selection can prefer earlier narration over a short final summary).
   const textParts: string[] = [];
   const generationIds = new Set<string>();
   for (const event of events) {
@@ -576,30 +618,31 @@ export function parseOpenCodeJsonOutput(
     collectGenerationIds(event, generationIds);
   }
 
-  // Prefer the longest text blob (final assistant message) when multiple parts.
-  let text = textParts.join("");
-  if (textParts.length > 1) {
-    const unique = [...new Set(textParts.map((part) => part.trim()).filter(Boolean))];
-    text = unique.sort((a, b) => b.length - a.length)[0] ?? textParts.join("\n");
-  }
+  // Join with newlines so a trailing narration fragment cannot glue onto the
+  // marker line (extractFixSummary matches a full line equal to the marker).
+  let text = textParts.join("\n");
 
   // If no structured text, fall back to raw stdout for FIX_SUMMARY extraction.
   if (!text.trim()) text = trimmed;
 
   const model = firstModel(events);
-  const inputTokens = firstTokenField(events, [
-    "input_tokens",
-    "inputTokens",
-    "prompt_tokens",
-    "tokens_prompt",
-  ]);
-  const outputTokens = firstTokenField(events, [
-    "output_tokens",
-    "outputTokens",
-    "completion_tokens",
-    "tokens_completion",
-  ]);
-  const totalTokens = firstTokenField(events, ["total_tokens", "totalTokens"]);
+  const inputTokens =
+    firstTokenField(events, [
+      "input_tokens",
+      "inputTokens",
+      "prompt_tokens",
+      "tokens_prompt",
+    ]) ?? firstNestedTokensField(events, "input");
+  const outputTokens =
+    firstTokenField(events, [
+      "output_tokens",
+      "outputTokens",
+      "completion_tokens",
+      "tokens_completion",
+    ]) ?? firstNestedTokensField(events, "output");
+  const totalTokens =
+    firstTokenField(events, ["total_tokens", "totalTokens"]) ??
+    firstNestedTokensField(events, "total");
 
   return {
     text,
