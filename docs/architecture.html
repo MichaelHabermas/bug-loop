@@ -112,6 +112,59 @@
     a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
     a:hover { color: var(--agent); }
 
+    .term {
+      position: relative;
+      display: inline-block;
+      border-bottom: 1px dotted currentColor;
+      cursor: help;
+      line-height: inherit;
+    }
+
+    .term:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .term-tip {
+      position: absolute;
+      z-index: 30;
+      left: 50%;
+      bottom: calc(100% + 9px);
+      width: max-content;
+      max-width: min(330px, calc(100vw - 32px));
+      padding: 10px 12px;
+      border: 1px solid var(--rule-strong);
+      color: var(--ink);
+      background: var(--paper-raised);
+      box-shadow: 5px 5px 0 color-mix(in srgb, var(--ink) 18%, transparent);
+      font-family: var(--sans);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0;
+      line-height: 1.35;
+      text-align: left;
+      text-transform: none;
+      white-space: normal;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 4px);
+      visibility: hidden;
+      transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+    }
+
+    .term:hover .term-tip, .term:focus .term-tip {
+      opacity: 1;
+      transform: translate(-50%, 0);
+      visibility: visible;
+    }
+
+    .code-name {
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.84em;
+      white-space: nowrap;
+    }
+
     .shell {
       width: min(1440px, calc(100% - 48px));
       margin: 0 auto;
@@ -139,7 +192,7 @@
       box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 16%, transparent);
     }
 
-    .theme-toggle, .control-button, .file-label {
+    .theme-toggle, .control-button, .file-label, .glossary-jump {
       border: 1px solid var(--rule-strong);
       border-radius: 0;
       color: var(--ink);
@@ -154,9 +207,11 @@
       transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
     }
 
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+    .glossary-jump { padding: 9px 11px; text-decoration: none; }
     .theme-toggle { padding: 9px 11px; }
 
-    .theme-toggle:hover, .control-button:hover:not(:disabled), .file-label:hover {
+    .theme-toggle:hover, .control-button:hover:not(:disabled), .file-label:hover, .glossary-jump:hover {
       border-color: var(--ink);
       color: var(--paper);
       background: var(--ink);
@@ -317,6 +372,8 @@
       background: color-mix(in srgb, var(--paper-raised) 82%, transparent);
       overflow: hidden;
     }
+
+    .piece-card:hover, .piece-card:focus-within { z-index: 10; overflow: visible; }
 
     .piece-card.code { box-shadow: inset 0 5px 0 var(--code); }
 
@@ -672,6 +729,34 @@
 
     .empty-timeline { margin: 0; padding: 34px 20px; color: var(--ink-faint); font-family: var(--mono); font-size: 0.78rem; text-align: center; }
 
+    .glossary-section { padding-top: 82px; padding-bottom: 82px; }
+
+    .glossary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-top: 1px solid var(--rule-strong);
+      border-left: 1px solid var(--rule-strong);
+      background: color-mix(in srgb, var(--paper-raised) 82%, transparent);
+    }
+
+    .glossary-item {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.38fr) minmax(0, 1fr);
+      gap: 16px;
+      padding: 13px 16px;
+      border-right: 1px solid var(--rule-strong);
+      border-bottom: 1px solid var(--rule-strong);
+    }
+
+    .glossary-item dt {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .glossary-item dd { margin: 0; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; }
+
     footer { padding: 32px 0 48px; }
 
     .footer-inner {
@@ -725,7 +810,17 @@
       .event-row .event-duration { grid-column: 2; }
       .event-row .event-outcome { grid-column: 3; }
       .event-row .cost-chip { grid-column: 2 / -1; }
+      .glossary-grid { grid-template-columns: 1fr; }
+      .glossary-item { grid-template-columns: 105px minmax(0, 1fr); }
       .footer-inner { flex-direction: column; }
+      .term-tip {
+        position: fixed;
+        inset: auto 10px 10px;
+        width: auto;
+        max-width: none;
+        transform: translateY(4px);
+      }
+      .term:hover .term-tip, .term:focus .term-tip { transform: translateY(0); }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -738,13 +833,16 @@
   <header class="shell">
     <div class="topbar">
       <div class="topbar-mark"><span class="status-dot" aria-hidden="true"></span><span class="topbar-copy">bug-loop / architecture plate B</span></div>
-      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">Theme: auto</button>
+      <div class="topbar-actions">
+        <a class="glossary-jump" href="#glossary">Glossary</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">Theme: auto</button>
+      </div>
     </div>
     <div class="hero">
       <div>
-        <p class="eyebrow">Verified agent infrastructure</p>
+        <p class="eyebrow">Verified automation system</p>
         <h1>bug-loop</h1>
-        <p class="hero-thesis">Not one agent - a small institution. Independent pieces with individual jobs, composed into a pipeline.</p>
+        <p class="hero-thesis">Not one <span class="term" tabindex="0" aria-describedby="tip-agent-hero">agent<span class="term-tip" id="tip-agent-hero" role="tooltip">An agent is an AI worker given one bounded job so its judgment can be checked before anything advances.</span></span> - a small institution. Independent pieces with individual jobs, composed into a <span class="term" tabindex="0" aria-describedby="tip-pipeline-hero">pipeline<span class="term-tip" id="tip-pipeline-hero" role="tooltip">A pipeline is the fixed sequence of steps that turns raw logs into checked fixes so no step can quietly skip the safeguards.</span></span>.</p>
       </div>
       <aside class="hero-aside" aria-label="System summary">
         <p class="mini-label">Transformation</p>
@@ -753,7 +851,7 @@
           <span>tickets</span>
           <span>verified fixes</span>
         </div>
-        <p class="hero-note">Built twice: LangGraph and plain TypeScript with the Claude Agent SDK. One set of contracts underneath.</p>
+        <p class="hero-note">Built twice: <span class="term" tabindex="0" aria-describedby="tip-langgraph-hero">LangGraph<span class="term-tip" id="tip-langgraph-hero" role="tooltip">LangGraph is the graph-based version that stores progress and chooses the next step from explicit rules.</span></span> and plain <span class="term" tabindex="0" aria-describedby="tip-typescript-hero">TypeScript<span class="term-tip" id="tip-typescript-hero" role="tooltip">TypeScript is JavaScript with checked data shapes, used here so steps agree on what information they exchange.</span></span> with the <span class="term" tabindex="0" aria-describedby="tip-sdk-hero">Claude Agent SDK<span class="term-tip" id="tip-sdk-hero" role="tooltip">The Claude Agent SDK is the library that lets the triage step ask Claude to inspect evidence and return a structured decision.</span></span>. One set of <span class="term" tabindex="0" aria-describedby="tip-contract-hero">contracts<span class="term-tip" id="tip-contract-hero" role="tooltip">A contract is an agreed data shape and rule between steps, which lets either implementation swap in without changing the result.</span></span> underneath.</p>
       </aside>
     </div>
   </header>
@@ -768,81 +866,81 @@
         </div>
       </div>
       <div class="legend" aria-label="Component type legend">
-        <span class="type-badge code">Deterministic code</span>
-        <span class="type-badge agent">Agent</span>
+        <span class="type-badge code"><span class="term" tabindex="0" aria-describedby="tip-deterministic-legend">Deterministic code<span class="term-tip" id="tip-deterministic-legend" role="tooltip">Deterministic code follows fixed rules and gives the same result for the same input, so routine work stays predictable.</span></span></span>
+        <span class="type-badge agent"><span class="term" tabindex="0" aria-describedby="tip-agent-legend">Agent<span class="term-tip" id="tip-agent-legend" role="tooltip">An agent is an AI worker used only where the system needs judgment that ordinary rules cannot provide.</span></span></span>
       </div>
       <div class="pieces-grid">
         <article class="piece-card code">
           <span class="card-index">C-01</span>
           <h3>ingest</h3>
-          <p class="piece-job">Read new structured JSONL events from the configured cursor.</p>
-          <span class="type-badge code">Deterministic code</span>
-          <dl><div><dt>May write</dt><dd>Cursor checkpoint and run trace only.</dd></div><div><dt>Harness / model</dt><dd>none / none</dd></div></dl>
+          <p class="piece-job">Read new structured <span class="term" tabindex="0" aria-describedby="tip-jsonl-ingest">JSONL<span class="term-tip" id="tip-jsonl-ingest" role="tooltip">JSONL is a text file with one self-contained data record per line, which lets the system read new log entries without loading the whole file.</span></span> events from the log bookmark (saved read-position: reruns only process new log lines) <code class="code-name">.cursor.json</code>.</p>
+          <span class="type-badge code">Same input = same result</span>
+          <dl><div><dt>May write</dt><dd>Log bookmark <code class="code-name">cursorPath</code> and <span class="term" tabindex="0" aria-describedby="tip-trace-ingest">run trace<span class="term-tip" id="tip-trace-ingest" role="tooltip">A trace is the ordered record of what each step did and why, kept so a run can be inspected or replayed later.</span></span> only.</dd></div><div><dt>Tool / model</dt><dd>none / none</dd></div></dl>
         </article>
         <article class="piece-card code">
           <span class="card-index">C-02</span>
           <h3>detect</h3>
-          <p class="piece-job">Apply the heuristic classifier and normalize actionable events.</p>
-          <span class="type-badge code">Deterministic code</span>
-          <dl><div><dt>May write</dt><dd>Run state and trace only.</dd></div><div><dt>Harness / model</dt><dd>heuristics / none</dd></div></dl>
+          <p class="piece-job">Apply the <span class="term" tabindex="0" aria-describedby="tip-classifier-detect">heuristic classifier<span class="term-tip" id="tip-classifier-detect" role="tooltip">A heuristic classifier is a short list of practical rules that separates likely bugs from routine noise so only useful events continue.</span></span> and standardize <span class="term" tabindex="0" aria-describedby="tip-actionable-detect">actionable events<span class="term-tip" id="tip-actionable-detect" role="tooltip">An actionable event contains enough evidence to investigate, so the pipeline does not spend effort on incomplete or harmless log lines.</span></span>.</p>
+          <span class="type-badge code">Same input = same result</span>
+          <dl><div><dt>May write</dt><dd>Current run record and run history only.</dd></div><div><dt>Tool / model</dt><dd>fixed rules / none</dd></div></dl>
         </article>
         <article class="piece-card code">
           <span class="card-index">C-03</span>
           <h3>dedupe</h3>
-          <p class="piece-job">Group failures by stable fingerprint and reuse open issues.</p>
-          <span class="type-badge code">Deterministic code</span>
-          <dl><div><dt>May write</dt><dd>Cursor when nothing is new; no application code.</dd></div><div><dt>Harness / model</dt><dd>fingerprints + gh lookup / none</dd></div></dl>
+          <p class="piece-job">Group failures by a stable <span class="term" tabindex="0" aria-describedby="tip-fingerprint-dedupe">fingerprint<span class="term-tip" id="tip-fingerprint-dedupe" role="tooltip">A fingerprint is a repeatable short ID made from a failure’s important details, used to recognize the same bug when it happens again.</span></span> and reuse open issues.</p>
+          <span class="type-badge code">Same input = same result</span>
+          <dl><div><dt>May write</dt><dd>Log bookmark <code class="code-name">cursorPath</code> when nothing is new; no application code.</dd></div><div><dt>Tool / model</dt><dd>failure IDs + GitHub issue search / none</dd></div></dl>
         </article>
         <article class="piece-card code">
           <span class="card-index">C-04</span>
-          <h3>reproduce</h3>
-          <p class="piece-job">Turn an incident into before-fix evidence through a ReproStrategy adapter.</p>
-          <span class="type-badge code">Deterministic code</span>
-          <dl><div><dt>May write</dt><dd>Configured repro scratch and logs; no source edits.</dd></div><div><dt>Harness / model</dt><dd>ReproStrategy / none</dd></div></dl>
+          <h3><span class="term" tabindex="0" aria-describedby="tip-repro-card">reproduce<span class="term-tip" id="tip-repro-card" role="tooltip">To reproduce a bug is to make it fail on demand before editing code, which proves the later fix solved the real problem.</span></span></h3>
+          <p class="piece-job">Turn an <span class="term" tabindex="0" aria-describedby="tip-incident-repro">incident<span class="term-tip" id="tip-incident-repro" role="tooltip">An incident is one distinct bug being tracked through the run, used to keep its evidence, fix attempts, and ticket together.</span></span> into before-fix evidence through a <span class="term" tabindex="0" aria-describedby="tip-adapter-repro">reproduction adapter<span class="term-tip" id="tip-adapter-repro" role="tooltip">An adapter is a small translator that lets each app describe how to trigger its bug while the pipeline calls one shared interface.</span></span> <code class="code-name">ReproStrategy</code>.</p>
+          <span class="type-badge code">Same input = same result</span>
+          <dl><div><dt>May write</dt><dd>Configured reproduction scratch files and logs; no source edits.</dd></div><div><dt>Tool / model</dt><dd><code class="code-name">ReproStrategy</code> / none</dd></div></dl>
         </article>
         <article class="piece-card agent">
           <span class="card-index">A-01</span>
-          <h3>triage planner</h3>
-          <p class="piece-job">Read evidence and source, then return a route plus a root-cause fix brief.</p>
-          <span class="type-badge agent">Agent</span>
-          <dl><div><dt>May write</dt><dd>Nothing. Read, Grep, and Glob are read-only and fix-scope bounded.</dd></div><div><dt>Harness / model</dt><dd>Claude Agent SDK / configured triage model (default: sonnet)</dd></div></dl>
+          <h3><span class="term" tabindex="0" aria-describedby="tip-triage-card">triage planner<span class="term-tip" id="tip-triage-card" role="tooltip">Triage is the decision step that reads the evidence, decides whether automation is safe, and writes a focused plan for the next step.</span></span></h3>
+          <p class="piece-job">Read evidence and source, then return a route plus a <span class="term" tabindex="0" aria-describedby="tip-root-cause-card">root-cause fix brief<span class="term-tip" id="tip-root-cause-card" role="tooltip">A root cause is the underlying defect that created the symptom, so fixing it prevents the failure instead of hiding it.</span></span>.</p>
+          <span class="type-badge agent">AI judgment</span>
+          <dl><div><dt>May write</dt><dd>Nothing. <code class="code-name">Read</code>, <code class="code-name">Grep</code>, and <code class="code-name">Glob</code> are read-only, and a <span class="term" tabindex="0" aria-describedby="tip-scope-guard-triage">scope guard<span class="term-tip" id="tip-scope-guard-triage" role="tooltip">A scope guard is a rule that blocks access outside approved paths, which keeps investigation and fixes inside the intended code area.</span></span> limits them to <code class="code-name">fixScope</code>.</dd></div><div><dt>Tool / model</dt><dd><span class="term" tabindex="0" aria-describedby="tip-sdk-triage">Claude Agent SDK<span class="term-tip" id="tip-sdk-triage" role="tooltip">The Claude Agent SDK lets this step give evidence to Claude and require a structured route and fix brief in return.</span></span> / configured triage model</dd></div></dl>
         </article>
         <article class="piece-card agent">
           <span class="card-index">A-02</span>
           <h3>fixer</h3>
-          <p class="piece-job">Execute one fix brief behind the shared Fixer interface.</p>
-          <span class="type-badge agent">Agent</span>
-          <dl><div><dt>May write</dt><dd>Configured src scope only, inside an isolated worktree.</dd></div><div><dt>Harness / model</dt><dd>Grok or Codex CLI / selected by PipelineConfig</dd></div></dl>
+          <p class="piece-job">Execute one fix brief behind the shared <span class="term" tabindex="0" aria-describedby="tip-interface-fixer">Fixer interface<span class="term-tip" id="tip-interface-fixer" role="tooltip">An interface is the agreed input and output for a tool, which lets Grok or Codex do the work without changing the surrounding pipeline.</span></span>.</p>
+          <span class="type-badge agent">AI judgment</span>
+          <dl><div><dt>May write</dt><dd>Configured source scope only, inside an isolated <span class="term" tabindex="0" aria-describedby="tip-worktree-fixer">worktree<span class="term-tip" id="tip-worktree-fixer" role="tooltip">A worktree is a separate working copy of the Git project, used so an attempted fix cannot disturb the presenter’s main project folder.</span></span>.</dd></div><div><dt>Tool / model</dt><dd>Grok or Codex <span class="term" tabindex="0" aria-describedby="tip-cli-fixer">command-line tool<span class="term-tip" id="tip-cli-fixer" role="tooltip">A command-line tool is a program controlled with typed commands, used here so the pipeline can start a fixer and capture its result automatically.</span></span> / selected by <code class="code-name">PipelineConfig</code></dd></div></dl>
         </article>
         <article class="piece-card code">
           <span class="card-index">C-05</span>
-          <h3>verifier</h3>
-          <p class="piece-job">Demand repro-gone, scoped changes, tests, and typecheck. Trust no agent.</p>
-          <span class="type-badge code">Deterministic code</span>
-          <dl><div><dt>May write</dt><dd>Fresh verification logs and process artifacts; no fix edits.</dd></div><div><dt>Harness / model</dt><dd>test runners + TypeScript / none</dd></div></dl>
+          <h3><span class="term" tabindex="0" aria-describedby="tip-verifier-card">verifier<span class="term-tip" id="tip-verifier-card" role="tooltip">The verifier is the independent gate that reruns the failure proof and code checks, so an agent cannot approve its own work.</span></span></h3>
+          <p class="piece-job">Demand reproduction-gone, scoped changes, tests, and a <span class="term" tabindex="0" aria-describedby="tip-typecheck-verifier">typecheck<span class="term-tip" id="tip-typecheck-verifier" role="tooltip">A typecheck checks that TypeScript values are used in compatible ways, catching broken code paths before the fix can advance.</span></span>. Trust no agent.</p>
+          <span class="type-badge code">Same input = same result</span>
+          <dl><div><dt>May write</dt><dd>Fresh verification logs and command output; no fix edits.</dd></div><div><dt>Tool / model</dt><dd>test runners + TypeScript / none</dd></div></dl>
         </article>
         <article class="piece-card code">
           <span class="card-index">C-06</span>
-          <h3>ticket / PR lifecycle</h3>
+          <h3>ticket / pull request handling</h3>
           <p class="piece-job">Reuse or file issues, label failures, and open only verified pull requests.</p>
-          <span class="type-badge code">Deterministic code</span>
-          <dl><div><dt>May write</dt><dd>Git branches, issues, comments, labels, and PRs behind the DRY_RUN gate.</dd></div><div><dt>Harness / model</dt><dd>gh + git / none</dd></div></dl>
+          <span class="type-badge code">Same input = same result</span>
+          <dl><div><dt>May write</dt><dd>Git branches, issues, comments, labels, and pull requests behind the <span class="term" tabindex="0" aria-describedby="tip-dry-run-ticket"><code>DRY_RUN</code> gate<span class="term-tip" id="tip-dry-run-ticket" role="tooltip">DRY_RUN is a safety switch that shows what would be written without changing GitHub or Git, used for safe rehearsals.</span></span>.</dd></div><div><dt>Tool / model</dt><dd>GitHub command-line tool + Git / none</dd></div></dl>
         </article>
       </div>
     </section>
 
     <section class="section shell" id="pipeline" aria-labelledby="pipeline-title">
       <div class="section-head">
-        <span class="section-number">03 / CONTROL FLOW</span>
+        <span class="section-number">03 / STEP ORDER</span>
         <div>
           <h2 class="section-title" id="pipeline-title">The pipeline</h2>
-          <p class="section-intro">The graph owns control flow. Agents get bounded jobs. Verification owns the right to advance.</p>
+          <p class="section-intro">The diagram owns the order of work. AI workers get bounded jobs. Independent checks decide whether the run may advance.</p>
         </div>
       </div>
-      <div class="diagram-wrap" id="diagram-wrap" tabindex="0" aria-label="Scrollable pipeline flow diagram">
+      <div class="diagram-wrap" id="diagram-wrap" tabindex="0" aria-label="Scrollable sequence-of-work diagram">
         <svg viewBox="0 0 1400 650" role="img" aria-labelledby="flow-title flow-desc">
-          <title id="flow-title">bug-loop stage graph</title>
-          <desc id="flow-desc">Logs move through ingest, detect, dedupe, reproduce, route, and ticket. Mechanical incidents enter a fix and verify retry loop, then open a pull request or exit to a human.</desc>
+          <title id="flow-title">bug-loop sequence of work</title>
+          <desc id="flow-desc">Logs are read, filtered, grouped, reproduced, routed, and ticketed. Safe fixes enter a fix-and-check loop, then open a pull request or stop for a person.</desc>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path></marker>
             <pattern id="diagram-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="var(--grid)" stroke-width="1"></path></pattern>
@@ -855,9 +953,9 @@
           <path class="flow-line" d="M 690 155 H 720"></path>
           <path class="flow-line" d="M 890 155 H 930"></path>
           <path class="flow-line" d="M 1000 200 C 1000 258 910 262 910 315"></path>
-          <text class="edge-label" x="906" y="261">mechanical + --fix</text>
+          <text class="edge-label" x="906" y="261">safe fix enabled</text>
           <path class="flow-line human-edge" d="M 1045 175 C 1135 180 1205 370 1240 410"></path>
-          <text class="edge-label" x="1083" y="229">needs-human</text>
+          <text class="edge-label" x="1083" y="229">send to person</text>
           <path class="flow-line" d="M 980 360 H 1050"></path>
           <path class="flow-line retry" d="M 1120 315 C 1120 255 910 255 910 315"></path>
           <text class="edge-label" x="963" y="241">first failure / retry</text>
@@ -874,17 +972,17 @@
 
           <g class="stage-node" data-stage-node="ingest" transform="translate(40 110)">
             <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
-            <text class="node-title" x="16" y="29">INGEST</text><text class="node-subtitle" x="16" y="48">read JSONL</text>
+            <text class="node-title" x="16" y="29">INGEST</text><text class="node-subtitle" x="16" y="48">read log lines</text>
             <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
           </g>
           <g class="stage-node" data-stage-node="detect" transform="translate(210 110)">
             <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
-            <text class="node-title" x="16" y="29">DETECT</text><text class="node-subtitle" x="16" y="48">classify</text>
+            <text class="node-title" x="16" y="29">DETECT</text><text class="node-subtitle" x="16" y="48">keep useful failures</text>
             <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
           </g>
           <g class="stage-node" data-stage-node="dedupe" transform="translate(380 110)">
             <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
-            <text class="node-title" x="16" y="29">DEDUPE</text><text class="node-subtitle" x="16" y="48">fingerprint</text>
+            <text class="node-title" x="16" y="29">DEDUPE</text><text class="node-subtitle" x="16" y="48">group same failures</text>
             <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
           </g>
           <g class="stage-node" data-stage-node="reproduce" transform="translate(550 110)">
@@ -894,7 +992,7 @@
           </g>
           <g class="stage-node judgment" data-stage-node="route" transform="translate(720 105)">
             <rect class="node-box" width="170" height="100"></rect><rect class="node-corner" x="154" width="16" height="16"></rect>
-            <text class="node-title" x="16" y="30">TRIAGE / ROUTE</text><text class="node-subtitle" x="16" y="50">judgment seam</text>
+            <text class="node-title" x="16" y="30">TRIAGE / ROUTE</text><text class="node-subtitle" x="16" y="50">make one decision</text>
             <rect class="svg-badge" x="16" y="66" width="31" height="17"></rect><text class="svg-badge-text" x="24" y="78">SDK</text>
             <rect class="svg-badge" x="53" y="66" width="39" height="17"></rect><text class="svg-badge-text" x="61" y="78">NONE</text>
           </g>
@@ -905,18 +1003,18 @@
           </g>
           <g class="stage-node" data-stage-node="fix" transform="translate(840 315)">
             <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
-            <text class="node-title" x="16" y="29">FIX</text><text class="node-subtitle" x="16" y="48">isolated worktree</text>
+            <text class="node-title" x="16" y="29">FIX</text><text class="node-subtitle" x="16" y="48">separate Git copy</text>
             <rect class="svg-badge" x="16" y="61" width="41" height="17"></rect><text class="svg-badge-text" x="24" y="73">GROK</text>
             <rect class="svg-badge" x="63" y="61" width="48" height="17"></rect><text class="svg-badge-text" x="71" y="73">CODEX</text>
           </g>
           <g class="stage-node" data-stage-node="verify" transform="translate(1050 315)">
             <rect class="node-box" width="140" height="90"></rect><rect class="node-corner" x="126" width="14" height="14"></rect>
-            <text class="node-title" x="16" y="29">VERIFY</text><text class="node-subtitle" x="16" y="48">trust no agent</text>
+            <text class="node-title" x="16" y="29">VERIFY</text><text class="node-subtitle" x="16" y="48">rerun every check</text>
             <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
           </g>
           <g class="stage-node" data-stage-node="pr" transform="translate(1240 200)">
             <rect class="node-box" width="130" height="90"></rect><rect class="node-corner" x="116" width="14" height="14"></rect>
-            <text class="node-title" x="16" y="29">OPEN PR</text><text class="node-subtitle" x="16" y="48">verified only</text>
+            <text class="node-title" x="16" y="29">OPEN REQUEST</text><text class="node-subtitle" x="16" y="48">ask to merge fix</text>
             <rect class="svg-badge" x="16" y="61" width="39" height="17"></rect><text class="svg-badge-text" x="24" y="73">NONE</text>
           </g>
           <g class="stage-node human" data-stage-node="human" transform="translate(1240 410)">
@@ -936,51 +1034,51 @@
           </g>
         </svg>
       </div>
-      <p class="diagram-caption"><span><strong>Orange register:</strong> the only planning judgment seam.</span><span>Dashed edge: bounded retry. Magenta exit: automation stops and leaves evidence.</span></p>
+      <p class="diagram-caption"><span><strong>Orange box:</strong> the only place AI judgment plans the fix.</span><span>Tool badges: SDK is the Claude AI library; Grok and Codex are AI fixing tools; None means fixed rules with no AI model.</span><span>Dashed line: try the fix once more. Magenta line: automation stops and leaves its evidence for a person.</span></p>
     </section>
 
     <section class="section shell" id="implementations" aria-labelledby="implementations-title">
       <div class="section-head">
-        <span class="section-number">04 / HARNESS COMPARISON</span>
+        <span class="section-number">04 / <span class="term" tabindex="0" aria-describedby="tip-harness-heading">HARNESS COMPARISON<span class="term-tip" id="tip-harness-heading" role="tooltip">A harness is the surrounding tool that starts an AI worker, gives it allowed capabilities, and records its result so different workers can be compared fairly.</span></span></span>
         <div>
           <h2 class="section-title" id="implementations-title">Two implementations, one pipeline</h2>
-          <p class="section-intro">The framework changes how state resumes and branches. It does not change the contracts or create intelligence.</p>
+          <p class="section-intro">The <span class="term" tabindex="0" aria-describedby="tip-framework-impl">framework<span class="term-tip" id="tip-framework-impl" role="tooltip">A framework is reusable plumbing for organizing the steps, used here to compare graph-based control with ordinary code.</span></span> changes how saved progress resumes and chooses the next step. It does not change the <span class="term" tabindex="0" aria-describedby="tip-contract-impl">contracts<span class="term-tip" id="tip-contract-impl" role="tooltip">Contracts are the shared data shapes and rules each step must obey, so both versions remain interchangeable.</span></span> or create intelligence.</p>
         </div>
       </div>
       <div class="implementation-grid">
         <article class="implementation">
-          <header><h3>LangGraph</h3><p class="implementation-sub">Framework makes control flow explicit</p></header>
+          <header><h3><span class="term" tabindex="0" aria-describedby="tip-langgraph-impl">LangGraph<span class="term-tip" id="tip-langgraph-impl" role="tooltip">LangGraph represents the work as connected steps, which makes saved progress and branching choices visible.</span></span></h3><p class="implementation-sub">Framework shows each path explicitly</p></header>
           <dl>
-            <div><dt>Orchestration</dt><dd>StateGraph and conditional edges make the fix/verify cycle visible.</dd></div>
-            <div><dt>State</dt><dd>MemorySaver checkpoints shared graph state for resumability.</dd></div>
-            <div><dt>Triage</dt><dd>Classifier sits behind the route node.</dd></div>
-            <div><dt>Default fixer</dt><dd>Codex, still behind the same Fixer contract.</dd></div>
+            <div><dt><span class="term" tabindex="0" aria-describedby="tip-orchestration-graph">Orchestration<span class="term-tip" id="tip-orchestration-graph" role="tooltip">Orchestration is the code that decides which step runs next, used so agents cannot choose their own permissions or skip checks.</span></span></dt><dd><span class="term" tabindex="0" aria-describedby="tip-stategraph-graph"><code>StateGraph</code><span class="term-tip" id="tip-stategraph-graph" role="tooltip">StateGraph is LangGraph’s map of steps and connections, used to make the allowed paths through a run explicit.</span></span> and <span class="term" tabindex="0" aria-describedby="tip-conditional-edges-graph">conditional edges<span class="term-tip" id="tip-conditional-edges-graph" role="tooltip">Conditional edges are connections chosen by a yes/no result, used here to retry a failed check or advance a passing fix.</span></span> make the fix-and-check cycle visible.</dd></div>
+            <div><dt>Saved state</dt><dd><span class="term" tabindex="0" aria-describedby="tip-memorysaver-graph"><code>MemorySaver</code><span class="term-tip" id="tip-memorysaver-graph" role="tooltip">MemorySaver is LangGraph’s in-memory checkpointer, used here to save the current run state between graph steps.</span></span> is the <span class="term" tabindex="0" aria-describedby="tip-checkpointer-graph">checkpointer<span class="term-tip" id="tip-checkpointer-graph" role="tooltip">A checkpointer saves a known-good snapshot after each step so an interrupted run can continue without starting over.</span></span> that gives the graph <span class="term" tabindex="0" aria-describedby="tip-resumability-graph">resumability<span class="term-tip" id="tip-resumability-graph" role="tooltip">Resumability means continuing from the last saved step after an interruption, which avoids repeating completed work.</span></span>.</dd></div>
+            <div><dt><span class="term" tabindex="0" aria-describedby="tip-triage-graph">Triage<span class="term-tip" id="tip-triage-graph" role="tooltip">Triage reads the evidence, decides whether an automatic fix is safe, and prepares the brief used by the fixer.</span></span></dt><dd>The fixed-rule filter sits behind the route step.</dd></div>
+            <div><dt>Default fixer</dt><dd>Codex, still behind the same <span class="term" tabindex="0" aria-describedby="tip-fixer-contract-graph">Fixer contract<span class="term-tip" id="tip-fixer-contract-graph" role="tooltip">The Fixer contract gives every fixing tool the same input and requires the same output, so the pipeline can swap tools safely.</span></span>.</dd></div>
           </dl>
         </article>
         <article class="implementation">
-          <header><h3>Plain TypeScript</h3><p class="implementation-sub">Control flow is ordinary code</p></header>
+          <header><h3>Plain <span class="term" tabindex="0" aria-describedby="tip-typescript-impl">TypeScript<span class="term-tip" id="tip-typescript-impl" role="tooltip">TypeScript is JavaScript with checked data shapes, used here to keep the run record consistent between ordinary functions.</span></span></h3><p class="implementation-sub">The order of work is ordinary code</p></header>
           <dl>
-            <div><dt>Orchestration</dt><dd>Typed functions, mutable run state, for loops, and explicit branches.</dd></div>
-            <div><dt>State</dt><dd>Readable values moving through ordinary control flow.</dd></div>
-            <div><dt>Triage</dt><dd>Claude Agent SDK reads source and returns route plus fix brief.</dd></div>
-            <div><dt>Default fixer</dt><dd>Grok, still behind the same Fixer contract.</dd></div>
+            <div><dt><span class="term" tabindex="0" aria-describedby="tip-orchestration-ts">Orchestration<span class="term-tip" id="tip-orchestration-ts" role="tooltip">Orchestration is the code that decides which step runs next, used so the same safety order is enforced without a graph framework.</span></span></dt><dd>Regular functions pass one run record through loops and if/else choices.</dd></div>
+            <div><dt>State</dt><dd>Readable values moving through ordinary function calls.</dd></div>
+            <div><dt><span class="term" tabindex="0" aria-describedby="tip-triage-ts">Triage<span class="term-tip" id="tip-triage-ts" role="tooltip">Triage reads the evidence, decides whether an automatic fix is safe, and prepares the brief used by the fixer.</span></span></dt><dd>The <span class="term" tabindex="0" aria-describedby="tip-sdk-ts">Claude Agent SDK<span class="term-tip" id="tip-sdk-ts" role="tooltip">The Claude Agent SDK lets ordinary TypeScript call Claude with read-only tools and require a structured decision in return.</span></span> reads source and returns a route plus fix brief.</dd></div>
+            <div><dt>Default fixer</dt><dd>Grok, still behind the same <span class="term" tabindex="0" aria-describedby="tip-fixer-contract-ts">Fixer contract<span class="term-tip" id="tip-fixer-contract-ts" role="tooltip">The Fixer contract gives every fixing tool the same input and requires the same output, so the pipeline can swap tools safely.</span></span>.</dd></div>
           </dl>
         </article>
       </div>
-      <div class="shared-core">Same @bug-loop/core verifier, worktrees, GitHub lifecycle, config, and trace contract</div>
+      <div class="shared-core">Both reuse the same verification rules, separate Git copies, GitHub ticket handling, settings, and run-history format</div>
     </section>
 
     <section class="section shell" id="replay" aria-labelledby="replay-title">
       <div class="section-head">
-        <span class="section-number">05 / RUN TELEMETRY</span>
+        <span class="section-number">05 / <span class="term" tabindex="0" aria-describedby="tip-telemetry-heading">RUN TELEMETRY<span class="term-tip" id="tip-telemetry-heading" role="tooltip">Telemetry is the measurements and event history emitted by a run, kept so people can see what happened instead of trusting a black box.</span></span></span>
         <div>
-          <h2 class="section-title" id="replay-title">Watch the pipeline think.</h2>
-          <p class="section-intro">A trace is the institution’s audit trail. Step through it and the stage graph becomes a replay canvas.</p>
+          <h2 class="section-title" id="replay-title">Watch the <span class="term" tabindex="0" aria-describedby="tip-pipeline-replay">pipeline<span class="term-tip" id="tip-pipeline-replay" role="tooltip">A pipeline is the fixed sequence of steps that turns raw logs into checked fixes, with a recorded reason for every handoff.</span></span> think.</h2>
+          <p class="section-intro">A <span class="term" tabindex="0" aria-describedby="tip-trace-replay">trace<span class="term-tip" id="tip-trace-replay" role="tooltip">A trace is the ordered record of what each step did and why, kept so a person can inspect or replay the run.</span></span> is the run’s dated, inspectable record. Step through it and the diagram highlights the matching step.</p>
         </div>
       </div>
       <div class="replay-console">
         <div class="trace-toolbar" aria-label="Trace replay controls">
-          <label class="file-label">Load trace<input id="trace-file" type="file" accept="application/json,.json"></label>
+          <label class="file-label">Load run history<input id="trace-file" type="file" accept="application/json,.json"></label>
           <button class="control-button" id="demo-button" type="button">Built-in demo</button>
           <button class="control-button" id="prev-button" type="button" aria-label="Previous trace event">← Prev</button>
           <button class="control-button" id="next-button" type="button" aria-label="Next trace event">Next →</button>
@@ -996,12 +1094,66 @@
         <div class="timeline" id="timeline" aria-label="Trace event timeline"></div>
       </div>
     </section>
+
+    <section class="section shell glossary-section" id="glossary" aria-labelledby="glossary-title">
+      <div class="section-head">
+        <span class="section-number">06 / PRESENTER GLOSSARY</span>
+        <div>
+          <h2 class="section-title" id="glossary-title">Plain-language glossary</h2>
+          <p class="section-intro">Every specialized label used above is translated here into what it is and why this system needs it.</p>
+        </div>
+      </div>
+      <dl class="glossary-grid">
+        <div class="glossary-item"><dt>Actionable event</dt><dd>A log event with enough evidence to investigate, kept so incomplete or harmless noise does not enter the fixing process.</dd></div>
+        <div class="glossary-item"><dt>Adapter</dt><dd>A small translator between one app and the shared pipeline, used so each app can trigger its bugs in its own way.</dd></div>
+        <div class="glossary-item"><dt>Agent</dt><dd>An AI worker given one bounded job, used where judgment is needed and checked before the run advances.</dd></div>
+        <div class="glossary-item"><dt>Assertion spec</dt><dd>A written list of facts that must be true after a fix, used to turn expected behavior into checks the verifier can run.</dd></div>
+        <div class="glossary-item"><dt>Checkpointer</dt><dd>A component that saves a known-good snapshot after each step, used so an interrupted run can continue without starting over.</dd></div>
+        <div class="glossary-item"><dt>Claude Agent SDK</dt><dd>A library for giving Claude bounded tools and requiring structured answers, used by triage to inspect evidence without editing code.</dd></div>
+        <div class="glossary-item"><dt>Command-line tool</dt><dd>A program controlled with typed commands, used so the pipeline can start tools and capture their results automatically.</dd></div>
+        <div class="glossary-item"><dt>Conditional edges</dt><dd>Graph connections chosen by a yes/no result, used to retry a failed check or advance a passing fix.</dd></div>
+        <div class="glossary-item"><dt>Contract</dt><dd>An agreed data shape and rule between steps, used so both implementations can exchange information safely.</dd></div>
+        <div class="glossary-item"><dt>Dedupe</dt><dd>The step that recognizes repeated reports of the same failure, used to reuse one issue instead of opening duplicates.</dd></div>
+        <div class="glossary-item"><dt>Deterministic code</dt><dd>Code that follows fixed rules and gives the same result for the same input, used to keep routine work predictable.</dd></div>
+        <div class="glossary-item"><dt><code>DRY_RUN</code></dt><dd>A safety switch that shows intended writes without changing GitHub or Git, used for safe rehearsals.</dd></div>
+        <div class="glossary-item"><dt>Fingerprint</dt><dd>A repeatable short ID made from a failure’s important details, used to recognize the same bug across many log entries.</dd></div>
+        <div class="glossary-item"><dt>Fixer interface</dt><dd>The shared input and output expected from a fixing tool, used so Grok or Codex can be swapped without changing the pipeline.</dd></div>
+        <div class="glossary-item"><dt>Framework</dt><dd>Reusable plumbing that organizes the steps, used here to compare graph-based control with ordinary code.</dd></div>
+        <div class="glossary-item"><dt>Git</dt><dd>The system that records code history and separate branches, used here to isolate each attempted fix and inspect exactly what changed.</dd></div>
+        <div class="glossary-item"><dt>GitHub</dt><dd>The shared service that stores this project’s issues and pull requests, used to hand verified work to people for review.</dd></div>
+        <div class="glossary-item"><dt>Harness</dt><dd>The surrounding tool that starts an AI worker, limits its capabilities, and records its result, used to run different workers consistently.</dd></div>
+        <div class="glossary-item"><dt>Heuristic classifier</dt><dd>A short list of practical rules that separates likely bugs from routine noise, used so only useful events continue.</dd></div>
+        <div class="glossary-item"><dt>Incident</dt><dd>One distinct bug tracked through a run, used to keep its evidence, fix attempts, and ticket together.</dd></div>
+        <div class="glossary-item"><dt>JSONL</dt><dd>A text format with one complete data record per line, used so new log entries can be read without loading the whole file.</dd></div>
+        <div class="glossary-item"><dt>LangGraph</dt><dd>A framework that represents work as connected steps, used to make saved progress and branching choices visible.</dd></div>
+        <div class="glossary-item"><dt>Log bookmark</dt><dd>A saved read-position that makes reruns process only new log lines, stored by the code as <code>.cursor.json</code> through <code>cursorPath</code>.</dd></div>
+        <div class="glossary-item"><dt><code>MemorySaver</code></dt><dd>LangGraph’s in-memory checkpointer, used here to retain the current run state between graph steps.</dd></div>
+        <div class="glossary-item"><dt>Model</dt><dd>The specific AI system doing a judgment task, named so each run records which intelligence produced the decision.</dd></div>
+        <div class="glossary-item"><dt>Orchestration</dt><dd>The code that decides which step runs next, used so agents cannot choose their own permissions or skip checks.</dd></div>
+        <div class="glossary-item"><dt>Pipeline</dt><dd>The fixed sequence of steps that turns raw logs into checked fixes, used to enforce one safe route from evidence to action.</dd></div>
+        <div class="glossary-item"><dt>Pull request / PR</dt><dd>A request to review and merge a proposed code change, opened only after this system’s independent checks pass.</dd></div>
+        <div class="glossary-item"><dt>Repro / reproduction</dt><dd>A reliable way to make the bug fail on demand before editing code, used to prove that the later fix solved the real problem.</dd></div>
+        <div class="glossary-item"><dt>red→green</dt><dd>The change from a failing check before the fix to a passing check afterward, used as direct evidence that behavior improved.</dd></div>
+        <div class="glossary-item"><dt>Resumability</dt><dd>The ability to continue from the last saved step after an interruption, used to avoid repeating completed work.</dd></div>
+        <div class="glossary-item"><dt>Root cause</dt><dd>The underlying defect that created the visible symptom, targeted so the fix prevents the failure instead of hiding it.</dd></div>
+        <div class="glossary-item"><dt>Scope guard</dt><dd>A rule that blocks reads or writes outside approved paths, used to keep investigation and fixes inside the intended code area.</dd></div>
+        <div class="glossary-item"><dt>Seam</dt><dd>A deliberate boundary where one implementation can be replaced by another, used to swap tools without disturbing the surrounding system.</dd></div>
+        <div class="glossary-item"><dt><code>StateGraph</code></dt><dd>LangGraph’s map of steps and connections, used to make every allowed path through a run explicit.</dd></div>
+        <div class="glossary-item"><dt>Telemetry</dt><dd>The measurements and event history emitted by a run, kept so people can inspect what happened instead of trusting a black box.</dd></div>
+        <div class="glossary-item"><dt>Trace</dt><dd>The ordered record of what each step did and why, kept so a run can be inspected or replayed later.</dd></div>
+        <div class="glossary-item"><dt>Triage</dt><dd>The decision step that reads evidence, judges whether automation is safe, and writes a focused plan for the fixer.</dd></div>
+        <div class="glossary-item"><dt>Typecheck</dt><dd>A check that TypeScript values are used in compatible ways, run to catch broken code paths before a fix advances.</dd></div>
+        <div class="glossary-item"><dt>TypeScript</dt><dd>JavaScript with checked data shapes, used so pipeline steps agree on the information they exchange.</dd></div>
+        <div class="glossary-item"><dt>Verifier</dt><dd>The independent gate that reruns the bug proof and code checks, used so an agent cannot approve its own work.</dd></div>
+        <div class="glossary-item"><dt>Worktree</dt><dd>A separate working copy of a Git project, used so an attempted fix cannot disturb the main project folder.</dd></div>
+      </dl>
+    </section>
   </main>
 
   <footer class="shell">
     <div class="footer-inner">
       <a href="https://github.com/MichaelHabermas/bug-loop">github.com/MichaelHabermas/bug-loop</a>
-      <p>The kit lives in <strong>@bug-loop/core</strong> - bring your own <strong>PipelineConfig</strong> + <strong>ReproStrategy</strong>.</p>
+      <p>The reusable kit lives in <code>@bug-loop/core</code> - supply pipeline settings <code>PipelineConfig</code> and the app-specific way to prove a bug <code>ReproStrategy</code>.</p>
     </div>
   </footer>
 
