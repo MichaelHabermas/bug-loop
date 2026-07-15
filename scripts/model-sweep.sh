@@ -23,9 +23,27 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 # Shell-level env checks need .env; bun subprocesses already auto-load it.
-set -a
-[ -f "$ROOT/.env" ] && . "$ROOT/.env"
-set +a
+# Precedence matches Bun dotenv: already-exported variables win over .env.
+# A stale .env OPENROUTER_API_KEY must not overwrite the operator's export.
+if [ -f "$ROOT/.env" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%%$'\r'}"
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    key="${BASH_REMATCH[1]}"
+    val="${BASH_REMATCH[2]}"
+    if [[ "$val" =~ ^\"(.*)\"$ ]]; then
+      val="${BASH_REMATCH[1]}"
+    elif [[ "$val" =~ ^\'(.*)\'$ ]]; then
+      val="${BASH_REMATCH[1]}"
+    fi
+    # Only fill when unset (exported or not) — never clobber existing env.
+    if [ -z "${!key+x}" ]; then
+      export "${key}=${val}"
+    fi
+  done < "$ROOT/.env"
+fi
 
 BASE_URL="http://127.0.0.1:3000"
 CONFIG_PATH="${ROOT}/scripts/model-sweep.config.json"

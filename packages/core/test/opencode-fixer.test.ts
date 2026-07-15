@@ -95,6 +95,29 @@ test("parseOpenCodeJsonOutput extracts text + generation id from NDJSON fixture"
   expect(parsed?.model).toBe("openrouter/deepseek/deepseek-v4-pro");
 });
 
+test("parseOpenCodeJsonOutput extracts FIX_SUMMARY from assistant envelope content array", () => {
+  // Envelopes like { type: "assistant", content: [{ type: "text", text }] }
+  // must walk the content array; early-return-only handling falls back to raw
+  // JSON where escaped newlines hide the FIX_SUMMARY marker line.
+  const summaryBody = "Root cause: null customer.\nGuarded with 400.";
+  const stdout = JSON.stringify({
+    type: "assistant",
+    content: [
+      {
+        type: "text",
+        text: `${FIX_SUMMARY_MARKER}\n${summaryBody}`,
+      },
+    ],
+  });
+
+  const parsed = parseOpenCodeJsonOutput(stdout);
+  expect(parsed).toBeDefined();
+  expect(parsed!.text).toContain(FIX_SUMMARY_MARKER);
+  expect(extractFixSummary(parsed!.text)).toBe(summaryBody);
+  // Must not be the raw JSON string (escaped \\n hides the marker line).
+  expect(parsed!.text.trim().startsWith("{")).toBe(false);
+});
+
 test("parseOpenCodeJsonOutput prefers last FIX SUMMARY over longer earlier narration", () => {
   // Narration text is intentionally longer than the marked summary part.
   const longNarration =

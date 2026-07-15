@@ -461,22 +461,29 @@ function collectTextParts(value: unknown, parts: string[], depth = 0): void {
   }
   if (!isRecord(value)) return;
 
-  // Common shapes: { type: "text", part: { text } }, { text }, { message: { content } }
+  // Common shapes: { type: "text", part: { text } }, { text },
+  // { type: "assistant"|"message", content: [...] } envelopes.
   const type = value["type"];
   if (type === "text" || type === "message" || type === "assistant") {
     const part = value["part"];
     // Prefer part.text, then top-level text/content — once only. Do not recurse
-    // into `part` afterward or the same string is pushed twice and joins smash
-    // a second FIX SUMMARY onto the same line (breaking last-marker extract).
+    // into an already-consumed `part` or the same string is pushed twice and
+    // joins smash a second FIX SUMMARY onto the same line (breaking last-marker
+    // extract). Still traverse other object children (e.g. content arrays).
+    let skipPart = false;
     if (isRecord(part) && typeof part["text"] === "string") {
       parts.push(part["text"]);
+      skipPart = true;
     } else if (typeof value["text"] === "string") {
       parts.push(value["text"]);
     } else if (typeof value["content"] === "string") {
       parts.push(value["content"]);
     }
-    if (isRecord(value["message"])) {
-      collectTextParts(value["message"], parts, depth + 1);
+    for (const [key, child] of Object.entries(value)) {
+      if (key === "part" && skipPart) continue;
+      if (typeof child === "object" && child !== null) {
+        collectTextParts(child, parts, depth + 1);
+      }
     }
     return;
   }
