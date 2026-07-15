@@ -3,10 +3,11 @@ window.BUGLOOP_RUNS = [
   {
     "label": "baseline",
     "trace": {
-      "runId": "f13fb1d6-34a0-4338-8ffb-654ec20412e6",
-      "startedAt": "2026-07-15T00:38:59.374Z",
-      "finishedAt": "2026-07-15T00:43:26.505Z",
+      "runId": "29468248-3fa7-49e5-b394-20c4a0be0744",
+      "startedAt": "2026-07-15T01:49:12.989Z",
+      "finishedAt": "2026-07-15T01:55:46.060Z",
       "pipeline": "agent-sdk",
+      "label": "baseline",
       "config": {
         "repo": "MichaelHabermas/bug-loop",
         "labels": {
@@ -36,7 +37,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 1,
           "stage": "ingest",
-          "startedAt": "2026-07-15T00:38:59.374Z",
+          "startedAt": "2026-07-15T01:49:12.989Z",
           "durationMs": 0,
           "outcome": "76 events",
           "detail": {
@@ -46,7 +47,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 2,
           "stage": "detect",
-          "startedAt": "2026-07-15T00:38:59.374Z",
+          "startedAt": "2026-07-15T01:49:12.989Z",
           "durationMs": 0,
           "outcome": "24 actionable",
           "detail": {
@@ -56,7 +57,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 3,
           "stage": "dedupe",
-          "startedAt": "2026-07-15T00:38:59.374Z",
+          "startedAt": "2026-07-15T01:49:12.989Z",
           "durationMs": 1,
           "outcome": "4 new incidents",
           "detail": {
@@ -67,7 +68,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 4,
           "stage": "reproduce",
-          "startedAt": "2026-07-15T00:38:59.375Z",
+          "startedAt": "2026-07-15T01:49:12.990Z",
           "durationMs": 128,
           "outcome": "3 reproduced",
           "detail": {
@@ -77,8 +78,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 5,
           "stage": "route",
-          "startedAt": "2026-07-15T00:38:59.503Z",
-          "durationMs": 65680,
+          "startedAt": "2026-07-15T01:49:13.118Z",
+          "durationMs": 103880,
           "outcome": "3 mechanical",
           "detail": {
             "mechanical": 3,
@@ -86,16 +87,16 @@ window.BUGLOOP_RUNS = [
           },
           "cost": {
             "harness": "claude-agent-sdk",
-            "inputTokens": 24,
-            "outputTokens": 4312,
-            "usd": 0.5233914000000001
+            "inputTokens": 18,
+            "outputTokens": 4277,
+            "usd": 0.261783
           }
         },
         {
           "seq": 6,
           "stage": "ticket",
-          "startedAt": "2026-07-15T00:40:05.183Z",
-          "durationMs": 1,
+          "startedAt": "2026-07-15T01:50:56.998Z",
+          "durationMs": 2,
           "outcome": "4 issues",
           "detail": {
             "issuesFiled": 4
@@ -104,34 +105,34 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 7,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:40:05.466Z",
-          "durationMs": 248,
+          "startedAt": "2026-07-15T01:50:57.176Z",
+          "durationMs": 246,
           "outcome": "eligible",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
           }
         },
         {
           "seq": 8,
           "stage": "testgen",
-          "startedAt": "2026-07-15T00:40:05.714Z",
-          "durationMs": 34501,
+          "startedAt": "2026-07-15T01:50:57.422Z",
+          "durationMs": 20247,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/post-orders-missing-customer.test.ts"
+              "apps/leaky-service/test/missing-customer.test.ts"
             ]
           }
         },
         {
           "seq": 9,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:40:40.215Z",
-          "durationMs": 19,
+          "startedAt": "2026-07-15T01:51:17.669Z",
+          "durationMs": 20,
           "outcome": "red established",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -144,8 +145,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 10,
           "stage": "fix",
-          "startedAt": "2026-07-15T00:40:40.262Z",
-          "durationMs": 18284,
+          "startedAt": "2026-07-15T01:51:17.716Z",
+          "durationMs": 43222,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -158,8 +159,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 11,
           "stage": "verify",
-          "startedAt": "2026-07-15T00:40:58.546Z",
-          "durationMs": 1506,
+          "startedAt": "2026-07-15T01:52:00.938Z",
+          "durationMs": 1535,
           "outcome": "verified",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -174,8 +175,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 12,
           "stage": "pr",
-          "startedAt": "2026-07-15T00:41:00.052Z",
-          "durationMs": 617,
+          "startedAt": "2026-07-15T01:52:02.473Z",
+          "durationMs": 610,
           "outcome": "completed",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -185,34 +186,34 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 13,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:41:00.835Z",
-          "durationMs": 251,
+          "startedAt": "2026-07-15T01:52:03.262Z",
+          "durationMs": 249,
           "outcome": "eligible",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
           }
         },
         {
           "seq": 14,
           "stage": "testgen",
-          "startedAt": "2026-07-15T00:41:01.086Z",
-          "durationMs": 41450,
+          "startedAt": "2026-07-15T01:52:03.511Z",
+          "durationMs": 33292,
           "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/orders-since-invalid.test.ts"
+              "apps/leaky-service/test/orders-invalid-since.test.ts"
             ]
           }
         },
         {
           "seq": 15,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:41:42.536Z",
-          "durationMs": 20,
+          "startedAt": "2026-07-15T01:52:36.803Z",
+          "durationMs": 19,
           "outcome": "red established",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -225,8 +226,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 16,
           "stage": "fix",
-          "startedAt": "2026-07-15T00:41:42.584Z",
-          "durationMs": 20425,
+          "startedAt": "2026-07-15T01:52:36.849Z",
+          "durationMs": 22394,
           "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -239,7 +240,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 17,
           "stage": "verify",
-          "startedAt": "2026-07-15T00:42:03.009Z",
+          "startedAt": "2026-07-15T01:52:59.243Z",
           "durationMs": 1526,
           "outcome": "verified",
           "fingerprint": "9ac0e1f8959488d2",
@@ -255,8 +256,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 18,
           "stage": "pr",
-          "startedAt": "2026-07-15T00:42:04.535Z",
-          "durationMs": 633,
+          "startedAt": "2026-07-15T01:53:00.769Z",
+          "durationMs": 602,
           "outcome": "completed",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -266,727 +267,33 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 19,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:42:05.330Z",
-          "durationMs": 243,
+          "startedAt": "2026-07-15T01:53:01.544Z",
+          "durationMs": 246,
           "outcome": "eligible",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
           }
         },
         {
           "seq": 20,
           "stage": "testgen",
-          "startedAt": "2026-07-15T00:42:05.573Z",
-          "durationMs": 62226,
+          "startedAt": "2026-07-15T01:53:01.790Z",
+          "durationMs": 145074,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/ship-provider-rejection.test.ts"
+              "apps/leaky-service/test/ship-provider-timeout.test.ts"
             ]
           }
         },
         {
           "seq": 21,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:43:07.799Z",
-          "durationMs": 20,
-          "outcome": "red established",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 22,
-          "stage": "fix",
-          "startedAt": "2026-07-15T00:43:07.846Z",
-          "durationMs": 16231,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 23,
-          "stage": "verify",
-          "startedAt": "2026-07-15T00:43:24.077Z",
-          "durationMs": 1822,
-          "outcome": "verified",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 24,
-          "stage": "pr",
-          "startedAt": "2026-07-15T00:43:25.899Z",
-          "durationMs": 606,
-          "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "issueNumber": 9001
-          }
-        }
-      ]
-    }
-  },
-  {
-    "label": "codex-luna",
-    "trace": {
-      "runId": "e2cef169-da43-4888-9efb-9d3c00b5fc3c",
-      "startedAt": "2026-07-15T00:55:03.845Z",
-      "finishedAt": "2026-07-15T01:05:13.925Z",
-      "pipeline": "agent-sdk",
-      "config": {
-        "repo": "MichaelHabermas/bug-loop",
-        "labels": {
-          "pipeline": "bug-loop",
-          "mechanical": "auto-fix-candidate",
-          "needsHuman": "needs-human"
-        },
-        "logPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/logs/leaky-service.jsonl",
-        "baseUrl": "http://127.0.0.1:3000",
-        "cursorPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/pipelines/agent-sdk/.cursor.json",
-        "fixScope": [
-          "apps/leaky-service/src"
-        ],
-        "testScope": [
-          "apps/leaky-service/test"
-        ],
-        "worktreeRoot": ".worktrees",
-        "maxFixAttempts": 2,
-        "fixer": "grok",
-        "invariantWarnPrefixes": [
-          "order total negative"
-        ],
-        "branchPrefix": "bugloop/fix-",
-        "regressionTests": "triage-decides"
-      },
-      "events": [
-        {
-          "seq": 1,
-          "stage": "ingest",
-          "startedAt": "2026-07-15T00:55:03.845Z",
-          "durationMs": 1,
-          "outcome": "76 events",
-          "detail": {
-            "events": 76
-          }
-        },
-        {
-          "seq": 2,
-          "stage": "detect",
-          "startedAt": "2026-07-15T00:55:03.846Z",
-          "durationMs": 0,
-          "outcome": "24 actionable",
-          "detail": {
-            "actionable": 24
-          }
-        },
-        {
-          "seq": 3,
-          "stage": "dedupe",
-          "startedAt": "2026-07-15T00:55:03.846Z",
-          "durationMs": 1,
-          "outcome": "4 new incidents",
-          "detail": {
-            "incidents": 4,
-            "newIncidents": 4
-          }
-        },
-        {
-          "seq": 4,
-          "stage": "reproduce",
-          "startedAt": "2026-07-15T00:55:03.847Z",
-          "durationMs": 128,
-          "outcome": "3 reproduced",
-          "detail": {
-            "reproduced": 3
-          }
-        },
-        {
-          "seq": 5,
-          "stage": "route",
-          "startedAt": "2026-07-15T00:55:03.975Z",
-          "durationMs": 64483,
-          "outcome": "3 mechanical",
-          "detail": {
-            "mechanical": 3,
-            "needsHuman": 1
-          },
-          "cost": {
-            "harness": "claude-agent-sdk",
-            "inputTokens": 26,
-            "outputTokens": 3742,
-            "usd": 0.5257108
-          }
-        },
-        {
-          "seq": 6,
-          "stage": "ticket",
-          "startedAt": "2026-07-15T00:56:08.458Z",
-          "durationMs": 2,
-          "outcome": "4 issues",
-          "detail": {
-            "issuesFiled": 4
-          }
-        },
-        {
-          "seq": 7,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:56:08.640Z",
-          "durationMs": 243,
-          "outcome": "eligible",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 8,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T00:56:08.883Z",
-          "durationMs": 18921,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/missing-customer.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 9,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:56:27.804Z",
-          "durationMs": 18,
-          "outcome": "red established",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 10,
-          "stage": "fix",
-          "startedAt": "2026-07-15T00:56:27.851Z",
-          "durationMs": 140969,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 11,
-          "stage": "verify",
-          "startedAt": "2026-07-15T00:58:48.820Z",
-          "durationMs": 1339,
-          "outcome": "verified",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T00:58:50.159Z",
-          "durationMs": 748,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 13,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:58:51.098Z",
-          "durationMs": 265,
-          "outcome": "eligible",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 14,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T00:58:51.363Z",
-          "durationMs": 32920,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-since.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 15,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:59:24.283Z",
-          "durationMs": 19,
-          "outcome": "red established",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 16,
-          "stage": "fix",
-          "startedAt": "2026-07-15T00:59:24.330Z",
-          "durationMs": 85833,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 17,
-          "stage": "verify",
-          "startedAt": "2026-07-15T01:00:50.163Z",
-          "durationMs": 1512,
-          "outcome": "verified",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T01:00:51.675Z",
-          "durationMs": 643,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 19,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T01:00:52.482Z",
-          "durationMs": 243,
-          "outcome": "eligible",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 20,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T01:00:52.725Z",
-          "durationMs": 130778,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/ship-provider-rejection.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 21,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T01:03:03.503Z",
-          "durationMs": 26,
-          "outcome": "red established",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 22,
-          "stage": "fix",
-          "startedAt": "2026-07-15T01:03:03.556Z",
-          "durationMs": 128211,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 23,
-          "stage": "verify",
-          "startedAt": "2026-07-15T01:05:11.767Z",
-          "durationMs": 1529,
-          "outcome": "verified",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 24,
-          "stage": "pr",
-          "startedAt": "2026-07-15T01:05:13.296Z",
-          "durationMs": 629,
-          "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "issueNumber": 9001
-          }
-        }
-      ]
-    }
-  },
-  {
-    "label": "grok-low",
-    "trace": {
-      "runId": "e79e91d2-0298-4217-95a5-331e2dd32d5c",
-      "startedAt": "2026-07-15T00:43:27.098Z",
-      "finishedAt": "2026-07-15T00:48:20.406Z",
-      "pipeline": "agent-sdk",
-      "config": {
-        "repo": "MichaelHabermas/bug-loop",
-        "labels": {
-          "pipeline": "bug-loop",
-          "mechanical": "auto-fix-candidate",
-          "needsHuman": "needs-human"
-        },
-        "logPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/logs/leaky-service.jsonl",
-        "baseUrl": "http://127.0.0.1:3000",
-        "cursorPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/pipelines/agent-sdk/.cursor.json",
-        "fixScope": [
-          "apps/leaky-service/src"
-        ],
-        "testScope": [
-          "apps/leaky-service/test"
-        ],
-        "worktreeRoot": ".worktrees",
-        "maxFixAttempts": 2,
-        "fixer": "grok",
-        "invariantWarnPrefixes": [
-          "order total negative"
-        ],
-        "branchPrefix": "bugloop/fix-",
-        "regressionTests": "triage-decides"
-      },
-      "events": [
-        {
-          "seq": 1,
-          "stage": "ingest",
-          "startedAt": "2026-07-15T00:43:27.098Z",
-          "durationMs": 1,
-          "outcome": "76 events",
-          "detail": {
-            "events": 76
-          }
-        },
-        {
-          "seq": 2,
-          "stage": "detect",
-          "startedAt": "2026-07-15T00:43:27.099Z",
-          "durationMs": 0,
-          "outcome": "24 actionable",
-          "detail": {
-            "actionable": 24
-          }
-        },
-        {
-          "seq": 3,
-          "stage": "dedupe",
-          "startedAt": "2026-07-15T00:43:27.099Z",
-          "durationMs": 0,
-          "outcome": "4 new incidents",
-          "detail": {
-            "incidents": 4,
-            "newIncidents": 4
-          }
-        },
-        {
-          "seq": 4,
-          "stage": "reproduce",
-          "startedAt": "2026-07-15T00:43:27.099Z",
-          "durationMs": 129,
-          "outcome": "3 reproduced",
-          "detail": {
-            "reproduced": 3
-          }
-        },
-        {
-          "seq": 5,
-          "stage": "route",
-          "startedAt": "2026-07-15T00:43:27.228Z",
-          "durationMs": 67924,
-          "outcome": "3 mechanical",
-          "detail": {
-            "mechanical": 3,
-            "needsHuman": 1
-          },
-          "cost": {
-            "harness": "claude-agent-sdk",
-            "inputTokens": 28,
-            "outputTokens": 4435,
-            "usd": 0.355686
-          }
-        },
-        {
-          "seq": 6,
-          "stage": "ticket",
-          "startedAt": "2026-07-15T00:44:35.152Z",
-          "durationMs": 2,
-          "outcome": "4 issues",
-          "detail": {
-            "issuesFiled": 4
-          }
-        },
-        {
-          "seq": 7,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:44:35.333Z",
-          "durationMs": 244,
-          "outcome": "eligible",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 8,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T00:44:35.577Z",
-          "durationMs": 46491,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/post-orders-missing-customer.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 9,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:45:22.069Z",
-          "durationMs": 18,
-          "outcome": "red established",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 10,
-          "stage": "fix",
-          "startedAt": "2026-07-15T00:45:22.114Z",
-          "durationMs": 17069,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 11,
-          "stage": "verify",
-          "startedAt": "2026-07-15T00:45:39.183Z",
-          "durationMs": 1570,
-          "outcome": "verified",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T00:45:40.753Z",
-          "durationMs": 635,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 13,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:45:41.543Z",
-          "durationMs": 244,
-          "outcome": "eligible",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 14,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T00:45:41.787Z",
-          "durationMs": 35438,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-since-invalid.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 15,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:46:17.225Z",
-          "durationMs": 20,
-          "outcome": "red established",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 16,
-          "stage": "fix",
-          "startedAt": "2026-07-15T00:46:17.272Z",
-          "durationMs": 13712,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 17,
-          "stage": "verify",
-          "startedAt": "2026-07-15T00:46:30.984Z",
-          "durationMs": 1528,
-          "outcome": "verified",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T00:46:32.512Z",
-          "durationMs": 583,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 19,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:46:33.261Z",
-          "durationMs": 245,
-          "outcome": "eligible",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 20,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T00:46:33.506Z",
-          "durationMs": 95379,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/ship-timeout.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 21,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:48:08.885Z",
+          "startedAt": "2026-07-15T01:55:26.864Z",
           "durationMs": 37,
           "outcome": "red established",
           "fingerprint": "fd024683a08fdf81",
@@ -1000,8 +307,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 22,
           "stage": "fix",
-          "startedAt": "2026-07-15T00:48:08.951Z",
-          "durationMs": 8835,
+          "startedAt": "2026-07-15T01:55:26.929Z",
+          "durationMs": 16703,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1014,8 +321,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 23,
           "stage": "verify",
-          "startedAt": "2026-07-15T00:48:17.786Z",
-          "durationMs": 2009,
+          "startedAt": "2026-07-15T01:55:43.632Z",
+          "durationMs": 1810,
           "outcome": "verified",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1030,8 +337,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 24,
           "stage": "pr",
-          "startedAt": "2026-07-15T00:48:19.795Z",
-          "durationMs": 611,
+          "startedAt": "2026-07-15T01:55:45.442Z",
+          "durationMs": 617,
           "outcome": "completed",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1042,12 +349,13 @@ window.BUGLOOP_RUNS = [
     }
   },
   {
-    "label": "haiku-triage",
+    "label": "codex-luna",
     "trace": {
-      "runId": "1adf31ed-d1e5-4f44-b0ba-9266fd2cd9bb",
-      "startedAt": "2026-07-15T00:48:20.991Z",
-      "finishedAt": "2026-07-15T00:55:03.257Z",
+      "runId": "b8e11848-85a8-448e-a2f9-7b812256e8db",
+      "startedAt": "2026-07-15T02:07:36.119Z",
+      "finishedAt": "2026-07-15T02:20:24.918Z",
       "pipeline": "agent-sdk",
+      "label": "codex-luna",
       "config": {
         "repo": "MichaelHabermas/bug-loop",
         "labels": {
@@ -1077,7 +385,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 1,
           "stage": "ingest",
-          "startedAt": "2026-07-15T00:48:20.991Z",
+          "startedAt": "2026-07-15T02:07:36.119Z",
           "durationMs": 1,
           "outcome": "76 events",
           "detail": {
@@ -1087,7 +395,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 2,
           "stage": "detect",
-          "startedAt": "2026-07-15T00:48:20.992Z",
+          "startedAt": "2026-07-15T02:07:36.120Z",
           "durationMs": 0,
           "outcome": "24 actionable",
           "detail": {
@@ -1097,7 +405,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 3,
           "stage": "dedupe",
-          "startedAt": "2026-07-15T00:48:20.992Z",
+          "startedAt": "2026-07-15T02:07:36.120Z",
           "durationMs": 0,
           "outcome": "4 new incidents",
           "detail": {
@@ -1108,8 +416,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 4,
           "stage": "reproduce",
-          "startedAt": "2026-07-15T00:48:20.992Z",
-          "durationMs": 131,
+          "startedAt": "2026-07-15T02:07:36.120Z",
+          "durationMs": 129,
           "outcome": "3 reproduced",
           "detail": {
             "reproduced": 3
@@ -1118,8 +426,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 5,
           "stage": "route",
-          "startedAt": "2026-07-15T00:48:21.123Z",
-          "durationMs": 95201,
+          "startedAt": "2026-07-15T02:07:36.249Z",
+          "durationMs": 88469,
           "outcome": "3 mechanical",
           "detail": {
             "mechanical": 3,
@@ -1127,17 +435,16 @@ window.BUGLOOP_RUNS = [
           },
           "cost": {
             "harness": "claude-agent-sdk",
-            "model": "claude-haiku-4-5-20251001",
-            "inputTokens": 15626,
-            "outputTokens": 7615,
-            "usd": 0.17743319999999999
+            "inputTokens": 24,
+            "outputTokens": 4770,
+            "usd": 0.3302649
           }
         },
         {
           "seq": 6,
           "stage": "ticket",
-          "startedAt": "2026-07-15T00:49:56.325Z",
-          "durationMs": 1,
+          "startedAt": "2026-07-15T02:09:04.718Z",
+          "durationMs": 2,
           "outcome": "4 issues",
           "detail": {
             "issuesFiled": 4
@@ -1146,20 +453,20 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 7,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:49:56.502Z",
-          "durationMs": 265,
+          "startedAt": "2026-07-15T02:09:04.906Z",
+          "durationMs": 249,
           "outcome": "eligible",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
           }
         },
         {
           "seq": 8,
           "stage": "testgen",
-          "startedAt": "2026-07-15T00:49:56.767Z",
-          "durationMs": 107703,
+          "startedAt": "2026-07-15T02:09:05.155Z",
+          "durationMs": 93641,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -1172,7 +479,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 9,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:51:44.470Z",
+          "startedAt": "2026-07-15T02:10:38.796Z",
           "durationMs": 19,
           "outcome": "red established",
           "fingerprint": "45b905d31f2fee6f",
@@ -1186,8 +493,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 10,
           "stage": "fix",
-          "startedAt": "2026-07-15T00:51:44.517Z",
-          "durationMs": 19056,
+          "startedAt": "2026-07-15T02:10:38.846Z",
+          "durationMs": 120754,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -1200,8 +507,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 11,
           "stage": "verify",
-          "startedAt": "2026-07-15T00:52:03.573Z",
-          "durationMs": 1536,
+          "startedAt": "2026-07-15T02:12:39.600Z",
+          "durationMs": 1348,
           "outcome": "verified",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -1216,8 +523,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 12,
           "stage": "pr",
-          "startedAt": "2026-07-15T00:52:05.109Z",
-          "durationMs": 632,
+          "startedAt": "2026-07-15T02:12:40.948Z",
+          "durationMs": 635,
           "outcome": "completed",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -1227,34 +534,34 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 13,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:52:05.907Z",
-          "durationMs": 244,
+          "startedAt": "2026-07-15T02:12:41.763Z",
+          "durationMs": 247,
           "outcome": "eligible",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
           }
         },
         {
           "seq": 14,
           "stage": "testgen",
-          "startedAt": "2026-07-15T00:52:06.151Z",
-          "durationMs": 39576,
+          "startedAt": "2026-07-15T02:12:42.010Z",
+          "durationMs": 48869,
           "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/orders-since-unparseable.test.ts"
+              "apps/leaky-service/test/orders-invalid-since.test.ts"
             ]
           }
         },
         {
           "seq": 15,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:52:45.727Z",
-          "durationMs": 18,
+          "startedAt": "2026-07-15T02:13:30.879Z",
+          "durationMs": 21,
           "outcome": "red established",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -1267,8 +574,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 16,
           "stage": "fix",
-          "startedAt": "2026-07-15T00:52:45.779Z",
-          "durationMs": 9017,
+          "startedAt": "2026-07-15T02:13:30.929Z",
+          "durationMs": 101452,
           "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -1281,8 +588,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 17,
           "stage": "verify",
-          "startedAt": "2026-07-15T00:52:54.796Z",
-          "durationMs": 1498,
+          "startedAt": "2026-07-15T02:15:12.381Z",
+          "durationMs": 1332,
           "outcome": "verified",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -1297,8 +604,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 18,
           "stage": "pr",
-          "startedAt": "2026-07-15T00:52:56.294Z",
-          "durationMs": 604,
+          "startedAt": "2026-07-15T02:15:13.713Z",
+          "durationMs": 610,
           "outcome": "completed",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -1308,34 +615,34 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 19,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T00:52:57.073Z",
-          "durationMs": 243,
+          "startedAt": "2026-07-15T02:15:14.494Z",
+          "durationMs": 244,
           "outcome": "eligible",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 84 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
           }
         },
         {
           "seq": 20,
           "stage": "testgen",
-          "startedAt": "2026-07-15T00:52:57.316Z",
-          "durationMs": 105409,
+          "startedAt": "2026-07-15T02:15:14.738Z",
+          "durationMs": 221996,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/ship-provider-timeout.test.ts"
+              "apps/leaky-service/test/ship-provider-rejection.test.ts"
             ]
           }
         },
         {
           "seq": 21,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T00:54:42.725Z",
-          "durationMs": 40,
+          "startedAt": "2026-07-15T02:18:56.734Z",
+          "durationMs": 34,
           "outcome": "red established",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1348,8 +655,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 22,
           "stage": "fix",
-          "startedAt": "2026-07-15T00:54:42.794Z",
-          "durationMs": 17873,
+          "startedAt": "2026-07-15T02:18:56.798Z",
+          "durationMs": 85660,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1362,8 +669,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 23,
           "stage": "verify",
-          "startedAt": "2026-07-15T00:55:00.667Z",
-          "durationMs": 1969,
+          "startedAt": "2026-07-15T02:20:22.458Z",
+          "durationMs": 1833,
           "outcome": "verified",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1378,13 +685,1406 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 24,
           "stage": "pr",
-          "startedAt": "2026-07-15T00:55:02.636Z",
-          "durationMs": 621,
+          "startedAt": "2026-07-15T02:20:24.291Z",
+          "durationMs": 627,
           "outcome": "completed",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "issueNumber": 9001
           }
+        }
+      ]
+    }
+  },
+  {
+    "label": "grok-low",
+    "trace": {
+      "runId": "c5f385f3-4b3f-466a-a6b9-06c94f730227",
+      "startedAt": "2026-07-15T01:55:46.650Z",
+      "finishedAt": "2026-07-15T02:01:01.979Z",
+      "pipeline": "agent-sdk",
+      "label": "grok-low",
+      "config": {
+        "repo": "MichaelHabermas/bug-loop",
+        "labels": {
+          "pipeline": "bug-loop",
+          "mechanical": "auto-fix-candidate",
+          "needsHuman": "needs-human"
+        },
+        "logPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/logs/leaky-service.jsonl",
+        "baseUrl": "http://127.0.0.1:3000",
+        "cursorPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/pipelines/agent-sdk/.cursor.json",
+        "fixScope": [
+          "apps/leaky-service/src"
+        ],
+        "testScope": [
+          "apps/leaky-service/test"
+        ],
+        "worktreeRoot": ".worktrees",
+        "maxFixAttempts": 2,
+        "fixer": "grok",
+        "invariantWarnPrefixes": [
+          "order total negative"
+        ],
+        "branchPrefix": "bugloop/fix-",
+        "regressionTests": "triage-decides"
+      },
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T01:55:46.650Z",
+          "durationMs": 0,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T01:55:46.650Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T01:55:46.650Z",
+          "durationMs": 1,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T01:55:46.651Z",
+          "durationMs": 129,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T01:55:46.780Z",
+          "durationMs": 90054,
+          "outcome": "3 mechanical",
+          "detail": {
+            "mechanical": 3,
+            "needsHuman": 1
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 30,
+            "outputTokens": 4560,
+            "usd": 0.36845
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T01:57:16.834Z",
+          "durationMs": 2,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T01:57:17.016Z",
+          "durationMs": 244,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T01:57:17.260Z",
+          "durationMs": 29702,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/orders-missing-customer.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T01:57:46.962Z",
+          "durationMs": 19,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T01:57:47.008Z",
+          "durationMs": 10443,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T01:57:57.451Z",
+          "durationMs": 1505,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "pr",
+          "startedAt": "2026-07-15T01:57:58.956Z",
+          "durationMs": 620,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 13,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T01:57:59.749Z",
+          "durationMs": 247,
+          "outcome": "eligible",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T01:57:59.996Z",
+          "durationMs": 85947,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/orders-since-invalid.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T01:59:25.943Z",
+          "durationMs": 18,
+          "outcome": "red established",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "fix",
+          "startedAt": "2026-07-15T01:59:25.988Z",
+          "durationMs": 12921,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "verify",
+          "startedAt": "2026-07-15T01:59:38.909Z",
+          "durationMs": 1529,
+          "outcome": "verified",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "pr",
+          "startedAt": "2026-07-15T01:59:40.438Z",
+          "durationMs": 620,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 19,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T01:59:41.229Z",
+          "durationMs": 258,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 20,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T01:59:41.487Z",
+          "durationMs": 69380,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/ship-provider-timeout.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 21,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:00:50.867Z",
+          "durationMs": 24,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:00:50.918Z",
+          "durationMs": 8646,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:00:59.564Z",
+          "durationMs": 1791,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 24,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:01:01.355Z",
+          "durationMs": 624,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "haiku-triage",
+    "trace": {
+      "runId": "af94b172-8134-46a5-be48-96d8e809a697",
+      "startedAt": "2026-07-15T02:01:02.571Z",
+      "finishedAt": "2026-07-15T02:07:35.530Z",
+      "pipeline": "agent-sdk",
+      "label": "haiku-triage",
+      "config": {
+        "repo": "MichaelHabermas/bug-loop",
+        "labels": {
+          "pipeline": "bug-loop",
+          "mechanical": "auto-fix-candidate",
+          "needsHuman": "needs-human"
+        },
+        "logPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/logs/leaky-service.jsonl",
+        "baseUrl": "http://127.0.0.1:3000",
+        "cursorPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/pipelines/agent-sdk/.cursor.json",
+        "fixScope": [
+          "apps/leaky-service/src"
+        ],
+        "testScope": [
+          "apps/leaky-service/test"
+        ],
+        "worktreeRoot": ".worktrees",
+        "maxFixAttempts": 2,
+        "fixer": "grok",
+        "invariantWarnPrefixes": [
+          "order total negative"
+        ],
+        "branchPrefix": "bugloop/fix-",
+        "regressionTests": "triage-decides"
+      },
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T02:01:02.571Z",
+          "durationMs": 0,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T02:01:02.571Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T02:01:02.571Z",
+          "durationMs": 1,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T02:01:02.572Z",
+          "durationMs": 129,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T02:01:02.701Z",
+          "durationMs": 131124,
+          "outcome": "3 mechanical",
+          "detail": {
+            "mechanical": 3,
+            "needsHuman": 1
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "model": "claude-haiku-4-5-20251001",
+            "inputTokens": 15643,
+            "outputTokens": 7631,
+            "usd": 0.2335428
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T02:03:13.826Z",
+          "durationMs": 2,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:03:14.017Z",
+          "durationMs": 247,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:03:14.264Z",
+          "durationMs": 19636,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/missing-customer.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:03:33.900Z",
+          "durationMs": 18,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:03:33.946Z",
+          "durationMs": 9650,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:03:43.596Z",
+          "durationMs": 1539,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:03:45.135Z",
+          "durationMs": 606,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 13,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:03:45.915Z",
+          "durationMs": 246,
+          "outcome": "eligible",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:03:46.161Z",
+          "durationMs": 42664,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/orders-invalid-since.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:04:28.825Z",
+          "durationMs": 20,
+          "outcome": "red established",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:04:28.874Z",
+          "durationMs": 11724,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:04:40.599Z",
+          "durationMs": 1521,
+          "outcome": "verified",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:04:42.120Z",
+          "durationMs": 602,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 19,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:04:42.891Z",
+          "durationMs": 245,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 20,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:04:43.136Z",
+          "durationMs": 87358,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/shipping-timeout-handling.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 21,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:06:10.494Z",
+          "durationMs": 36,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:06:10.559Z",
+          "durationMs": 63917,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:07:14.476Z",
+          "durationMs": 1928,
+          "outcome": "failed",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": false,
+            "regressionTestPasses": false,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 24,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:07:16.404Z",
+          "durationMs": 17507,
+          "outcome": "attempt 2",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 2,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 25,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:07:33.911Z",
+          "durationMs": 1013,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 2,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 26,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:07:34.924Z",
+          "durationMs": 606,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "langgraph-codex",
+    "trace": {
+      "runId": "74c426d1-2c44-43a0-970b-78a41c46cf98",
+      "startedAt": "2026-07-15T02:20:25.539Z",
+      "finishedAt": "2026-07-15T02:30:30.462Z",
+      "pipeline": "langgraph",
+      "label": "langgraph-codex",
+      "config": {
+        "repo": "MichaelHabermas/bug-loop",
+        "labels": {
+          "pipeline": "bug-loop",
+          "mechanical": "auto-fix-candidate",
+          "needsHuman": "needs-human"
+        },
+        "logPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/logs/leaky-service.jsonl",
+        "baseUrl": "http://127.0.0.1:3000",
+        "cursorPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/pipelines/langgraph/.cursor.json",
+        "fixScope": [
+          "apps/leaky-service/src"
+        ],
+        "testScope": [
+          "apps/leaky-service/test"
+        ],
+        "worktreeRoot": ".worktrees",
+        "maxFixAttempts": 2,
+        "fixer": "codex",
+        "invariantWarnPrefixes": [
+          "order total negative"
+        ],
+        "branchPrefix": "bugloop/fix-",
+        "regressionTests": "triage-decides"
+      },
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T02:20:25.549Z",
+          "durationMs": 1,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T02:20:25.551Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T02:20:25.551Z",
+          "durationMs": 1,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T02:20:25.553Z",
+          "durationMs": 129,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T02:20:25.684Z",
+          "durationMs": 0,
+          "outcome": "3 mechanical",
+          "detail": {
+            "mechanical": 3,
+            "needsHuman": 1
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T02:20:25.685Z",
+          "durationMs": 1,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:20:25.860Z",
+          "durationMs": 249,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:20:26.109Z",
+          "durationMs": 89219,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/missing-customer.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:21:55.329Z",
+          "durationMs": 18,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:21:55.384Z",
+          "durationMs": 96818,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:23:32.205Z",
+          "durationMs": 1277,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:23:33.484Z",
+          "durationMs": 618,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f"
+        },
+        {
+          "seq": 13,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:23:34.271Z",
+          "durationMs": 248,
+          "outcome": "eligible",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:23:34.519Z",
+          "durationMs": 51216,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/orders-since-invalid.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:24:25.735Z",
+          "durationMs": 15,
+          "outcome": "red established",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:24:25.781Z",
+          "durationMs": 96853,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:26:02.637Z",
+          "durationMs": 1327,
+          "outcome": "verified",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:26:03.966Z",
+          "durationMs": 716,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2"
+        },
+        {
+          "seq": 19,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:26:04.878Z",
+          "durationMs": 248,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 20,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:26:05.126Z",
+          "durationMs": 113522,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/ship-provider-rejection.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 21,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:27:58.648Z",
+          "durationMs": 36,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:27:58.715Z",
+          "durationMs": 149470,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:30:28.188Z",
+          "durationMs": 1660,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 24,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:30:29.849Z",
+          "durationMs": 612,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81"
+        }
+      ]
+    }
+  },
+  {
+    "label": "langgraph-grok",
+    "trace": {
+      "runId": "fc5249ef-ea95-4efa-b129-e2e0b6760a9e",
+      "startedAt": "2026-07-15T02:30:31.065Z",
+      "finishedAt": "2026-07-15T02:35:48.851Z",
+      "pipeline": "langgraph",
+      "label": "langgraph-grok",
+      "config": {
+        "repo": "MichaelHabermas/bug-loop",
+        "labels": {
+          "pipeline": "bug-loop",
+          "mechanical": "auto-fix-candidate",
+          "needsHuman": "needs-human"
+        },
+        "logPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/logs/leaky-service.jsonl",
+        "baseUrl": "http://127.0.0.1:3000",
+        "cursorPath": "/Users/michaelhabermas/repos/CaS-tests/bug-loop/pipelines/langgraph/.cursor.json",
+        "fixScope": [
+          "apps/leaky-service/src"
+        ],
+        "testScope": [
+          "apps/leaky-service/test"
+        ],
+        "worktreeRoot": ".worktrees",
+        "maxFixAttempts": 2,
+        "fixer": "codex",
+        "invariantWarnPrefixes": [
+          "order total negative"
+        ],
+        "branchPrefix": "bugloop/fix-",
+        "regressionTests": "triage-decides"
+      },
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T02:30:31.075Z",
+          "durationMs": 1,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T02:30:31.077Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T02:30:31.078Z",
+          "durationMs": 0,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T02:30:31.080Z",
+          "durationMs": 129,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T02:30:31.210Z",
+          "durationMs": 0,
+          "outcome": "3 mechanical",
+          "detail": {
+            "mechanical": 3,
+            "needsHuman": 1
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T02:30:31.211Z",
+          "durationMs": 1,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:30:31.397Z",
+          "durationMs": 248,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:30:31.645Z",
+          "durationMs": 50579,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/post-orders-missing-customer.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:31:22.224Z",
+          "durationMs": 20,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:31:22.283Z",
+          "durationMs": 25405,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:31:47.691Z",
+          "durationMs": 1504,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:31:49.197Z",
+          "durationMs": 604,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f"
+        },
+        {
+          "seq": 13,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:31:49.979Z",
+          "durationMs": 243,
+          "outcome": "eligible",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:31:50.222Z",
+          "durationMs": 79128,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/orders-invalid-since.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:33:09.350Z",
+          "durationMs": 19,
+          "outcome": "red established",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:33:09.400Z",
+          "durationMs": 18566,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:33:27.970Z",
+          "durationMs": 1533,
+          "outcome": "verified",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:33:29.504Z",
+          "durationMs": 622,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2"
+        },
+        {
+          "seq": 19,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T02:33:30.301Z",
+          "durationMs": 246,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 20,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T02:33:30.547Z",
+          "durationMs": 95515,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/ship-provider-rejection.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 21,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T02:35:06.062Z",
+          "durationMs": 35,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "fix",
+          "startedAt": "2026-07-15T02:35:06.127Z",
+          "durationMs": 40337,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "verify",
+          "startedAt": "2026-07-15T02:35:46.467Z",
+          "durationMs": 1774,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "regressionTestPasses": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 24,
+          "stage": "pr",
+          "startedAt": "2026-07-15T02:35:48.242Z",
+          "durationMs": 608,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81"
         }
       ]
     }
