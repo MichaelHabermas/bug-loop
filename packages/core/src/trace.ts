@@ -2,14 +2,25 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { RegressionTestPolicy } from "./config";
 
+/** How a CostSample's dollar figure (if any) was obtained. Never fabricate. */
+export type CostSource =
+  | "cli"
+  | "openrouter-generation"
+  | "openrouter-activity-fallback"
+  | "unavailable";
+
 export interface CostSample {
-  harness: "claude-agent-sdk" | "codex" | "grok";
+  harness: "claude-agent-sdk" | "codex" | "grok" | "opencode";
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
   usd?: number;
   raw?: string;
+  /** OpenRouter generation ids extracted from the harness (for money-true enrichment). */
+  generationIds?: string[];
+  /** Provenance of `usd` when present; document fallback when gen-ids are missing. */
+  costSource?: CostSource;
 }
 
 export interface TraceEvent {

@@ -78,9 +78,10 @@ Every PR quotes the assertion specification under `## Regression test intent` so
 | Fix execution | `CodexFixer` by default | `GrokFixer` by default |
 | Verification and lifecycle | Core deterministic verifier, worktree, GitHub helpers | The same core machinery |
 
-Both implementations accept `BUGLOOP_FIXER=codex|grok`.
+Both implementations accept `BUGLOOP_FIXER=codex|grok|opencode`.
 The defaults preserve the comparison: LangGraph uses Codex, while Agent SDK uses Grok.
 `BUGLOOP_TRIAGE_MODEL` selects the SDK triage model and defaults to `sonnet`.
+`BUGLOOP_OPENCODE_MODEL` is required when using OpenCode and should be the full `openrouter/<model-id>`.
 
 ## Seeded bug categories
 
@@ -182,6 +183,54 @@ Each pass writes its own trace labeled `…-watch-passN` with a shared `watchSes
 
 The verifier assigns a free service port and an isolated log path inside the worktree.
 The service's default log path also resolves inside its checkout through `import.meta.dir`; the verifier sets `LOG_PATH` explicitly so each check starts from a fresh file.
+
+## Open-model sweeps (OpenRouter)
+
+Matrix cost/quality sweeps over OpenRouter models via the [OpenCode](https://opencode.ai) CLI (`BUGLOOP_FIXER=opencode`). **Money-true USD** comes from OpenRouter generation/activity APIs — never from fabricated estimates.
+
+### Prerequisites
+
+1. **opencode** installed and on `PATH` (`opencode --version`).
+2. **OpenRouter auth** for opencode (provider auth may be written into opencode's `auth.json` at job start) plus **`OPENROUTER_API_KEY`** in the environment for cost telemetry.
+3. **leaky-service** listening (default `http://127.0.0.1:3000`).
+4. **Verify model ids** against the live catalog before spending real money — the shortlist in `scripts/model-sweep.config.json` is a research placeholder:
+
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+bun run scripts/verify-models.ts
+# Edit scripts/model-sweep.config.json if any id is missing or renamed.
+```
+
+Configured placeholders (must be verified): `deepseek/deepseek-v4-pro`, `qwen/qwen3-coder`, `z-ai/glm-5.2`, `moonshotai/kimi-k2.7-code`, `nvidia/nemotron-3-super-120b-a12b`.
+
+### Pilot (1 model × 1 trial)
+
+Cheap smoke before a full matrix:
+
+```bash
+bun run service   # separate terminal
+./scripts/model-sweep.sh --pilot
+```
+
+Runs agent-sdk dry-fix with `BUGLOOP_FIXER=opencode`, rotating traffic seed, reset cursor, label `or-<model-short>-t1`, trace under `traces/sweep-or-…json`.
+
+### Full matrix
+
+Default: each configured model × 3 trials (fresh traffic seed, cursor reset, dry-fix each time):
+
+```bash
+./scripts/model-sweep.sh
+# optional: --base http://127.0.0.1:3000 --config scripts/model-sweep.config.json
+```
+
+### Budget-halt behavior
+
+- Soft **budget cap** default **$20** USD (operator ceiling).
+- Hard **halt** when cumulative **reported** OpenRouter USD across the sweep exceeds **$18** (halt margin vs cap).
+- After each trial the runner sums `usage.status === "reported"` USD from that trial's trace; if cumulative `> $18`, it prints a clear `BUDGET HALT` message and stops (exit 3).
+- Samples without generation ids are **not fabricated**: they are marked `unavailable` or, when requested, filled only from OpenRouter's activity window for the API key (documented as `openrouter-activity-fallback`).
+
+Supporting code: `packages/core/src/openrouter.ts` (telemetry), `OpenCodeFixer` / `OpenCodeTestWriter`, `scripts/model-sweep.ts` + `scripts/model-sweep.sh`, `scripts/verify-models.ts`.
 
 ## Field notes from the live runs
 

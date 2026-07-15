@@ -3,9 +3,13 @@ import type { ProcessRunner } from "./process";
 import {
   FIX_SUMMARY_MARKER,
   extractFixSummary,
+  normalizeOpenCodeModel,
   parseChangedFiles,
   parseCliCost,
+  parseOpenCodeJsonOutput,
+  configuredOpenCodeModel,
 } from "./fixer";
+import { enrichOpenRouterCost, type FetchLike } from "./openrouter";
 import type { CostSample, ResolvedAgent } from "./trace";
 import type { Incident, RegressionTestSpec, ReproResult } from "./types";
 
@@ -162,16 +166,169 @@ export class GrokTestWriter extends CliTestWriter {
   }
 }
 
-export type TestWriterKind = "codex" | "grok";
+export interface OpenCodeTestWriterOptions {
+  enrichCost?: boolean;
+  openRouterApiKey?: string;
+  openRouterFetch?: FetchLike;
+}
+
+export class OpenCodeTestWriter implements TestWriter {
+  private cost: CostSample | undefined;
+  private generationIds: string[] = [];
+  private readonly model: string;
+  private readonly enrichCost: boolean;
+  private readonly openRouterApiKey: string | undefined;
+  private readonly openRouterFetch: FetchLike | undefined;
+
+  constructor(
+    private readonly testScope: string[],
+    private readonly runner: ProcessRunner = runProcess,
+    model?: string,
+    options?: OpenCodeTestWriterOptions,
+  ) {
+    const resolved = model ?? configuredOpenCodeModel();
+    if (resolved === undefined || resolved === "") {
+      throw new Error(
+        "OpenCodeTestWriter requires BUGLOOP_OPENCODE_MODEL (full openrouter/<model-id>)",
+      );
+    }
+    this.model = normalizeOpenCodeModel(resolved);
+    this.openRouterApiKey =
+      options?.openRouterApiKey ??
+      (Bun.env["OPENROUTER_API_KEY"] !== undefined && Bun.env["OPENROUTER_API_KEY"] !== ""
+        ? Bun.env["OPENROUTER_API_KEY"]
+        : undefined);
+    this.openRouterFetch = options?.openRouterFetch;
+    this.enrichCost =
+      options?.enrichCost ?? this.openRouterApiKey !== undefined;
+  }
+
+  takeCost(): CostSample | undefined {
+    const cost = this.cost;
+    this.cost = undefined;
+    return cost;
+  }
+
+  takeGenerationIds(): string[] {
+    const ids = this.generationIds;
+    this.generationIds = [];
+    return ids;
+  }
+
+  private command(input: TestWriteInput): string[] {
+    return [
+      "opencode",
+      "run",
+      "--auto",
+      "--format",
+      "json",
+      "-m",
+      this.model,
+      "--dir",
+      input.worktreeDir,
+      buildTestWriterPrompt(input, this.testScope),
+    ];
+  }
+
+  private displayCommand(): string[] {
+    return [
+      "opencode",
+      "run",
+      "--auto",
+      "--format",
+      "json",
+      "-m",
+      this.model,
+      "--dir",
+      "<worktree>",
+      "<prompt>",
+    ];
+  }
+
+  async write(input: TestWriteInput): Promise<TestWriteOutput> {
+    const startedAt = new Date();
+    const command = this.command(input);
+    const result = await this.runner(command, { cwd: input.worktreeDir });
+    requireSuccess(this.displayCommand(), result);
+    const finishedAt = new Date();
+
+    const parsed = parseOpenCodeJsonOutput(result.stdout);
+    const text = parsed?.text ?? result.stdout;
+    this.generationIds = parsed?.generationIds ?? [];
+
+    let sample: CostSample = {
+      harness: "opencode",
+      model: parsed?.model ?? this.model,
+      ...(parsed?.inputTokens === undefined ? {} : { inputTokens: parsed.inputTokens }),
+      ...(parsed?.outputTokens === undefined ? {} : { outputTokens: parsed.outputTokens }),
+      ...(parsed?.totalTokens === undefined ? {} : { totalTokens: parsed.totalTokens }),
+      ...(this.generationIds.length === 0
+        ? {}
+        : { generationIds: [...this.generationIds] }),
+      costSource: "unavailable",
+      raw:
+        this.generationIds.length > 0
+          ? `opencode generationIds=${this.generationIds.join(",")}; usd pending OpenRouter enrichment`
+          : "opencode JSON had no generation ids; usd requires OpenRouter activity-window fallback",
+    };
+
+    if (this.enrichCost && this.openRouterApiKey !== undefined) {
+      const enriched = await enrichOpenRouterCost({
+        generationIds: this.generationIds,
+        model: this.model,
+        window:
+          this.generationIds.length === 0
+            ? { startedAt, finishedAt }
+            : undefined,
+        client: {
+          apiKey: this.openRouterApiKey,
+          ...(this.openRouterFetch === undefined
+            ? {}
+            : { fetch: this.openRouterFetch }),
+        },
+      });
+      sample = {
+        ...sample,
+        ...enriched.sample,
+        inputTokens: enriched.sample.inputTokens ?? sample.inputTokens,
+        outputTokens: enriched.sample.outputTokens ?? sample.outputTokens,
+        totalTokens: enriched.sample.totalTokens ?? sample.totalTokens,
+        model: enriched.sample.model ?? sample.model,
+      };
+    }
+
+    this.cost = sample;
+
+    const statusCommand = ["git", "-C", input.worktreeDir, "status", "--porcelain"];
+    const status = await this.runner(statusCommand, { cwd: input.worktreeDir });
+    requireSuccess(statusCommand, status);
+    return {
+      description:
+        extractFixSummary(text) ||
+        "OpenCode completed without a textual test summary.",
+      filesChanged: parseChangedFiles(status.stdout),
+    };
+  }
+}
+
+export type TestWriterKind = "codex" | "grok" | "opencode";
 
 function configuredTestWriter(): TestWriterKind {
   const value = Bun.env["BUGLOOP_TESTWRITER"] ?? "grok";
-  if (value === "codex" || value === "grok") return value;
-  throw new Error(`BUGLOOP_TESTWRITER must be codex or grok, received ${value}`);
+  if (value === "codex" || value === "grok" || value === "opencode") return value;
+  throw new Error(
+    `BUGLOOP_TESTWRITER must be codex, grok, or opencode, received ${value}`,
+  );
 }
 
 export function createDefaultTestWriter(testScope: string[]): TestWriter {
   const kind = configuredTestWriter();
+  if (kind === "opencode") {
+    if (Bun.which("opencode") === null) {
+      throw new Error("--fix regression tests require the opencode CLI on PATH");
+    }
+    return new OpenCodeTestWriter(testScope, runProcess, configuredOpenCodeModel());
+  }
   if (Bun.which(kind) === null) {
     throw new Error(`--fix regression tests require the ${kind} CLI on PATH`);
   }
@@ -182,8 +339,22 @@ export function createResolvedTestWriter(
   testScope: string[],
   resolution: ResolvedAgent,
 ): TestWriter {
-  if (resolution.harness !== "codex" && resolution.harness !== "grok") {
+  if (
+    resolution.harness !== "codex" &&
+    resolution.harness !== "grok" &&
+    resolution.harness !== "opencode"
+  ) {
     throw new Error(`cannot create test writer for harness ${resolution.harness}`);
+  }
+  if (resolution.harness === "opencode") {
+    if (Bun.which("opencode") === null) {
+      throw new Error("--fix regression tests require the opencode CLI on PATH");
+    }
+    return new OpenCodeTestWriter(
+      testScope,
+      runProcess,
+      resolution.requestedModel ?? configuredOpenCodeModel(),
+    );
   }
   if (Bun.which(resolution.harness) === null) {
     throw new Error(`--fix regression tests require the ${resolution.harness} CLI on PATH`);

@@ -85,6 +85,7 @@ export {
 } from "./trace";
 export type {
   CostSample,
+  CostSource,
   AgentCall,
   AgentFallback,
   AgentUsage,
@@ -100,6 +101,29 @@ export type {
   TraceIdentity,
   TraceRecorderOptions,
 } from "./trace";
+
+export {
+  OPENROUTER_API_BASE,
+  parseOpenRouterGenerationResponse,
+  parseOpenRouterActivityResponse,
+  parseOpenRouterModelsResponse,
+  fetchOpenRouterGeneration,
+  fetchOpenRouterActivityWindow,
+  listOpenRouterModels,
+  costSampleFromOpenRouterUsage,
+  enrichOpenRouterCost,
+  sumReportedUsd,
+  shouldHaltBudget,
+  reportedUsdFromTrace,
+} from "./openrouter";
+export type {
+  FetchLike,
+  OpenRouterClientOptions,
+  OpenRouterGenerationUsage,
+  OpenRouterModelInfo,
+  CostEnrichmentSource,
+  EnrichedOpenRouterCost,
+} from "./openrouter";
 
 export { resolvePipelineRuntime, resolveTraceWorkload } from "./runtime";
 export type {
@@ -135,14 +159,18 @@ export {
   FakeFixer,
   CodexFixer,
   GrokFixer,
+  OpenCodeFixer,
   FIX_SUMMARY_MARKER,
   extractFixSummary,
   buildFixPrompt,
   parseCliCost,
   parseGrokJsonOutput,
+  parseOpenCodeJsonOutput,
   parseChangedFiles,
   configuredGrokEffort,
   configuredCodexModel,
+  configuredOpenCodeModel,
+  normalizeOpenCodeModel,
   createDefaultFixer,
   createResolvedFixer,
   takeFixerCost,
@@ -155,12 +183,15 @@ export type {
   FakeFixCallback,
   GrokEffort,
   GrokJsonEnvelope,
+  OpenCodeJsonParseResult,
+  OpenCodeFixerOptions,
 } from "./fixer";
 
 export {
   FakeTestWriter,
   CodexTestWriter,
   GrokTestWriter,
+  OpenCodeTestWriter,
   buildTestWriterPrompt,
   createDefaultTestWriter,
   createResolvedTestWriter,

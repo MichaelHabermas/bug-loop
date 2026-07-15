@@ -1,5 +1,6 @@
 import { requireSuccess, runProcess } from "./process";
 import type { ProcessRunner } from "./process";
+import { enrichOpenRouterCost, type FetchLike } from "./openrouter";
 import type { CostSample, ResolvedAgent } from "./trace";
 
 export interface FixInput {
@@ -129,7 +130,7 @@ function parseDecimal(value: string | undefined): number | undefined {
  */
 export function parseCliCost(
   stdout: string,
-  harness: "codex" | "grok",
+  harness: "codex" | "grok" | "opencode",
 ): CostSample | undefined {
   const inputTokens = parseInteger(
     stdout.match(/\binput[ _-]?tokens(?:\s+used)?\s*[:=]?\s*([\d,]+)/i)?.[1],
@@ -394,12 +395,416 @@ export class GrokFixer extends CliFixer {
   }
 }
 
-export type FixerKind = "codex" | "grok";
+/**
+ * OpenCode `--format json` event / envelope shapes vary by version.
+ * We accept a single JSON object or NDJSON lines and collect assistant text
+ * plus any generation / provider request ids for OpenRouter cost truth.
+ */
+export interface OpenCodeJsonParseResult {
+  text: string;
+  generationIds: string[];
+  model?: string;
+  /** Best-effort tokens if present in the CLI JSON (not money-true). */
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+const GENERATION_ID_KEYS = [
+  "generationId",
+  "generation_id",
+  "generationID",
+  "openrouterGenerationId",
+  "providerGenerationId",
+  "nativeId",
+] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function collectGenerationIds(value: unknown, into: Set<string>, depth = 0): void {
+  if (depth > 12 || value === null || value === undefined) return;
+  if (typeof value === "string") {
+    // OpenRouter generation ids typically look like gen-…
+    if (/^gen-[A-Za-z0-9_-]+$/.test(value)) into.add(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectGenerationIds(item, into, depth + 1);
+    return;
+  }
+  if (!isRecord(value)) return;
+  for (const key of GENERATION_ID_KEYS) {
+    const raw = value[key];
+    if (typeof raw === "string" && raw.trim() !== "") into.add(raw.trim());
+  }
+  // Nested provider metadata often carries the OpenRouter generation id.
+  for (const [key, child] of Object.entries(value)) {
+    if (
+      key === "id" &&
+      typeof child === "string" &&
+      /^gen-[A-Za-z0-9_-]+$/.test(child)
+    ) {
+      into.add(child);
+    }
+    collectGenerationIds(child, into, depth + 1);
+  }
+}
+
+function collectTextParts(value: unknown, parts: string[], depth = 0): void {
+  if (depth > 12 || value === null || value === undefined) return;
+  if (typeof value === "string") return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectTextParts(item, parts, depth + 1);
+    return;
+  }
+  if (!isRecord(value)) return;
+
+  // Common shapes: { type: "text", part: { text } }, { text }, { message: { content } }
+  const type = value["type"];
+  if (type === "text" || type === "message" || type === "assistant") {
+    const part = value["part"];
+    if (isRecord(part) && typeof part["text"] === "string") {
+      parts.push(part["text"]);
+    }
+    if (typeof value["text"] === "string") parts.push(value["text"]);
+    if (typeof value["content"] === "string") parts.push(value["content"]);
+    if (isRecord(value["message"])) {
+      collectTextParts(value["message"], parts, depth + 1);
+    }
+  } else {
+    if (typeof value["text"] === "string" && depth <= 2) {
+      parts.push(value["text"]);
+    }
+  }
+  for (const child of Object.values(value)) {
+    if (typeof child === "object" && child !== null) {
+      collectTextParts(child, parts, depth + 1);
+    }
+  }
+}
+
+function firstModel(value: unknown, depth = 0): string | undefined {
+  if (depth > 8 || value === null || value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = firstModel(item, depth + 1);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+  if (!isRecord(value)) return undefined;
+  if (typeof value["model"] === "string" && value["model"].trim() !== "") {
+    return value["model"].trim();
+  }
+  for (const child of Object.values(value)) {
+    const found = firstModel(child, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+function firstTokenField(
+  value: unknown,
+  keys: readonly string[],
+  depth = 0,
+): number | undefined {
+  if (depth > 8 || value === null || value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = firstTokenField(item, keys, depth + 1);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+  if (!isRecord(value)) return undefined;
+  for (const key of keys) {
+    const raw = value[key];
+    const parsed = parseInteger(
+      typeof raw === "number" || typeof raw === "string" ? String(raw) : undefined,
+    );
+    if (parsed !== undefined) return parsed;
+  }
+  for (const child of Object.values(value)) {
+    const found = firstTokenField(child, keys, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/**
+ * Parse `opencode run --format json` stdout (single JSON or NDJSON events).
+ * Returns undefined only when stdout is empty / non-JSON.
+ */
+export function parseOpenCodeJsonOutput(
+  stdout: string,
+): OpenCodeJsonParseResult | undefined {
+  const trimmed = stdout.trim();
+  if (!trimmed) return undefined;
+
+  const events: unknown[] = [];
+  // Single JSON value
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) events.push(...parsed);
+      else events.push(parsed);
+    } catch {
+      // Fall through to NDJSON
+    }
+  }
+  if (events.length === 0) {
+    for (const line of trimmed.split("\n")) {
+      const lineTrimmed = line.trim();
+      if (!lineTrimmed.startsWith("{") && !lineTrimmed.startsWith("[")) continue;
+      try {
+        const parsed: unknown = JSON.parse(lineTrimmed);
+        if (Array.isArray(parsed)) events.push(...parsed);
+        else events.push(parsed);
+      } catch {
+        // skip non-JSON noise
+      }
+    }
+  }
+  if (events.length === 0) return undefined;
+
+  const textParts: string[] = [];
+  const generationIds = new Set<string>();
+  for (const event of events) {
+    collectTextParts(event, textParts);
+    collectGenerationIds(event, generationIds);
+  }
+
+  // Prefer the longest text blob (final assistant message) when multiple parts.
+  let text = textParts.join("");
+  if (textParts.length > 1) {
+    const unique = [...new Set(textParts.map((part) => part.trim()).filter(Boolean))];
+    text = unique.sort((a, b) => b.length - a.length)[0] ?? textParts.join("\n");
+  }
+
+  // If no structured text, fall back to raw stdout for FIX_SUMMARY extraction.
+  if (!text.trim()) text = trimmed;
+
+  const model = firstModel(events);
+  const inputTokens = firstTokenField(events, [
+    "input_tokens",
+    "inputTokens",
+    "prompt_tokens",
+    "tokens_prompt",
+  ]);
+  const outputTokens = firstTokenField(events, [
+    "output_tokens",
+    "outputTokens",
+    "completion_tokens",
+    "tokens_completion",
+  ]);
+  const totalTokens = firstTokenField(events, ["total_tokens", "totalTokens"]);
+
+  return {
+    text,
+    generationIds: [...generationIds],
+    ...(model === undefined ? {} : { model }),
+    ...(inputTokens === undefined ? {} : { inputTokens }),
+    ...(outputTokens === undefined ? {} : { outputTokens }),
+    ...(totalTokens === undefined ? {} : { totalTokens }),
+  };
+}
+
+/** Read BUGLOOP_OPENCODE_MODEL (full openrouter/<model-id> preferred). */
+export function configuredOpenCodeModel(
+  env: Record<string, string | undefined> = Bun.env,
+): string | undefined {
+  const value = env["BUGLOOP_OPENCODE_MODEL"];
+  if (value === undefined || value === "") return undefined;
+  return value;
+}
+
+/**
+ * Normalize a model id for opencode `-m`. Accepts either
+ * `openrouter/deepseek/...` or bare `deepseek/...` (prefix openrouter/).
+ */
+export function normalizeOpenCodeModel(model: string): string {
+  const trimmed = model.trim();
+  if (trimmed.startsWith("openrouter/")) return trimmed;
+  return `openrouter/${trimmed}`;
+}
+
+export interface OpenCodeFixerOptions {
+  /** Full openrouter/<model-id> or bare OpenRouter catalog id. */
+  model?: string;
+  /**
+   * When set (or when OPENROUTER_API_KEY is in env), enrich CostSample via
+   * OpenRouter generation/activity APIs after the CLI returns. Runtime only.
+   */
+  openRouterApiKey?: string;
+  /** Injectable fetch for OpenRouter (tests); defaults to global fetch. */
+  openRouterFetch?: FetchLike;
+  /**
+   * When true (default if an API key is available), call OpenRouter for money-true cost.
+   * Tests that only exercise CLI parsing can set this false.
+   */
+  enrichCost?: boolean;
+}
+
+export class OpenCodeFixer implements Fixer {
+  private cost: CostSample | undefined;
+  private generationIds: string[] = [];
+  private readonly model: string;
+  private readonly openRouterApiKey: string | undefined;
+  private readonly openRouterFetch: FetchLike | undefined;
+  private readonly enrichCost: boolean;
+
+  constructor(
+    private readonly fixScope: string[],
+    private readonly runner: ProcessRunner = runProcess,
+    modelOrOptions?: string | OpenCodeFixerOptions,
+  ) {
+    const options: OpenCodeFixerOptions =
+      typeof modelOrOptions === "string" || modelOrOptions === undefined
+        ? { model: modelOrOptions }
+        : modelOrOptions;
+    const resolved = options.model ?? configuredOpenCodeModel();
+    if (resolved === undefined || resolved === "") {
+      throw new Error(
+        "OpenCodeFixer requires BUGLOOP_OPENCODE_MODEL (full openrouter/<model-id>)",
+      );
+    }
+    this.model = normalizeOpenCodeModel(resolved);
+    this.openRouterApiKey =
+      options.openRouterApiKey ??
+      (Bun.env["OPENROUTER_API_KEY"] !== undefined && Bun.env["OPENROUTER_API_KEY"] !== ""
+        ? Bun.env["OPENROUTER_API_KEY"]
+        : undefined);
+    this.openRouterFetch = options.openRouterFetch;
+    this.enrichCost =
+      options.enrichCost ?? this.openRouterApiKey !== undefined;
+  }
+
+  takeCost(): CostSample | undefined {
+    const cost = this.cost;
+    this.cost = undefined;
+    return cost;
+  }
+
+  takeGenerationIds(): string[] {
+    const ids = this.generationIds;
+    this.generationIds = [];
+    return ids;
+  }
+
+  private command(input: FixInput): string[] {
+    // Non-interactive one-shot: opencode run --auto --format json -m <model> <prompt>
+    // cwd is the worktree (runner options); --dir also set for remote-attach safety.
+    return [
+      "opencode",
+      "run",
+      "--auto",
+      "--format",
+      "json",
+      "-m",
+      this.model,
+      "--dir",
+      input.worktreeDir,
+      buildFixPrompt(input, this.fixScope),
+    ];
+  }
+
+  private displayCommand(): string[] {
+    return [
+      "opencode",
+      "run",
+      "--auto",
+      "--format",
+      "json",
+      "-m",
+      this.model,
+      "--dir",
+      "<worktree>",
+      "<prompt>",
+    ];
+  }
+
+  async fix(input: FixInput): Promise<FixOutput> {
+    const startedAt = new Date();
+    const command = this.command(input);
+    const result = await this.runner(command, { cwd: input.worktreeDir });
+    requireSuccess(this.displayCommand(), result);
+    const finishedAt = new Date();
+
+    const parsed = parseOpenCodeJsonOutput(result.stdout);
+    const text = parsed?.text ?? result.stdout;
+    this.generationIds = parsed?.generationIds ?? [];
+
+    // Baseline sample from CLI JSON only — never treats CLI cost as money-true.
+    const cliCost = parseCliCost(`${result.stdout}\n${result.stderr}`, "opencode");
+    let sample: CostSample = {
+      harness: "opencode",
+      model: parsed?.model ?? this.model,
+      ...(parsed?.inputTokens === undefined && cliCost?.inputTokens === undefined
+        ? {}
+        : { inputTokens: parsed?.inputTokens ?? cliCost?.inputTokens }),
+      ...(parsed?.outputTokens === undefined && cliCost?.outputTokens === undefined
+        ? {}
+        : { outputTokens: parsed?.outputTokens ?? cliCost?.outputTokens }),
+      ...(parsed?.totalTokens === undefined && cliCost?.totalTokens === undefined
+        ? {}
+        : { totalTokens: parsed?.totalTokens ?? cliCost?.totalTokens }),
+      ...(this.generationIds.length === 0
+        ? {}
+        : { generationIds: [...this.generationIds] }),
+      costSource: "unavailable",
+      raw:
+        this.generationIds.length > 0
+          ? `opencode generationIds=${this.generationIds.join(",")}; usd pending OpenRouter enrichment`
+          : "opencode JSON had no generation ids; usd requires OpenRouter activity-window fallback",
+    };
+
+    if (this.enrichCost && this.openRouterApiKey !== undefined) {
+      const enriched = await enrichOpenRouterCost({
+        generationIds: this.generationIds,
+        model: this.model,
+        window:
+          this.generationIds.length === 0
+            ? { startedAt, finishedAt }
+            : undefined,
+        client: {
+          apiKey: this.openRouterApiKey,
+          ...(this.openRouterFetch === undefined
+            ? {}
+            : { fetch: this.openRouterFetch }),
+        },
+      });
+      sample = {
+        ...sample,
+        ...enriched.sample,
+        // Preserve token hints from CLI when OpenRouter omits them.
+        inputTokens: enriched.sample.inputTokens ?? sample.inputTokens,
+        outputTokens: enriched.sample.outputTokens ?? sample.outputTokens,
+        totalTokens: enriched.sample.totalTokens ?? sample.totalTokens,
+        model: enriched.sample.model ?? sample.model,
+      };
+    }
+
+    this.cost = sample;
+
+    const statusCommand = ["git", "-C", input.worktreeDir, "status", "--porcelain"];
+    const status = await this.runner(statusCommand, { cwd: input.worktreeDir });
+    requireSuccess(statusCommand, status);
+    return {
+      description:
+        extractFixSummary(text) || "OpenCode completed without a textual summary.",
+      filesChanged: parseChangedFiles(status.stdout),
+    };
+  }
+}
+
+export type FixerKind = "codex" | "grok" | "opencode";
 
 function configuredFixer(defaultKind: FixerKind): FixerKind {
   const value = Bun.env["BUGLOOP_FIXER"] ?? defaultKind;
-  if (value === "codex" || value === "grok") return value;
-  throw new Error(`BUGLOOP_FIXER must be codex or grok, received ${value}`);
+  if (value === "codex" || value === "grok" || value === "opencode") return value;
+  throw new Error(`BUGLOOP_FIXER must be codex, grok, or opencode, received ${value}`);
 }
 
 export function createDefaultFixer(
@@ -407,6 +812,12 @@ export function createDefaultFixer(
   defaultKind: FixerKind = "codex",
 ): Fixer {
   const kind = configuredFixer(defaultKind);
+  if (kind === "opencode") {
+    if (Bun.which("opencode") === null) {
+      throw new Error("--fix requires the opencode CLI on PATH");
+    }
+    return new OpenCodeFixer(fixScope, runProcess, configuredOpenCodeModel());
+  }
   if (Bun.which(kind) === null) {
     throw new Error(`--fix requires the ${kind} CLI on PATH`);
   }
@@ -419,8 +830,22 @@ export function createResolvedFixer(
   fixScope: string[],
   resolution: ResolvedAgent,
 ): Fixer {
-  if (resolution.harness !== "codex" && resolution.harness !== "grok") {
+  if (
+    resolution.harness !== "codex" &&
+    resolution.harness !== "grok" &&
+    resolution.harness !== "opencode"
+  ) {
     throw new Error(`cannot create fixer for harness ${resolution.harness}`);
+  }
+  if (resolution.harness === "opencode") {
+    if (Bun.which("opencode") === null) {
+      throw new Error("--fix requires the opencode CLI on PATH");
+    }
+    return new OpenCodeFixer(
+      fixScope,
+      runProcess,
+      resolution.requestedModel ?? configuredOpenCodeModel(),
+    );
   }
   if (Bun.which(resolution.harness) === null) {
     throw new Error(`--fix requires the ${resolution.harness} CLI on PATH`);

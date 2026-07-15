@@ -1,0 +1,15 @@
+{
+  "$comment": "Open-model matrix for scripts/model-sweep.sh. Model ids are OpenRouter catalog ids (without the openrouter/ provider prefix). VERIFY against https://openrouter.ai/api/v1/models before a live run: bun run scripts/verify-models.ts",
+  "models": [
+    "deepseek/deepseek-v4-pro",
+    "qwen/qwen3-coder",
+    "z-ai/glm-5.2",
+    "moonshotai/kimi-k2.7-code",
+    "nvidia/nemotron-3-super-120b-a12b"
+  ],
+  "trials": 3,
+  "budgetHaltUsd": 18,
+  "budgetCapUsd": 20,
+  "trafficCount": 50,
+  "seedBase": 100
+}

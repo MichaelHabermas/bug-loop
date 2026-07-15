@@ -104,3 +104,28 @@ test("LangGraph triage is policy-only regardless of classifier credentials", () 
     source: "default",
   });
 });
+
+test("BUGLOOP_FIXER=opencode resolves model from BUGLOOP_OPENCODE_MODEL", () => {
+  const resolved = resolvePipelineRuntime({
+    pipeline: "agent-sdk",
+    config,
+    mode: { fromStart: true, fix: true, live: false },
+    env: {
+      BUGLOOP_FIXER: "opencode",
+      BUGLOOP_OPENCODE_MODEL: "openrouter/deepseek/deepseek-v4-pro",
+      BUGLOOP_TESTWRITER: "opencode",
+    },
+  });
+  expect(resolved.fixer).toMatchObject({
+    harness: "opencode",
+    requestedModel: "openrouter/deepseek/deepseek-v4-pro",
+    effectiveModel: "openrouter/deepseek/deepseek-v4-pro",
+    effort: null,
+    source: "env",
+  });
+  expect(resolved.testWriter).toMatchObject({
+    harness: "opencode",
+    requestedModel: "openrouter/deepseek/deepseek-v4-pro",
+    source: "env",
+  });
+});

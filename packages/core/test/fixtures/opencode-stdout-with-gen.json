@@ -1,0 +1,4 @@
+{"type":"step-start","sessionID":"ses_test","model":"openrouter/deepseek/deepseek-v4-pro"}
+{"type":"text","part":{"text":"I'll inspect the handler...\n"}}
+{"type":"text","part":{"text":"=== FIX SUMMARY ===\nRoot cause: missing null guard.\nChanged handleCreate to return 400.\n"}}
+{"type":"step-finish","part":{"reason":"stop","cost":0,"tokens":{"input":1200,"output":340}},"providerMeta":{"openrouter":{"generationId":"gen-abc123xyz"}}}

@@ -86,12 +86,17 @@ function resolveFixer(
   if (injected) return injectedAgent();
   const configuredHarness = nonEmptyEnv(env, "BUGLOOP_FIXER");
   const harness = configuredHarness ?? config.fixer;
-  if (harness !== "codex" && harness !== "grok") {
-    throw new Error(`BUGLOOP_FIXER must be codex or grok, received ${harness}`);
+  if (harness !== "codex" && harness !== "grok" && harness !== "opencode") {
+    throw new Error(
+      `BUGLOOP_FIXER must be codex, grok, or opencode, received ${harness}`,
+    );
   }
-  const requestedModel = harness === "codex"
-    ? nonEmptyEnv(env, "BUGLOOP_CODEX_MODEL") ?? null
-    : null;
+  const requestedModel =
+    harness === "codex"
+      ? nonEmptyEnv(env, "BUGLOOP_CODEX_MODEL") ?? null
+      : harness === "opencode"
+        ? nonEmptyEnv(env, "BUGLOOP_OPENCODE_MODEL") ?? null
+        : null;
   const effort = harness === "grok" ? grokEffort(env) ?? null : null;
   return {
     harness,
@@ -111,12 +116,17 @@ function resolveTestWriter(
   if (injected) return injectedAgent();
   const configuredHarness = nonEmptyEnv(env, "BUGLOOP_TESTWRITER");
   const harness = configuredHarness ?? "grok";
-  if (harness !== "codex" && harness !== "grok") {
-    throw new Error(`BUGLOOP_TESTWRITER must be codex or grok, received ${harness}`);
+  if (harness !== "codex" && harness !== "grok" && harness !== "opencode") {
+    throw new Error(
+      `BUGLOOP_TESTWRITER must be codex, grok, or opencode, received ${harness}`,
+    );
   }
-  const requestedModel = harness === "codex"
-    ? nonEmptyEnv(env, "BUGLOOP_CODEX_MODEL") ?? null
-    : null;
+  const requestedModel =
+    harness === "codex"
+      ? nonEmptyEnv(env, "BUGLOOP_CODEX_MODEL") ?? null
+      : harness === "opencode"
+        ? nonEmptyEnv(env, "BUGLOOP_OPENCODE_MODEL") ?? null
+        : null;
   const effort = harness === "grok" ? grokEffort(env) ?? null : null;
   return {
     harness,
