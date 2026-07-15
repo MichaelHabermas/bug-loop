@@ -43,7 +43,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   });
   const fixInputs: FixInput[] = [];
   const redPending = new Set<string>();
-  const fixer = new FakeFixer(async (input) => {
+  const createFixer = () => new FakeFixer(async (input) => {
     fixInputs.push(input);
     return {
       description: `patch ${input.issueTitle} attempt ${input.attempt}`,
@@ -192,8 +192,8 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     tracePath: join(TMP, "trace.json"),
   }, {
     triageAgent,
-    fixer,
-    testWriter: new FakeTestWriter(async ({ incident }) => {
+    createFixer,
+    createTestWriter: () => new FakeTestWriter(async ({ incident }) => {
       const path = `apps/leaky-service/test/${incident.fingerprint.hash.slice(0, 8)}.test.ts`;
       redPending.add(path);
       return { description: "focused regression", filesChanged: [path] };
@@ -254,6 +254,18 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(trace.agentCalls.filter((call) => call.stage === "triage")).toHaveLength(3);
   expect(trace.agentCalls.filter((call) => call.stage === "fixer")).toHaveLength(5);
   expect(trace.agentCalls.filter((call) => call.stage === "testWriter")).toHaveLength(3);
+  expect(trace.agentCalls.every((call) =>
+    call.correlationId?.startsWith(`${trace.runId}:`) === true &&
+    call.attemptId?.startsWith(`${call.correlationId}:`) === true
+  )).toBe(true);
+  const lifecycleEvents = trace.events.filter(
+    (event) => event.stage === "pr" || event.stage === "give-up",
+  );
+  expect(lifecycleEvents).toHaveLength(3);
+  expect(lifecycleEvents.every((event) =>
+    event.correlationId?.startsWith(`${trace.runId}:`) === true &&
+    event.attemptId?.startsWith(`${event.correlationId}:`) === true
+  )).toBe(true);
   expect(pullRequests.every((pr) => pr.body.includes("## Regression test intent"))).toBe(true);
   expect(pullRequests.every((pr) => pr.body.includes("### Must pin"))).toBe(true);
 

@@ -43,6 +43,7 @@ export interface ResolvedPipeline {
   fixer: ResolvedAgent;
   regressionTests: RegressionTestPolicy;
   maxFixAttempts: number;
+  incidentConcurrency: number;
   mode: {
     fix: boolean;
     live: boolean;
@@ -143,6 +144,7 @@ export interface TraceEventHandle {
 export interface TraceIdentity {
   correlationId: string;
   attemptId?: string;
+  recordAgentCall?: boolean;
 }
 
 export function createCorrelationId(runId: string, fingerprint: string): string {
@@ -247,7 +249,7 @@ export class TraceRecorder {
             outcome,
             ...(cost === undefined ? {} : { cost }),
           });
-        } else if (stage === "testgen") {
+        } else if (stage === "testgen" && identity?.recordAgentCall !== false) {
           this.recordAgentCall({
             stage: "testWriter",
             resolution: "testWriter",

@@ -1,4 +1,4 @@
-import { isHeuristicallyActionable, type ReproStrategy, type TriageState } from "@bug-loop/core";
+import { isStructuredActionable, type ReproStrategy, type TriageState } from "@bug-loop/core";
 import { currentSummary } from "../state";
 
 export async function detectStructured(
@@ -7,7 +7,7 @@ export async function detectStructured(
   reproStrategy?: ReproStrategy,
 ): Promise<Partial<TriageState>> {
   const actionable = state.events
-    .filter((event) => isHeuristicallyActionable(event, invariantWarnPrefixes))
+    .filter((event) => isStructuredActionable(event, invariantWarnPrefixes))
     .map((event) => reproStrategy?.normalizeEvent?.(event) ?? event);
   console.log(`[detect] actionable=${actionable.length}`);
   return {

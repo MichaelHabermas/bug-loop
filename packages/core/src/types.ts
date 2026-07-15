@@ -48,8 +48,6 @@ export interface TicketRef {
   url: string;
 }
 
-export type RouteKind = "mechanical" | "needs-human";
-
 export type RegressionClaimClass =
   | "signature-absence"
   | "status-class"

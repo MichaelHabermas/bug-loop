@@ -166,8 +166,8 @@ export async function verifyWithRunner(
   const verified = scopePasses && repro.passes && regression.passes && tests.passes && typecheck.passes;
   const detail = [
     `scope: ${scopePasses ? "pass" : "fail"} - ${provenance.detail}`,
-    `repro: ${repro.passes ? "pass" : "fail"} - ${repro.detail}`,
     `regression test: ${regression.passes ? "pass" : "fail"} - ${regression.detail}`,
+    `repro: ${repro.passes ? "pass" : "fail"} - ${repro.detail}`,
     `tests: ${tests.passes ? "pass" : "fail"} - ${tests.detail}`,
     `typecheck: ${typecheck.passes ? "pass" : "fail"} - ${typecheck.detail}`,
   ].join("\n");

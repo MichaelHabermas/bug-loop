@@ -26,7 +26,6 @@ import {
   type GitHubOperations,
   type WorktreeOperations,
 } from "../src/nodes";
-import { routeAfterVerify } from "../src/graph";
 
 const FIXER_TMP = join(import.meta.dir, ".tmp-fixer");
 const PIPELINE_CONFIG = createLeakyServicePipelineConfig({
@@ -392,33 +391,6 @@ describe("verify node", () => {
 });
 
 describe("give-up and PR nodes", () => {
-  test("a first verification failure cycles to fix and a second routes to give-up", () => {
-    expect(routeAfterVerify(state({
-      retryCount: 1,
-      activeVerify: {
-        verified: false,
-        scopePasses: true,
-        reproPasses: false,
-        testsPass: true,
-        typecheckPasses: true,
-        regressionTestPasses: true,
-        detail: "first failure",
-      },
-    }))).toBe("fix");
-    expect(routeAfterVerify(state({
-      retryCount: 2,
-      activeVerify: {
-        verified: false,
-        scopePasses: true,
-        reproPasses: false,
-        testsPass: true,
-        typecheckPasses: true,
-        regressionTestPasses: true,
-        detail: "second failure",
-      },
-    }))).toBe("give-up");
-  });
-
   test("second failed verification comments, swaps labels, cleans up, and exits", async () => {
     const calls: string[] = [];
     const github: GitHubOperations = {

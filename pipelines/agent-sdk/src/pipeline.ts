@@ -2,8 +2,9 @@ import { resolve } from "node:path";
 import {
   buildIssueInput,
   combineCostSamples,
+  createAttemptId,
+  createCorrelationId,
   createResolvedFixer,
-  createResolvedTestWriter,
   formatRegressionTestIntent,
   formatPrFilesList,
   findOpenIssueByMarker,
@@ -11,7 +12,7 @@ import {
   GitWorktreeOperations,
   groupIncidents,
   heuristicRegressionTestSpec,
-  isHeuristicallyActionable,
+  isStructuredActionable,
   readCursor,
   readNewEvents,
   RealVerifyRunner,
@@ -19,14 +20,9 @@ import {
   routeIncident,
   resolvePipelineRuntime,
   resolveTraceWorkload,
-  runRegressionTestStage,
-  runIncidentWorker,
-  mapWithConcurrency,
-  PristineSuiteCache,
+  runIncidentWorkers,
   rewritePathsForPrBody,
-  takeFixerCost,
   TraceRecorder,
-  verifyWithRunner,
   writeCursor,
   type FixAttempt,
   type Fixer,
@@ -44,7 +40,6 @@ import {
   type ReproStrategy,
   type RegressionTestStrategy,
   type RoutingPolicy,
-  type ResolvedPipeline,
   type TriageRunConfig,
   type TriageState,
   type TriageSummary,
@@ -142,7 +137,7 @@ function detect(
   strategy?: ReproStrategy,
 ): void {
   const actionable = state.events
-    .filter((event) => isHeuristicallyActionable(event, config.invariantWarnPrefixes))
+    .filter((event) => isStructuredActionable(event, config.invariantWarnPrefixes))
     .map((event) => strategy?.normalizeEvent?.(event) ?? event);
   state.actionableEvents = actionable;
   state.summary = { ...(state.summary ?? EMPTY_SUMMARY), actionable: actionable.length };
@@ -217,6 +212,8 @@ async function route(
       evidence: "Reproduction stage did not return a result.",
     };
     const policyDecision = policy.evaluate({ incident: item.incident, repro });
+    const fingerprint = item.incident.fingerprint.hash;
+    const correlationId = createCorrelationId(recorder.runId, fingerprint);
     const started = performance.now();
     const decision = await routeIncident({
       policy: {
@@ -232,18 +229,24 @@ async function route(
       recorder.recordAgentCall({
         stage: "triage",
         resolution: "triage",
-        fingerprint: item.incident.fingerprint.hash,
+        fingerprint,
+        correlationId,
+        attemptId: createAttemptId(correlationId, "triage", 1),
         durationMs: Math.max(0, performance.now() - started),
         outcome: "success",
         unavailableReason: "agent-did-not-report-usage",
       });
     }
-    for (const call of calls) {
+    for (let index = 0; index < calls.length; index += 1) {
+      const call = calls[index];
+      if (!call) continue;
       if (call.cost !== undefined) costs.push(call.cost);
       recorder.recordAgentCall({
         stage: "triage",
         resolution: "triage",
-        fingerprint: item.incident.fingerprint.hash,
+        fingerprint,
+        correlationId,
+        attemptId: createAttemptId(correlationId, "triage", index + 1),
         durationMs: call.durationMs,
         outcome: call.outcome,
         ...(call.cost === undefined ? {} : { cost: call.cost }),
@@ -300,24 +303,6 @@ async function ticket(
   state.triage = triage;
   state.summary = { ...(state.summary ?? EMPTY_SUMMARY), issuesFiled };
   console.log(`[ticket] issues=${issuesFiled}`);
-}
-
-function activeState(
-  state: TriageState,
-  item: IncidentTriage,
-  worktreeDir: string,
-  activeFix: FixAttempt,
-  retryCount: number,
-): TriageState {
-  return {
-    ...state,
-    activeIncident: item.incident,
-    worktreeDir,
-    activeTicket: item.ticket,
-    activeRepro: item.repro,
-    activeFix,
-    retryCount,
-  };
 }
 
 function errorDetail(error: unknown): string {
@@ -477,175 +462,6 @@ async function openPullRequest(
   }
 }
 
-export async function fixIncident(
-  state: TriageState,
-  item: IncidentTriage,
-  fixer: Fixer,
-  testWriter: TestWriter | undefined,
-  regressionTestStrategy: RegressionTestStrategy | undefined,
-  verifier: VerifyRunner,
-  worktrees: WorktreeOperations,
-  github: GitHubOperations,
-  config: PipelineConfig,
-  recorder: TraceRecorder,
-  resolved: ResolvedPipeline,
-): Promise<void> {
-  const fingerprint8 = item.incident.fingerprint.hash.slice(0, 8);
-  const branch = `${config.branchPrefix}${fingerprint8}`;
-  const created = await worktrees.create({ branch, fingerprint8 });
-  state.worktreeBaseCommit = created.baseCommit;
-  state.pipelineHeadCommit = created.baseCommit;
-  const generatedIssue = buildIssueInput(item, config.labels);
-  let issue: IssueDetails | null = null;
-  try {
-    issue = await github.readIssue(item.ticket?.issueNumber ?? 0);
-  } catch (error: unknown) {
-    console.warn(`[fix] issue read failed; using generated issue body: ${errorDetail(error)}`);
-  }
-  let previousFailure: string | undefined;
-  const route = item.route;
-  const repro = item.repro;
-  if (!route || !repro) throw new Error("fix requires route and repro evidence");
-  const regression = await runRegressionTestStage({
-    config,
-    worktreeDir: created.worktreeDir,
-    incident: item.incident,
-    repro,
-    route,
-    writer: testWriter,
-    createWriter: () => createResolvedTestWriter(config.testScope, resolved.testWriter),
-    strategy: regressionTestStrategy,
-    verifier,
-    worktrees,
-    baseCommit: created.baseCommit,
-    expectedHead: created.baseCommit,
-    recorder,
-  });
-  state.pipelineHeadCommit = regression.pipelineHeadCommit;
-  state.activeRegressionTest = regression.record;
-  state.regressionTestAttempts = [
-    ...(state.regressionTestAttempts ?? []),
-    ...regression.record.attempts,
-  ];
-
-  for (let attempt = 1; attempt <= config.maxFixAttempts; attempt += 1) {
-    let fix: FixAttempt;
-    const fixEvent = recorder.start("fix", item.incident.fingerprint.hash);
-    try {
-      const output = await fixer.fix({
-        worktreeDir: created.worktreeDir,
-        issueTitle: issue?.title ?? generatedIssue.title,
-        issueBody: issue?.body ?? generatedIssue.body,
-        attempt,
-        fixBrief: item.route?.fixBrief ?? "",
-        ...(previousFailure === undefined ? {} : { previousFailure }),
-      });
-      fix = {
-        attempt,
-        branch,
-        ...output,
-        stageBaseCommit: regression.pipelineHeadCommit,
-      };
-      fixEvent.finish(
-        `attempt ${attempt}`,
-        { attempt, filesChanged: output.filesChanged },
-        takeFixerCost(fixer),
-      );
-    } catch (error: unknown) {
-      fix = {
-        attempt,
-        branch,
-        description: `Fixer failed: ${errorDetail(error)}`,
-        filesChanged: [],
-        stageBaseCommit: regression.pipelineHeadCommit,
-      };
-      fixEvent.finish(
-        "error",
-        { attempt, error: errorDetail(error) },
-        takeFixerCost(fixer),
-      );
-    }
-    state.fixAttempts = [...state.fixAttempts ?? [], fix];
-    console.log(`[fix] fingerprint=${fingerprint8} attempt=${attempt} files=${fix.filesChanged.length}`);
-
-    const verifyState = activeState(state, item, created.worktreeDir, fix, attempt - 1);
-    const verified = await runTracedStage(
-      recorder,
-      "verify",
-      () => verifyWithRunner(verifyState, verifier, config.fixScope, worktrees),
-      (verifyResult) => {
-        const result = verifyResult.activeVerify;
-        if (!result) throw new Error("verify did not return a result");
-        return {
-          outcome: result.verified ? "verified" : "failed",
-          detail: {
-            attempt,
-            scopePasses: result.scopePasses,
-            reproPasses: result.reproPasses,
-            testsPass: result.testsPass,
-            regressionTestPasses: result.regressionTestPasses,
-            typecheckPasses: result.typecheckPasses,
-          },
-        };
-      },
-      item.incident.fingerprint.hash,
-    );
-    const result = verified.activeVerify;
-    if (!result) throw new Error("verify did not return a result");
-    state.verifyResults = verified.verifyResults ?? state.verifyResults;
-    state.activeRegressionTest = verified.activeRegressionTest ?? state.activeRegressionTest;
-    console.log(`[verify] fingerprint=${fingerprint8} attempt=${attempt} verified=${result.verified}`);
-    if (result.verified) {
-      const errorsBefore = state.errors.length;
-      await runTracedStage(
-        recorder,
-        "pr",
-        () => openPullRequest(
-          state,
-          github,
-          worktrees,
-          item,
-          created.worktreeDir,
-          fix,
-          result,
-          config,
-        ),
-        () => ({
-          outcome: state.errors.length === errorsBefore ? "completed" : "error",
-          detail: { issueNumber: item.ticket?.issueNumber },
-        }),
-        item.incident.fingerprint.hash,
-      );
-      return;
-    }
-    previousFailure = result.detail;
-  }
-
-  const errorsBefore = state.errors.length;
-  await runTracedStage(
-    recorder,
-    "give-up",
-    () => giveUp(
-      state,
-      github,
-      worktrees,
-      item,
-      created.worktreeDir,
-      config.maxFixAttempts,
-      previousFailure ?? "Verification did not provide details.",
-      config,
-    ),
-    () => ({
-      outcome: state.errors.length === errorsBefore ? "needs human" : "error",
-      detail: {
-        attempts: config.maxFixAttempts,
-        issueNumber: item.ticket?.issueNumber,
-      },
-    }),
-    item.incident.fingerprint.hash,
-  );
-}
-
 export async function runAgentSdkPipeline(
   config: PipelineConfig,
   options: AgentSdkPipelineOptions,
@@ -658,8 +474,8 @@ export async function runAgentSdkPipeline(
     mode: options,
     overrides: {
       triage: dependencies.triageAgent !== undefined,
-      testWriter: dependencies.testWriter !== undefined,
-      fixer: dependencies.fixer !== undefined,
+      testWriter: dependencies.testWriter !== undefined || dependencies.createTestWriter !== undefined,
+      fixer: dependencies.fixer !== undefined || dependencies.createFixer !== undefined,
     },
   });
   const workload = await resolveTraceWorkload(config, repoRoot);
@@ -750,14 +566,6 @@ export async function runAgentSdkPipeline(
     }));
 
     if (state.config?.fix) {
-      if (
-        config.incidentConcurrency > 1 &&
-        (dependencies.fixer !== undefined || dependencies.testWriter !== undefined)
-      ) {
-        throw new Error(
-          "incidentConcurrency > 1 requires createFixer/createTestWriter factories instead of shared instances",
-        );
-      }
       const worktrees = dependencies.worktrees ?? new GitWorktreeOperations(
         repoRoot,
         config.worktreeRoot,
@@ -767,36 +575,32 @@ export async function runAgentSdkPipeline(
       const mechanical = (state.triage ?? []).filter(
         (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
       );
-      const pristineSuiteCache = new PristineSuiteCache();
+      if (
+        mechanical.length > 1 &&
+        (dependencies.fixer !== undefined || dependencies.testWriter !== undefined)
+      ) {
+        throw new Error(
+          "multiple incident workers require createFixer/createTestWriter factories instead of shared instances",
+        );
+      }
       const createFixer = dependencies.createFixer ?? (() =>
         dependencies.fixer ?? createResolvedFixer(config.fixScope, resolvedRuntime.fixer));
       const createVerifier = dependencies.createVerifier ?? (() =>
         dependencies.verifier ?? new RealVerifyRunner(config, dependencies.reproStrategy));
       const createTestWriter = dependencies.createTestWriter ??
         (dependencies.testWriter === undefined ? undefined : () => dependencies.testWriter!);
-      const completed: Array<IncidentResult | Error> = await mapWithConcurrency(
-        mechanical,
-        config.incidentConcurrency,
-        async (item) => {
-          try {
-            return await runIncidentWorker({
-              item,
-              config,
-              recorder,
-              worktrees,
-              createFixer,
-              ...(createTestWriter === undefined ? {} : { createTestWriter }),
-              testWriterResolution: resolvedRuntime.testWriter,
-              createVerifier,
-              readIssue: (number) => github.readIssue(number),
-              regressionTestStrategy: dependencies.regressionTestStrategy,
-              pristineSuiteCache,
-            });
-          } catch (error: unknown) {
-            return error instanceof Error ? error : new Error(String(error));
-          }
-        },
-      );
+      const completed: Array<IncidentResult | Error> = await runIncidentWorkers({
+        items: mechanical,
+        config,
+        recorder,
+        worktrees,
+        createFixer,
+        ...(createTestWriter === undefined ? {} : { createTestWriter }),
+        testWriterResolution: resolvedRuntime.testWriter,
+        createVerifier,
+        readIssue: (number) => github.readIssue(number),
+        regressionTestStrategy: dependencies.regressionTestStrategy,
+      });
       for (let index = 0; index < completed.length; index += 1) {
         const result = completed[index];
         const item = mechanical[index];
@@ -812,8 +616,16 @@ export async function runAgentSdkPipeline(
         ];
         state.verifyResults = [...state.verifyResults ?? [], ...result.verifyResults];
         state.activeRegressionTest = result.regressionTest;
-        state.worktreeBaseCommit = result.finalFix.stageBaseCommit;
-        state.pipelineHeadCommit = result.finalFix.stageBaseCommit;
+        const stage = result.outcome === "verified" ? "pr" : "give-up";
+        const lifecycleEvent = recorder.start(
+          stage,
+          result.item.incident.fingerprint.hash,
+          {
+            correlationId: result.correlationId,
+            attemptId: createAttemptId(result.correlationId, stage, 1),
+          },
+        );
+        const errorCount = state.errors.length;
         try {
           if (result.outcome === "verified") {
             await openPullRequest(
@@ -840,6 +652,15 @@ export async function runAgentSdkPipeline(
           }
         } catch (error: unknown) {
           state.errors.push(`fix ${item.incident.fingerprint.hash}: ${errorDetail(error)}`);
+        } finally {
+          lifecycleEvent.finish(
+            state.errors.length > errorCount
+              ? "error"
+              : result.outcome === "verified"
+                ? "completed"
+                : "needs human",
+            { issueNumber: result.item.ticket?.issueNumber },
+          );
         }
       }
     }

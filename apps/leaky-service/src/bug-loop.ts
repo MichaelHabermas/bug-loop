@@ -157,7 +157,9 @@ const REGRESSION_FIXTURE_MANIFEST: Record<LeakyServiceIncidentClass, FixtureMani
     fixtureId: "leaky-service.shipping-timeout.v1",
     contractSource: "leaky-service.valid-ship.status-200",
     matches: (incident) => incident.fingerprint.route === "POST /orders/:id/ship" &&
-      incident.fingerprint.errName === "Error",
+      incident.fingerprint.errName === "Error" &&
+      (incident.fingerprint.topFrame.includes("callShippingProvider") ||
+        incident.sampleEvents[0]?.err?.message.startsWith("shipping provider timeout") === true),
     source: (incident, command) => `${fixtureHeader(command, incident.fingerprint.errName)}test("provider rejection is handled by the ship route", async () => {
   const create = await handleRequest(new Request("http://leaky-service.test/orders", {
     method: "POST",
@@ -168,11 +170,20 @@ const REGRESSION_FIXTURE_MANIFEST: Record<LeakyServiceIncidentClass, FixtureMani
     }),
   }));
   const body = await create.json() as { id: string };
-  const response = await handleRequest(
-    new Request(\`http://leaky-service.test/orders/\${body.id}/ship\`, { method: "POST" }),
-    { shippingProvider: async () => { throw new Error("provider timeout"); } },
-  );
-  expect(response.status).toBeLessThan(500);
+  let unhandled: unknown;
+  const capture = (reason: unknown) => { unhandled = reason; };
+  process.once("unhandledRejection", capture);
+  try {
+    const response = await handleRequest(
+      new Request(\`http://leaky-service.test/orders/\${body.id}/ship\`, { method: "POST" }),
+      { shippingProvider: async () => { throw new Error("provider timeout"); } },
+    );
+    await Bun.sleep(10);
+    expect(response.status).toBeLessThan(500);
+    expect(unhandled).toBeUndefined();
+  } finally {
+    process.off("unhandledRejection", capture);
+  }
 });
 `,
   },

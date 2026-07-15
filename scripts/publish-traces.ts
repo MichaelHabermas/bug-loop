@@ -46,6 +46,7 @@ interface LegacyResolvedPipeline {
   fixer: LegacyResolvedAgent;
   regressionTests: "always" | "triage-decides" | "never" | "unknown-v1";
   maxFixAttempts: number | "unknown-v1";
+  incidentConcurrency: "unknown-v1";
   mode: {
     fix: "unknown-v1";
     live: "unknown-v1";
@@ -63,6 +64,7 @@ export interface PublishedTraceV1 {
     fixer: "unknown-v1";
     regressionTests: "always" | "triage-decides" | "never" | "unknown-v1";
     maxFixAttempts: number | "unknown-v1";
+    incidentConcurrency: number | "unknown-v1";
   };
   resolved: LegacyResolvedPipeline;
   workload: LegacyWorkload;
@@ -81,6 +83,7 @@ export type PublishedTraceV2 = RunTrace & {
     fixer: string;
     regressionTests: "always" | "triage-decides" | "never";
     maxFixAttempts: number;
+    incidentConcurrency: number;
   };
 };
 
@@ -249,6 +252,10 @@ function parseResolved(value: unknown): ResolvedPipeline {
   if (!Number.isInteger(value["maxFixAttempts"]) || (value["maxFixAttempts"] as number) < 1) {
     throw new Error("resolved.maxFixAttempts must be a positive integer");
   }
+  const incidentConcurrency = value["incidentConcurrency"] ?? 1;
+  if (!Number.isInteger(incidentConcurrency) || (incidentConcurrency as number) < 1) {
+    throw new Error("resolved.incidentConcurrency must be a positive integer");
+  }
   if (!isRecord(value["mode"])) throw new Error("resolved.mode must be an object");
   const mode = value["mode"];
   for (const key of ["fix", "live", "fromStart"] as const) {
@@ -261,6 +268,7 @@ function parseResolved(value: unknown): ResolvedPipeline {
     fixer: parseResolvedAgent(value["fixer"], "resolved.fixer"),
     regressionTests: value["regressionTests"],
     maxFixAttempts: value["maxFixAttempts"] as number,
+    incidentConcurrency: incidentConcurrency as number,
     mode: {
       fix: mode["fix"] as boolean,
       live: mode["live"] as boolean,
@@ -422,6 +430,7 @@ export function parseRunTrace(value: unknown): PublishedTrace {
         fixer: resolved.fixer.harness,
         regressionTests: resolved.regressionTests,
         maxFixAttempts: resolved.maxFixAttempts,
+        incidentConcurrency: resolved.incidentConcurrency,
       },
       agentCalls: value["agentCalls"].map((call, index) =>
         parseAgentCall(call, `agentCalls[${index}]`)
@@ -452,6 +461,7 @@ export function parseRunTrace(value: unknown): PublishedTrace {
       fixer: "unknown-v1",
       regressionTests,
       maxFixAttempts,
+      incidentConcurrency: "unknown-v1",
     },
     resolved: {
       pipeline: value["pipeline"] as PipelineKind,
@@ -460,6 +470,7 @@ export function parseRunTrace(value: unknown): PublishedTrace {
       fixer: unknownAgent(),
       regressionTests,
       maxFixAttempts,
+      incidentConcurrency: "unknown-v1",
       mode: {
         fix: "unknown-v1",
         live: "unknown-v1",
@@ -512,6 +523,7 @@ export function resolvedConfigKey(trace: PublishedTrace): string {
     agent(resolved.fixer),
     resolved.regressionTests,
     String(resolved.maxFixAttempts),
+    String(resolved.incidentConcurrency),
     `${resolved.mode.fix}:${resolved.mode.live}:${resolved.mode.fromStart}`,
   ].join("|");
 }

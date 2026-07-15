@@ -139,6 +139,7 @@ export function resolvePipelineRuntime(input: ResolveRuntimeInput): ResolvedPipe
     fixer: resolveFixer(input.config, env, overrides.fixer === true),
     regressionTests: input.config.regressionTests,
     maxFixAttempts: input.config.maxFixAttempts,
+    incidentConcurrency: input.config.incidentConcurrency,
     mode: {
       fix: input.mode.fix ?? false,
       live: input.mode.live ?? false,

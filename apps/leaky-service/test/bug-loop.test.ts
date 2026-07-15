@@ -51,6 +51,25 @@ test("leaky-service policy authorizes exactly three crash contracts and denies i
     incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.missingCustomer,
   });
   expect(leakyServiceRoutingPolicy.evaluate({
+    incident: incident("GET /orders", "RangeError", "invalid since", "handleList"),
+    repro,
+  })).toMatchObject({
+    kind: "authorized",
+    incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.invalidSince,
+  });
+  expect(leakyServiceRoutingPolicy.evaluate({
+    incident: incident(
+      "POST /orders/:id/ship",
+      "Error",
+      "shipping provider timeout for order-1",
+      "callShippingProvider",
+    ),
+    repro,
+  })).toMatchObject({
+    kind: "authorized",
+    incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.shippingTimeout,
+  });
+  expect(leakyServiceRoutingPolicy.evaluate({
     incident: incident("POST /orders", "WarnInvariant", "", "unknown", "warn"),
     repro: { ...repro, reproduced: false },
   }).kind).toBe("deny");
@@ -97,6 +116,11 @@ test("regression strategy declines unsupported shapes instead of inventing metad
   expect(leakyServiceRegressionTestStrategy.prepare({
     incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.missingCustomer,
     incident: incident("GET /orders", "TypeError", "mismatch", "unknown"),
+    repro,
+  })).toBeNull();
+  expect(leakyServiceRegressionTestStrategy.prepare({
+    incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.shippingTimeout,
+    incident: incident("POST /orders/:id/ship", "Error", "other failure", "unknown"),
     repro,
   })).toBeNull();
 });

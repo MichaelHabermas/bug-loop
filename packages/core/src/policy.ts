@@ -61,6 +61,12 @@ export async function routeIncident(input: RouteIncidentInput): Promise<RouteDec
   const decision = input.policy.evaluate(input);
   switch (decision.kind) {
     case "authorized":
+      if (!input.policy.authorizedClasses.includes(decision.incidentClass)) {
+        return {
+          kind: "needs-human",
+          reason: `Policy class ${decision.incidentClass} is not present in its authorized class manifest.`,
+        };
+      }
       return authorizedRoute(decision.incidentClass, decision.reason, input.repro);
     case "deny":
       return { kind: "needs-human", reason: decision.reason };

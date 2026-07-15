@@ -290,7 +290,11 @@ export async function runRegressionTestStage(
       : createAttemptId(correlationId, "testgen", attempt);
     const identity = correlationId === undefined
       ? undefined
-      : { correlationId, ...(attemptId === undefined ? {} : { attemptId }) };
+      : {
+          correlationId,
+          ...(attemptId === undefined ? {} : { attemptId }),
+          ...(fixture ? { recordAgentCall: false } : {}),
+        };
     const testgenEvent = input.recorder?.start(
       "testgen",
       input.incident.fingerprint.hash,

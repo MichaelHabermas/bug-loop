@@ -3,9 +3,7 @@ import {
   definePipelineConfig,
   FakeFixer,
   FakeTestWriter,
-  mapWithConcurrency,
-  PristineSuiteCache,
-  runIncidentWorker,
+  runIncidentWorkers,
   TraceRecorder,
   type IncidentTriage,
   type VerifyRunner,
@@ -119,65 +117,67 @@ test("concurrency three uses isolated workers and returns stable immutable resul
       },
       regressionTests: "always",
       maxFixAttempts: 1,
+      incidentConcurrency: 3,
       mode: { fix: true, live: false, fromStart: true },
     },
     workload: { benchmarkId: "test", seed: 1, caseCount: 3, codeRevision: "test" },
   });
-  const suiteCache = new PristineSuiteCache();
   const inputs = [item(0), item(1), item(2)];
-  const results = await mapWithConcurrency(inputs, 3, async (triage) => {
-    let selectedTestRuns = 0;
-    const verifier: VerifyRunner = {
-      async verifyRepro() {
-        return { passes: true, detail: "signature absent" };
-      },
-      async runTests() {
-        suiteCalls += 1;
-        return { passes: true, detail: "suite green" };
-      },
-      async runTestFiles() {
-        selectedTestRuns += 1;
-        return selectedTestRuns === 1
-          ? { passes: false, detail: "red on base" }
-          : { passes: true, detail: "green after fix" };
-      },
-      async runTypecheck() {
-        return { passes: true, detail: "types green" };
-      },
-    };
-    return runIncidentWorker({
-      item: triage,
-      config,
-      recorder,
-      worktrees,
-      createFixer() {
-        fixerInstances += 1;
-        return new FakeFixer(async () => {
-          activeFixers += 1;
-          maxActiveFixers = Math.max(maxActiveFixers, activeFixers);
-          await Bun.sleep(5);
-          activeFixers -= 1;
-          return { description: "fix", filesChanged: ["src/handler.ts"] };
-        });
-      },
-      createTestWriter() {
-        writerInstances += 1;
-        return new FakeTestWriter(async () => ({
-          description: "test",
-          filesChanged: ["test/regression.test.ts"],
-        }));
-      },
-      testWriterResolution: {
-        harness: "injected",
-        requestedModel: null,
-        effectiveModel: null,
-        effort: null,
-        source: "arg",
-      },
-      createVerifier: () => verifier,
-      readIssue: async () => null,
-      pristineSuiteCache: suiteCache,
-    });
+  const completed = await runIncidentWorkers({
+    items: inputs,
+    config,
+    recorder,
+    worktrees,
+    createFixer() {
+      fixerInstances += 1;
+      return new FakeFixer(async () => {
+        activeFixers += 1;
+        maxActiveFixers = Math.max(maxActiveFixers, activeFixers);
+        await Bun.sleep(5);
+        activeFixers -= 1;
+        return { description: "fix", filesChanged: ["src/handler.ts"] };
+      });
+    },
+    createTestWriter() {
+      writerInstances += 1;
+      return new FakeTestWriter(async () => ({
+        description: "test",
+        filesChanged: ["test/regression.test.ts"],
+      }));
+    },
+    testWriterResolution: {
+      harness: "injected",
+      requestedModel: null,
+      effectiveModel: null,
+      effort: null,
+      source: "arg",
+    },
+    createVerifier(): VerifyRunner {
+      let selectedTestRuns = 0;
+      return {
+        async verifyRepro() {
+          return { passes: true, detail: "signature absent" };
+        },
+        async runTests() {
+          suiteCalls += 1;
+          return { passes: true, detail: "suite green" };
+        },
+        async runTestFiles() {
+          selectedTestRuns += 1;
+          return selectedTestRuns === 1
+            ? { passes: false, detail: "red on base" }
+            : { passes: true, detail: "green after fix" };
+        },
+        async runTypecheck() {
+          return { passes: true, detail: "types green" };
+        },
+      };
+    },
+    readIssue: async () => null,
+  });
+  const results = completed.map((result) => {
+    if (result instanceof Error) throw result;
+    return result;
   });
 
   expect(results.map((result) => result.item.incident.fingerprint.hash)).toEqual([

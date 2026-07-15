@@ -7,7 +7,6 @@ export type {
   ReproResult,
   TicketRef,
   PullRequestRef,
-  RouteKind,
   RouteDecision,
   RegressionTestSpec,
   RegressionAssertionClaim,
@@ -35,8 +34,9 @@ export type {
 } from "./policy";
 
 export { mapWithConcurrency } from "./concurrency";
-export { runIncidentWorker } from "./incident-worker";
+export { runIncidentWorker, runIncidentWorkers } from "./incident-worker";
 export type {
+  IncidentBatchInput,
   IncidentOutcome,
   IncidentResult,
   IncidentWorkerInput,
@@ -187,9 +187,8 @@ export type {
 } from "./verifier";
 
 export {
-  isHeuristicallyActionable,
+  isStructuredActionable,
   groupIncidents,
-  heuristicRoute,
 } from "./triage";
 
 export { reproduceIncident } from "./reproduction";

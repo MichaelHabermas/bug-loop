@@ -1,7 +1,7 @@
 import { fingerprintEvent } from "./fingerprint";
-import type { Incident, LogEvent, ReproResult, RouteDecision } from "./types";
+import type { Incident, LogEvent } from "./types";
 
-export function isHeuristicallyActionable(
+export function isStructuredActionable(
   event: LogEvent,
   invariantWarnPrefixes: string[],
 ): boolean {
@@ -32,26 +32,4 @@ export function groupIncidents(events: LogEvent[]): Incident[] {
     });
   }
   return [...grouped.values()];
-}
-
-export function heuristicRoute(
-  incident: Incident,
-  repro: ReproResult,
-): RouteDecision {
-  if (incident.sampleEvents[0]?.level === "warn") {
-    return {
-      kind: "needs-human",
-      reason: "Warning-level invariants require product-policy review, not a mechanical fix.",
-    };
-  }
-  if (repro.reproduced) {
-    return {
-      kind: "needs-human",
-      reason: "The reproduced crash has no consumer-authorized incident class.",
-    };
-  }
-  return {
-    kind: "needs-human",
-    reason: "The crash was not reproduced, so an automatic fix would be speculative.",
-  };
 }

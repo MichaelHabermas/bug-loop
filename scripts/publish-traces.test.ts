@@ -81,6 +81,7 @@ function minimalV2Trace(): Record<string, unknown> {
       fixer: { ...agent },
       regressionTests: "triage-decides",
       maxFixAttempts: 2,
+      incidentConcurrency: 3,
       mode: { fix: true, live: false, fromStart: true },
     },
     workload: {

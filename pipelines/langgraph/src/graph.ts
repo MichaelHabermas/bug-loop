@@ -4,12 +4,9 @@ import {
   GitHubClient,
   GitWorktreeOperations,
   RealVerifyRunner,
+  createAttemptId,
   createResolvedFixer,
-  mapWithConcurrency,
-  PristineSuiteCache,
-  runIncidentWorker,
-  takeFixerCost,
-  verifyWithRunner,
+  runIncidentWorkers,
   resolvePipelineRuntime,
   type FixAttempt,
   type Fixer,
@@ -45,14 +42,12 @@ import {
 import {
   dedupeNode,
   detectNode,
-  fixWithDependencies,
   giveUpWithDependencies,
   ingestNode,
   prWithDependencies,
   reproduceNode,
   routeNode,
   ticketNode,
-  testgenWithDependencies,
   type GitHubOperations,
 } from "./nodes";
 
@@ -137,21 +132,11 @@ export interface GraphOptions {
 export function routeAfterTicket(
   state: TriageState,
   triage = state.triage ?? [],
-): "testgen" | "end" {
+): "workers" | "end" {
   const hasMechanical = triage.some(
     (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
   );
-  return state.config?.fix && hasMechanical ? "testgen" : "end";
-}
-
-export function routeAfterVerify(state: TriageState): "pr" | "fix" | "give-up" {
-  if (state.activeVerify?.verified) return "pr";
-  const maxAttempts = state.pipelineConfig?.maxFixAttempts ?? 1;
-  return state.retryCount >= maxAttempts ? "give-up" : "fix";
-}
-
-export function routeAfterIncident(state: TriageState): "testgen" | "end" {
-  return state.activeIncident ? "testgen" : "end";
+  return state.config?.fix && hasMechanical ? "workers" : "end";
 }
 
 function errorDetail(error: unknown): string {
@@ -189,8 +174,8 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     mode: { fromStart: false, fix: false, live: false },
     overrides: {
       triage: false,
-      testWriter: options.testWriter !== undefined,
-      fixer: options.fixer !== undefined,
+      testWriter: options.testWriter !== undefined || options.createTestWriter !== undefined,
+      fixer: options.fixer !== undefined || options.createFixer !== undefined,
     },
   });
   const github = options.github ?? new GitHubClient(config.repo);
@@ -208,19 +193,6 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     config.fixScope,
     config.testScope,
   );
-  const verifier = options.verifier ?? new RealVerifyRunner(config, reproStrategy);
-  let fixer = options.fixer;
-  const testgen = (state: TriageState) => testgenWithDependencies(state, {
-    config,
-    writer: options.testWriter,
-    verifier,
-    worktrees,
-    recorder: options.recorder,
-    repoRoot,
-    testWriterResolution: resolvedRuntime.testWriter,
-    regressionTestStrategy: options.regressionTestStrategy,
-  });
-
   const ingest = (state: TriageState) => tracedNode(
     options.recorder,
     "ingest",
@@ -284,120 +256,36 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
       detail: { issuesFiled: result.summary?.issuesFiled ?? 0 },
     }),
   );
-  const fix = async (state: TriageState): Promise<Partial<TriageState>> => {
-    fixer ??= createResolvedFixer(config.fixScope, resolvedRuntime.fixer);
-    const fingerprint = state.activeIncident?.fingerprint.hash;
-    const event = options.recorder?.start("fix", fingerprint);
-    try {
-      const result = await fixWithDependencies(state, {
-        config,
-        fixer,
-        worktrees,
-        readIssue: (number) => github.readIssue(number),
-        repoRoot,
-      });
-      const activeFix = result.activeFix;
-      const fixerFailed = activeFix?.description.startsWith("Fixer failed:") ?? false;
-      event?.finish(
-        fixerFailed ? "error" : activeFix ? `attempt ${activeFix.attempt}` : "no fix",
-        activeFix
-          ? {
-              attempt: activeFix.attempt,
-              filesChanged: activeFix.filesChanged,
-              ...(fixerFailed ? { error: activeFix.description } : {}),
-            }
-          : undefined,
-        takeFixerCost(fixer),
-      );
-      return result;
-    } catch (error: unknown) {
-      event?.finish("error", { error: errorDetail(error) }, takeFixerCost(fixer));
-      throw error;
-    }
-  };
-  const verify = async (state: TriageState): Promise<Partial<TriageState>> => {
-    const fingerprint = state.activeIncident?.fingerprint.hash;
-    const event = options.recorder?.start("verify", fingerprint);
-    try {
-      const result = await verifyWithRunner(state, verifier, config.fixScope, worktrees);
-      event?.finish(
-        result.activeVerify?.verified ? "verified" : "failed",
-        {
-          attempt: state.activeFix?.attempt,
-          scopePasses: result.activeVerify?.scopePasses,
-          reproPasses: result.activeVerify?.reproPasses,
-          testsPass: result.activeVerify?.testsPass,
-          regressionTestPasses: result.activeVerify?.regressionTestPasses,
-          typecheckPasses: result.activeVerify?.typecheckPasses,
-        },
-      );
-      return result;
-    } catch (error: unknown) {
-      event?.finish("error", { error: errorDetail(error) });
-      throw error;
-    }
-  };
-  const giveUp = (state: TriageState) => tracedNode(
-    options.recorder,
-    "give-up",
-    () => giveUpWithDependencies(state, { config, github, worktrees, repoRoot }),
-    (result) => ({
-      outcome: (result.errors?.length ?? 0) > state.errors.length ? "error" : "needs human",
-      detail: { attempts: state.retryCount },
-    }),
-    state.activeIncident?.fingerprint.hash,
-  );
-  const pr = (state: TriageState) => tracedNode(
-    options.recorder,
-    "pr",
-    () => prWithDependencies(state, { config, github, worktrees, repoRoot }),
-    (result) => ({
-      outcome: (result.errors?.length ?? 0) > state.errors.length ? "error" : "completed",
-    }),
-    state.activeIncident?.fingerprint.hash,
-  );
   const workers = async (state: TriageState): Promise<Partial<TriageState>> => {
-    if (
-      config.incidentConcurrency > 1 &&
-      (options.fixer !== undefined || options.testWriter !== undefined)
-    ) {
-      throw new Error(
-        "incidentConcurrency > 1 requires createFixer/createTestWriter factories instead of shared instances",
-      );
-    }
     const mechanical = (state.triage ?? []).filter(
       (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
     );
-    const pristineSuiteCache = new PristineSuiteCache();
+    if (
+      mechanical.length > 1 &&
+      (options.fixer !== undefined || options.testWriter !== undefined)
+    ) {
+      throw new Error(
+        "multiple incident workers require createFixer/createTestWriter factories instead of shared instances",
+      );
+    }
     const createFixer = options.createFixer ?? (() =>
       options.fixer ?? createResolvedFixer(config.fixScope, resolvedRuntime.fixer));
     const createVerifier = options.createVerifier ?? (() =>
       options.verifier ?? new RealVerifyRunner(config, reproStrategy));
     const createTestWriter = options.createTestWriter ??
       (options.testWriter === undefined ? undefined : () => options.testWriter!);
-    const completed: Array<IncidentResult | Error> = await mapWithConcurrency(
-      mechanical,
-      config.incidentConcurrency,
-      async (item) => {
-        try {
-          return await runIncidentWorker({
-            item,
-            config,
-            recorder: options.recorder,
-            worktrees,
-            createFixer,
-            ...(createTestWriter === undefined ? {} : { createTestWriter }),
-            testWriterResolution: resolvedRuntime.testWriter,
-            createVerifier,
-            readIssue: (number) => github.readIssue(number),
-            regressionTestStrategy: options.regressionTestStrategy,
-            pristineSuiteCache,
-          });
-        } catch (error: unknown) {
-          return error instanceof Error ? error : new Error(String(error));
-        }
-      },
-    );
+    const completed: Array<IncidentResult | Error> = await runIncidentWorkers({
+      items: mechanical,
+      config,
+      recorder: options.recorder,
+      worktrees,
+      createFixer,
+      ...(createTestWriter === undefined ? {} : { createTestWriter }),
+      testWriterResolution: resolvedRuntime.testWriter,
+      createVerifier,
+      readIssue: (number) => github.readIssue(number),
+      regressionTestStrategy: options.regressionTestStrategy,
+    });
     let errors = [...state.errors];
     let pullRequests = [...(state.pullRequests ?? [])];
     const fixAttempts = [...(state.fixAttempts ?? [])];
@@ -431,7 +319,10 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
       const event = options.recorder?.start(
         stage,
         result.item.incident.fingerprint.hash,
-        { correlationId: result.correlationId },
+        {
+          correlationId: result.correlationId,
+          attemptId: createAttemptId(result.correlationId, stage, 1),
+        },
       );
       const lifecycle = result.outcome === "verified"
         ? await prWithDependencies(lifecycleState, { config, github, worktrees, repoRoot })
@@ -466,11 +357,6 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     .addNode("reproduce", reproduce)
     .addNode("route", route)
     .addNode("ticket", ticket)
-    .addNode("testgen", testgen)
-    .addNode("fix", fix)
-    .addNode("verify", verify)
-    .addNode("give-up", giveUp)
-    .addNode("pr", pr)
     .addNode("workers", workers)
     .addEdge(START, "ingest")
     .addEdge("ingest", "detect")
@@ -484,22 +370,9 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     .addEdge("route", "ticket")
     .addConditionalEdges(
       "ticket",
-      (state) => (routeAfterTicket(state) === "testgen" ? "workers" : END),
+      (state) => (routeAfterTicket(state) === "workers" ? "workers" : END),
       ["workers", END],
     )
     .addEdge("workers", END)
-    .addEdge("testgen", "fix")
-    .addEdge("fix", "verify")
-    .addConditionalEdges("verify", routeAfterVerify, ["pr", "fix", "give-up"])
-    .addConditionalEdges(
-      "pr",
-      (state) => (routeAfterIncident(state) === "testgen" ? "testgen" : END),
-      ["testgen", END],
-    )
-    .addConditionalEdges(
-      "give-up",
-      (state) => (routeAfterIncident(state) === "testgen" ? "testgen" : END),
-      ["testgen", END],
-    )
     .compile({ checkpointer });
 }

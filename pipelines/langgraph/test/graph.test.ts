@@ -50,11 +50,32 @@ test("graph processes all four signatures and tolerates an unreachable service",
     outputPath: tracePath,
     runId: "langgraph-test-run",
   });
+  let issueListCalls = 0;
+  let nextIssue = 1;
   const graph = createTriageGraph(config, {
     routingPolicy: leakyServiceRoutingPolicy,
     reproStrategy: leakyServiceReproStrategy,
     recorder,
     resolved,
+    github: {
+      async listOpenIssues() {
+        issueListCalls += 1;
+        return [];
+      },
+      async createIssue() {
+        const number = nextIssue;
+        nextIssue += 1;
+        return { number, url: `https://example.test/issues/${number}` };
+      },
+      async readIssue() {
+        return null;
+      },
+      async commentIssue() {},
+      async replaceIssueLabel() {},
+      async createPullRequest() {
+        return { number: 1, url: "https://example.test/pull/1" };
+      },
+    },
   });
   const result = await graph.invoke(
     createInitialState(config, {
@@ -73,6 +94,7 @@ test("graph processes all four signatures and tolerates an unreachable service",
   });
   expect(result.triage).toHaveLength(4);
   expect(result.triage.every((item) => item.ticket !== undefined)).toBe(true);
+  expect(issueListCalls).toBe(1);
 
   const rerun = await graph.invoke(
     createInitialState(config, {
@@ -82,6 +104,7 @@ test("graph processes all four signatures and tolerates an unreachable service",
   );
   expect(rerun.summary?.eventsRead).toBe(0);
   expect(rerun.summary?.newIncidents).toBe(0);
+  expect(issueListCalls).toBe(2);
   await recorder.finish();
   const trace = await Bun.file(tracePath).json() as RunTrace;
   expect(trace.events.slice(0, 6).map((event) => event.stage)).toEqual([
@@ -132,7 +155,7 @@ test("compiled graph exposes the fix cycle and only routes fix-enabled mechanica
     fromStart: true,
     fix: true,
     live: false,
-  }), [mechanical])).toBe("testgen");
+  }), [mechanical])).toBe("workers");
   expect(routeAfterTicket(createInitialState(config, {
     fromStart: true,
     fix: true,

@@ -44,6 +44,7 @@ test("runtime resolution snapshots env overrides before factories run", () => {
       source: "env",
     },
     testWriter: { harness: "grok", effort: "low", source: "env" },
+    incidentConcurrency: 1,
     mode: { fromStart: true, fix: true, live: false },
   });
 });

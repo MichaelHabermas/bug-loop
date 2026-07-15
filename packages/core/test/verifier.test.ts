@@ -74,19 +74,22 @@ function worktrees(calls: string[], scopePasses: boolean): WorktreeOperations {
   };
 }
 
-function runner(calls: string[], regressionPasses = true): VerifyRunner {
+function runner(
+  calls: string[],
+  passes: { regression?: boolean; repro?: boolean; suite?: boolean } = {},
+): VerifyRunner {
   return {
     async runTestFiles() {
       calls.push("regression");
-      return { passes: regressionPasses, detail: "regression result" };
+      return { passes: passes.regression ?? true, detail: "regression result" };
     },
     async verifyRepro() {
       calls.push("repro");
-      return { passes: true, detail: "repro result" };
+      return { passes: passes.repro ?? true, detail: "repro result" };
     },
     async runTests() {
       calls.push("suite");
-      return { passes: true, detail: "suite result" };
+      return { passes: passes.suite ?? true, detail: "suite result" };
     },
     async runTypecheck() {
       calls.push("typecheck");
@@ -103,11 +106,29 @@ test("verification is fail-fast in scope, regression, repro, suite, typecheck or
   const regressionCalls: string[] = [];
   await verifyWithRunner(
     state(),
-    runner(regressionCalls, false),
+    runner(regressionCalls, { regression: false }),
     ["src"],
     worktrees(regressionCalls, true),
   );
   expect(regressionCalls).toEqual(["scope", "regression"]);
+
+  const reproCalls: string[] = [];
+  await verifyWithRunner(
+    state(),
+    runner(reproCalls, { repro: false }),
+    ["src"],
+    worktrees(reproCalls, true),
+  );
+  expect(reproCalls).toEqual(["scope", "regression", "repro"]);
+
+  const suiteCalls: string[] = [];
+  await verifyWithRunner(
+    state(),
+    runner(suiteCalls, { suite: false }),
+    ["src"],
+    worktrees(suiteCalls, true),
+  );
+  expect(suiteCalls).toEqual(["scope", "regression", "repro", "suite"]);
 
   const passingCalls: string[] = [];
   await verifyWithRunner(state(), runner(passingCalls), ["src"], worktrees(passingCalls, true));

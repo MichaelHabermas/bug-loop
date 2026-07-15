@@ -35,6 +35,7 @@ const resolved = {
   },
   regressionTests: "triage-decides" as const,
   maxFixAttempts: 2,
+  incidentConcurrency: 1,
   mode: { fix: true, live: false, fromStart: true },
 };
 
@@ -80,6 +81,7 @@ test("TraceRecorder accumulates sequenced events and writes the RunTrace shape",
   expect(written.resolved.pipeline).toBe("langgraph");
   expect(written.label).toBeUndefined();
   expect(written.resolved.fixer.effectiveModel).toBe("gpt-test");
+  expect(written.resolved.incidentConcurrency).toBe(1);
   expect(written.workload).toEqual(workload);
   expect(written.events).toHaveLength(1);
 });
@@ -128,6 +130,24 @@ test("TraceRecorder records one agent call with explicit usage status per attemp
     status: "unavailable",
     reason: "harness-did-not-report-usage",
   });
+});
+
+test("deterministic test generation is not recorded as an agent call", async () => {
+  const recorder = new TraceRecorder({
+    pipeline: "langgraph",
+    resolved,
+    workload,
+    outputPath,
+    now: () => new Date("2026-07-14T12:00:00.000Z"),
+  });
+  recorder.start("testgen", "abc", {
+    correlationId: "run:abc",
+    attemptId: "run:abc:testgen:1",
+    recordAgentCall: false,
+  }).finish("fixture generated");
+  const trace = await recorder.finish();
+  expect(trace.events).toHaveLength(1);
+  expect(trace.agentCalls).toHaveLength(0);
 });
 
 test("correlation and attempt IDs stay stable when events finish out of order", async () => {

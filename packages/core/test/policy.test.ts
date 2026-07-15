@@ -77,6 +77,20 @@ describe("tri-state routing policy", () => {
     expect(route.reason).toContain("unrecognized crash");
   });
 
+  test("rejects an authorized policy state absent from its class manifest", async () => {
+    const route = await routeIncident({
+      policy: policy({
+        kind: "authorized",
+        incidentClass: "invented.class",
+        reason: "misconfigured",
+      }),
+      incident,
+      repro: reproduced,
+    });
+    expect(route.kind).toBe("needs-human");
+    expect(route.reason).toContain("not present");
+  });
+
   test("uses an agent only for unknowns and validates its class mapping", async () => {
     let calls = 0;
     const resolver: UnknownRouteResolver = {
