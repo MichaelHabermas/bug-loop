@@ -3,10 +3,14 @@ import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   definePipelineConfig,
+  issueLooksFixResolved,
   readCursor,
+  resolveCommitCursorOffset,
   resolveWatchSettings,
   runWatchDaemon,
+  shouldEnterWatchFixLoop,
   watchPassLabel,
+  watchTraceOutputPath,
   writeCursor,
   type WatchPassContext,
 } from "../src";
@@ -59,10 +63,17 @@ afterEach(() => {
   rmSync(TMP, { recursive: true, force: true });
 });
 
-describe("watchPassLabel / resolveWatchSettings", () => {
+describe("watchPassLabel / resolveWatchSettings / watchTraceOutputPath", () => {
   test("builds label suffix -watch-passN", () => {
     expect(watchPassLabel(undefined, 1)).toBe("watch-pass1");
     expect(watchPassLabel("baseline", 3)).toBe("baseline-watch-pass3");
+  });
+
+  test("inserts pass suffix before the file extension", () => {
+    expect(watchTraceOutputPath("traces/x.json", 1)).toBe("traces/x.pass1.json");
+    expect(watchTraceOutputPath("traces/x.json", 12)).toBe("traces/x.pass12.json");
+    expect(watchTraceOutputPath("x.json", 2)).toBe("x.pass2.json");
+    expect(watchTraceOutputPath("noext", 1)).toBe("noext.pass1");
   });
 
   test("env overrides beat config partials", () => {
@@ -268,5 +279,85 @@ describe("runWatchDaemon", () => {
     controller.abort();
     await daemon;
     expect(passes).toBe(0);
+  });
+
+  test("event appended mid-pass is ingested by the following pass (cursor pins batch end)", async () => {
+    const config = testConfig();
+    const controller = new AbortController();
+    const passOffsets: number[] = [];
+    const passEvents: string[][] = [];
+    let midPassWritten = false;
+
+    const daemon = runWatchDaemon({
+      config,
+      watch: { pollIntervalMs: 15, debounceMs: 40, heartbeatMs: 10_000 },
+      watchSessionId: "session-cursor-race",
+      signal: controller.signal,
+      log: () => {},
+      debounceTickMs: 10,
+      runPass: async (ctx) => {
+        passOffsets.push(ctx.batchEndOffset);
+        // Simulate pipeline ingest from cursor → batch end only, then a mid-pass append.
+        const cursor = await readCursor(config.cursorPath);
+        const slice = await Bun.file(config.logPath).slice(cursor.offset, ctx.batchEndOffset).text();
+        const msgs = slice
+          .split("\n")
+          .filter(Boolean)
+          .map((raw) => (JSON.parse(raw) as LogEvent).msg);
+        passEvents.push(msgs);
+
+        if (!midPassWritten) {
+          // Service writes another event after ingest / before cursor commit.
+          appendFileSync(LOG, line("mid-pass-event"));
+          midPassWritten = true;
+          // Correct commit: batch end, NEVER current file size.
+          await writeCursor(config.cursorPath, {
+            offset: resolveCommitCursorOffset(
+              { fromStart: false, watch: true, commitCursorOffset: ctx.batchEndOffset },
+              config.logPath,
+            ),
+          });
+          // Prove file grew past the committed boundary.
+          expect(Bun.file(config.logPath).size).toBeGreaterThan(ctx.batchEndOffset);
+        } else {
+          await writeCursor(config.cursorPath, { offset: ctx.batchEndOffset });
+          controller.abort();
+        }
+      },
+    });
+
+    appendFileSync(LOG, line("batch-1"));
+    await daemon;
+
+    expect(passEvents.length).toBeGreaterThanOrEqual(2);
+    expect(passEvents[0]).toEqual(["batch-1"]);
+    expect(passEvents[1]).toContain("mid-pass-event");
+    expect(passOffsets[0]).toBeLessThan(Bun.file(LOG).size);
+  });
+});
+
+describe("watch fix re-entry guards", () => {
+  test("session fingerprint + resolved issue body block fix re-entry", () => {
+    const session = new Set<string>(["fp-done"]);
+    expect(shouldEnterWatchFixLoop({
+      fingerprint: "fp-done",
+      sessionProcessed: session,
+    })).toBe(false);
+    expect(shouldEnterWatchFixLoop({
+      fingerprint: "fp-new",
+      sessionProcessed: session,
+      openIssueBody: "Fix verified and PR opened: https://example.test/pull/1",
+    })).toBe(false);
+    expect(shouldEnterWatchFixLoop({
+      fingerprint: "fp-new",
+      sessionProcessed: session,
+      openIssueBody: "Automated fix gave up after 2 attempts.",
+    })).toBe(false);
+    expect(shouldEnterWatchFixLoop({
+      fingerprint: "fp-new",
+      sessionProcessed: session,
+      openIssueBody: "bug-loop:fingerprint:fp-new\n\nstill open",
+    })).toBe(true);
+    expect(issueLooksFixResolved("no markers")).toBe(false);
   });
 });

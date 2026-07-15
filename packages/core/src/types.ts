@@ -101,6 +101,12 @@ export interface PullRequestRef {
 export interface TriageRunConfig {
   fromStart: boolean;
   nextCursorOffset?: number;
+  /**
+   * Exact byte offset to commit after a successful pass.
+   * Watch mode sets this to the debounced batch end so mid-pass log growth
+   * is not skipped; one-shot leaves it unset and commits at EOF.
+   */
+  commitCursorOffset?: number;
   fix?: boolean;
   live?: boolean;
   /** True when this pass is driven by the watch-mode daemon. */

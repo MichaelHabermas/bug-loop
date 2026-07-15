@@ -9,6 +9,12 @@ export interface WatchPassContext {
   watchSessionId: string;
   /** Events observed in the debounced batch that triggered this pass. */
   eventsInBatch: number;
+  /**
+   * Exclusive end byte offset of the debounced batch. The pass must commit
+   * the cursor exactly here (never to current file size) so events that
+   * arrive mid-pass remain available for the next pass.
+   */
+  batchEndOffset: number;
   /** Label suffix fragment `-watch-passN` (without a base prefix). */
   labelSuffix: string;
 }
@@ -131,6 +137,7 @@ export async function runWatchDaemon(
         passNumber,
         watchSessionId,
         eventsInBatch: batch.events.length,
+        batchEndOffset: batch.cursor.offset,
         labelSuffix,
       });
       if (result?.detail !== undefined) {

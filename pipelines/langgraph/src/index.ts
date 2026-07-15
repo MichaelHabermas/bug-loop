@@ -5,6 +5,7 @@ import {
   runWatchDaemon,
   TraceRecorder,
   watchPassLabel,
+  watchTraceOutputPath,
   type TriageSummary,
 } from "@bug-loop/core";
 import {
@@ -128,6 +129,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 
   if (args.watch) {
     const controller = new AbortController();
+    const sessionFixFingerprints = new Set<string>();
     const onSignal = (): void => {
       console.log("\n[watch] shutdown requested — finishing in-flight pass if any");
       controller.abort();
@@ -163,19 +165,21 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
             traceRoot: resolve(repoRoot, "traces"),
             ...(args.tracePath === undefined
               ? {}
-              : { outputPath: `${args.tracePath}.pass${ctx.passNumber}` }),
+              : { outputPath: watchTraceOutputPath(args.tracePath, ctx.passNumber) }),
             label: passLabel,
           });
           const graph = createTriageGraph(config, {
             ...graphDeps,
             recorder,
             resolved: resolvedRuntime,
+            sessionFixFingerprints,
           });
           const state = createInitialState(config, {
             fromStart: false,
             fix: args.fix,
             live: args.live,
             watch: true,
+            commitCursorOffset: ctx.batchEndOffset,
           });
           const result = await graph.invoke(state, {
             configurable: { thread_id: crypto.randomUUID() },

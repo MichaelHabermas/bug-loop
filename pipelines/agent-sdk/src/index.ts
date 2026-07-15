@@ -2,6 +2,7 @@ import type { TriageSummary } from "@bug-loop/core";
 import {
   runWatchDaemon,
   watchPassLabel,
+  watchTraceOutputPath,
 } from "@bug-loop/core";
 import {
   leakyServiceRegressionTestStrategy,
@@ -101,6 +102,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
 
   if (args.watch) {
     const controller = new AbortController();
+    const sessionFixFingerprints = new Set<string>();
     const onSignal = (): void => {
       console.log("\n[watch] shutdown requested — finishing in-flight pass if any");
       controller.abort();
@@ -117,12 +119,14 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
             fix: args.fix,
             live: args.live,
             watch: true,
+            commitCursorOffset: ctx.batchEndOffset,
             watchSessionId: ctx.watchSessionId,
             watchPass: ctx.passNumber,
+            sessionFixFingerprints,
             label: watchPassLabel(args.label, ctx.passNumber),
             ...(args.tracePath === undefined
               ? {}
-              : { tracePath: `${args.tracePath}.pass${ctx.passNumber}` }),
+              : { tracePath: watchTraceOutputPath(args.tracePath, ctx.passNumber) }),
           }, pipelineDeps);
           printSummary(result.summary);
           if (result.state.errors.length > 0) {

@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { Cursor } from "./logtail";
+import type { TriageRunConfig } from "./types";
 
 export async function readCursor(path: string): Promise<Cursor> {
   const file = Bun.file(path);
@@ -18,4 +19,22 @@ export async function readCursor(path: string): Promise<Cursor> {
 export async function writeCursor(path: string, cursor: Cursor): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await Bun.write(path, `${JSON.stringify(cursor, null, 2)}\n`);
+}
+
+/**
+ * Byte offset a successful pass should persist.
+ * Watch passes pin the debounced batch end (commitCursorOffset) so mid-pass
+ * growth is not skipped. One-shot commits at current EOF to skip repro logs.
+ */
+export function resolveCommitCursorOffset(
+  config: TriageRunConfig | undefined,
+  logPath: string,
+): number {
+  if (config?.commitCursorOffset !== undefined) {
+    return config.commitCursorOffset;
+  }
+  if (config?.watch === true && config.nextCursorOffset !== undefined) {
+    return config.nextCursorOffset;
+  }
+  return Bun.file(logPath).size;
 }

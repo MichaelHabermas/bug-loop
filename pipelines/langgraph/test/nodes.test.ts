@@ -237,4 +237,42 @@ describe("buildIssueInput", () => {
     ]);
     expect(existsSync(cursorPath)).toBe(false);
   });
+
+  test("watch mode commits the pinned batch end offset, not current file size", async () => {
+    const cursorPath = join(import.meta.dir, ".tmp-ticket-watch-cursor.json");
+    const logPath = join(import.meta.dir, ".tmp-ticket-watch-log.jsonl");
+    rmSync(cursorPath, { force: true });
+    rmSync(logPath, { force: true });
+    await Bun.write(logPath, `${"x".repeat(50)}\n`);
+    const batchEnd = 20;
+    const ticketIncident = incident(errorEvent("watch-ticket", 1));
+    await ticketWithCreator(
+      state({
+        logPath,
+        config: {
+          fromStart: false,
+          watch: true,
+          commitCursorOffset: batchEnd,
+          nextCursorOffset: batchEnd,
+        },
+        pipelineConfig: { ...PIPELINE_CONFIG, cursorPath, logPath },
+        triage: [{
+          incident: ticketIncident,
+          repro: { reproduced: true, command: "curl example.test", evidence: "HTTP 500" },
+          route: {
+            kind: "mechanical",
+            incidentClass: "orders.missing-customer",
+            reason: "Crash reproduced.",
+          },
+        }],
+      }),
+      async () => ({ number: 1, url: "https://example.test/issues/1" }),
+      PIPELINE_CONFIG.labels,
+    );
+    const cursor = await Bun.file(cursorPath).json() as { offset: number };
+    expect(cursor.offset).toBe(batchEnd);
+    expect(cursor.offset).toBeLessThan(Bun.file(logPath).size);
+    rmSync(cursorPath, { force: true });
+    rmSync(logPath, { force: true });
+  });
 });

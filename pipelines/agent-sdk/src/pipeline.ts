@@ -17,11 +17,13 @@ import {
   readNewEvents,
   RealVerifyRunner,
   reproduceIncident,
+  resolveCommitCursorOffset,
   routeIncident,
   resolvePipelineRuntime,
   resolveTraceWorkload,
   runIncidentWorkers,
   rewritePathsForPrBody,
+  shouldEnterWatchFixLoop,
   TraceRecorder,
   writeCursor,
   type FixAttempt,
@@ -64,6 +66,11 @@ export interface AgentSdkPipelineOptions extends TriageRunConfig {
   watchSessionId?: string;
   /** 1-based watch pass number for trace workload metadata. */
   watchPass?: number;
+  /**
+   * Fingerprints that already entered the fix loop this watch session.
+   * Mutated after each fix attempt so later passes skip re-entry.
+   */
+  sessionFixFingerprints?: Set<string>;
 }
 
 export interface GitHubOperations {
@@ -117,6 +124,9 @@ function initialState(
       fix: options.fix ?? false,
       live: options.live ?? false,
       ...(options.watch === true ? { watch: true } : {}),
+      ...(options.commitCursorOffset === undefined
+        ? {}
+        : { commitCursorOffset: options.commitCursorOffset }),
     },
     summary: { ...EMPTY_SUMMARY },
     retryCount: 0,
@@ -160,10 +170,16 @@ async function dedupe(
   );
   const fresh = all.filter((_, index) => existing[index] === null);
   const config = state.config;
-  if (fresh.length === 0 && config?.nextCursorOffset !== undefined) {
+  if (
+    fresh.length === 0 &&
+    config &&
+    (config.commitCursorOffset !== undefined || config.nextCursorOffset !== undefined)
+  ) {
     const cursorPath = state.pipelineConfig?.cursorPath;
     if (!cursorPath) throw new Error("dedupe requires pipelineConfig.cursorPath");
-    await writeCursor(cursorPath, { offset: config.nextCursorOffset });
+    await writeCursor(cursorPath, {
+      offset: resolveCommitCursorOffset(config, state.logPath),
+    });
   }
   const incidents = config?.fix ? all : fresh;
   state.incidents = incidents;
@@ -303,7 +319,9 @@ async function ticket(
     }
   }
   if (!ticketFailed && state.config) {
-    await writeCursor(config.cursorPath, { offset: Bun.file(state.logPath).size });
+    await writeCursor(config.cursorPath, {
+      offset: resolveCommitCursorOffset(state.config, state.logPath),
+    });
   }
   state.triage = triage;
   state.summary = { ...(state.summary ?? EMPTY_SUMMARY), issuesFiled };
@@ -584,9 +602,26 @@ export async function runAgentSdkPipeline(
         config.fixScope,
         config.testScope,
       );
-      const mechanical = (state.triage ?? []).filter(
+      let mechanical = (state.triage ?? []).filter(
         (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
       );
+      if (state.config.watch === true) {
+        const sessionProcessed = options.sessionFixFingerprints ?? new Set<string>();
+        const openIssues = await github.listOpenIssues();
+        const bodyByNumber = new Map(openIssues.map((issue) => [issue.number, issue.body]));
+        mechanical = mechanical.filter((item) => {
+          const fingerprint = item.incident.fingerprint.hash;
+          const issueNumber = item.ticket?.issueNumber;
+          const openIssueBody = issueNumber === undefined
+            ? undefined
+            : bodyByNumber.get(issueNumber);
+          return shouldEnterWatchFixLoop({
+            fingerprint,
+            sessionProcessed,
+            ...(openIssueBody === undefined ? {} : { openIssueBody }),
+          });
+        });
+      }
       if (
         mechanical.length > 1 &&
         (dependencies.fixer !== undefined || dependencies.testWriter !== undefined)
@@ -617,6 +652,7 @@ export async function runAgentSdkPipeline(
         const result = completed[index];
         const item = mechanical[index];
         if (!item || !result) continue;
+        options.sessionFixFingerprints?.add(item.incident.fingerprint.hash);
         if (result instanceof Error) {
           state.errors.push(`fix ${item.incident.fingerprint.hash}: ${result.message}`);
           continue;

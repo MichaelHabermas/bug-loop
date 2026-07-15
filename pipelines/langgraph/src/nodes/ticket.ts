@@ -1,5 +1,6 @@
 import {
   buildIssueInput,
+  resolveCommitCursorOffset,
   type IncidentTriage,
   type IssueInput,
   type IssueRef,
@@ -41,10 +42,13 @@ export async function ticketWithCreator(
   }
   const config = state.config;
   if (!ticketFailed && config) {
-    // Successful reproductions emit logs; commit at EOF so the next run sees only external traffic.
+    // One-shot commits at EOF (skip repro-emitted logs). Watch commits the
+    // debounced batch end so mid-pass service events are not skipped.
     const cursorPath = state.pipelineConfig?.cursorPath;
     if (!cursorPath) throw new Error("ticket requires pipelineConfig.cursorPath");
-    await writeCursor(cursorPath, { offset: Bun.file(state.logPath).size });
+    await writeCursor(cursorPath, {
+      offset: resolveCommitCursorOffset(config, state.logPath),
+    });
   }
   console.log(`[ticket] issues=${issuesFiled}`);
   return {

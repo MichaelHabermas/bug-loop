@@ -138,6 +138,26 @@ export function watchPassLabel(baseLabel: string | undefined, passNumber: number
   return baseLabel === undefined || baseLabel === "" ? `watch-pass${passNumber}` : `${baseLabel}${suffix}`;
 }
 
+/**
+ * Insert the watch pass suffix before the file extension so publisher
+ * `*.json` discovery still finds the file.
+ * Example: `traces/x.json` + pass 1 → `traces/x.pass1.json`.
+ */
+export function watchTraceOutputPath(basePath: string, passNumber: number): string {
+  if (!Number.isInteger(passNumber) || passNumber < 1) {
+    throw new Error("watch pass number must be a positive integer");
+  }
+  const suffix = `.pass${passNumber}`;
+  const slash = Math.max(basePath.lastIndexOf("/"), basePath.lastIndexOf("\\"));
+  const basename = slash === -1 ? basePath : basePath.slice(slash + 1);
+  const dir = slash === -1 ? "" : basePath.slice(0, slash + 1);
+  const dot = basename.lastIndexOf(".");
+  if (dot <= 0) {
+    return `${dir}${basename}${suffix}`;
+  }
+  return `${dir}${basename.slice(0, dot)}${suffix}${basename.slice(dot)}`;
+}
+
 export function definePipelineConfig(
   input: PipelineConfigInput,
   env: Record<string, string | undefined> = Bun.env,

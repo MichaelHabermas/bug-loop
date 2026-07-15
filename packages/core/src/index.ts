@@ -50,6 +50,7 @@ export {
   isPathInTestScope,
   resolveWatchSettings,
   watchPassLabel,
+  watchTraceOutputPath,
 } from "./config";
 export type {
   PipelineConfig,
@@ -68,6 +69,11 @@ export type {
   WatchRunnerOptions,
   WatchRunnerResult,
 } from "./watch";
+
+export {
+  issueLooksFixResolved,
+  shouldEnterWatchFixLoop,
+} from "./watch-fix";
 
 export {
   TraceRecorder,
@@ -108,7 +114,7 @@ export {
 export { readNewEvents, follow } from "./logtail";
 export type { Cursor, ReadResult } from "./logtail";
 
-export { readCursor, writeCursor } from "./cursor";
+export { readCursor, writeCursor, resolveCommitCursorOffset } from "./cursor";
 
 export { runProcess, requireSuccess } from "./process";
 export type { ProcessOptions, ProcessResult, ProcessRunner } from "./process";

@@ -163,6 +163,50 @@ describe("parseRunTrace", () => {
     });
   });
 
+  test("retains watchSessionId, watchPass, and mode.watch from v2 traces", () => {
+    const raw = minimalV2Trace();
+    const resolved = raw["resolved"] as Record<string, unknown>;
+    const mode = resolved["mode"] as Record<string, unknown>;
+    resolved["mode"] = { ...mode, watch: true };
+    raw["workload"] = {
+      ...(raw["workload"] as Record<string, unknown>),
+      watchSessionId: "session-abc",
+      watchPass: 3,
+    };
+    const trace = parseRunTrace(raw);
+    expect(trace.schemaVersion).toBe(2);
+    if (trace.schemaVersion !== 2) throw new Error("expected v2");
+    expect(trace.workload.watchSessionId).toBe("session-abc");
+    expect(trace.workload.watchPass).toBe(3);
+    expect(trace.resolved.mode.watch).toBe(true);
+
+    // Safe projection used by publish must not drop watch fields.
+    const source = buildRunsDataSource([{
+      label: "watch-pass",
+      workloadKey: "k",
+      resolvedConfigKey: "r",
+      trace,
+    }]);
+    expect(source).toContain("session-abc");
+    expect(source).toContain('"watchPass": 3');
+    expect(source).toContain('"watch": true');
+  });
+
+  test("rejects invalid watchPass / mode.watch", () => {
+    const badPass = minimalV2Trace();
+    badPass["workload"] = {
+      ...(badPass["workload"] as Record<string, unknown>),
+      watchPass: 0,
+    };
+    expect(() => parseRunTrace(badPass)).toThrow(/watchPass must be a positive integer/);
+
+    const badWatch = minimalV2Trace();
+    const resolved = badWatch["resolved"] as Record<string, unknown>;
+    const mode = resolved["mode"] as Record<string, unknown>;
+    resolved["mode"] = { ...mode, watch: "yes" };
+    expect(() => parseRunTrace(badWatch)).toThrow(/mode.watch must be boolean/);
+  });
+
   test("rejects malformed v2 usage and fallback metadata", () => {
     const missingTokens = minimalV2Trace();
     const calls = missingTokens["agentCalls"] as Array<Record<string, unknown>>;

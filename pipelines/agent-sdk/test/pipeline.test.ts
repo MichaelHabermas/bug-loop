@@ -321,3 +321,283 @@ test("records a failed stage before finalizing the trace", async () => {
   ]);
   expect(trace.events[2]?.detail).toEqual({ error: "lookup failed" });
 });
+
+test("watch mode commits cursor to batch end so mid-pass events are seen next pass", async () => {
+  const logPath = join(TMP, "watch-cursor.jsonl");
+  const cursorPath = join(TMP, "watch-cursor-offset.json");
+  const firstEvent = {
+    ts: "2026-07-15T12:00:00.000Z",
+    level: "error" as const,
+    msg: "batch event",
+    route: "POST /orders",
+    err: {
+      name: "TypeError",
+      message: "undefined customer",
+      stack: "TypeError: undefined customer\n    at handleCreate (src/server.ts:10:1)",
+    },
+  };
+  await Bun.write(logPath, `${JSON.stringify(firstEvent)}\n`);
+  const batchEndOffset = Bun.file(logPath).size;
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath,
+  });
+
+  const github: GitHubOperations = {
+    async listOpenIssues() {
+      return [];
+    },
+    async createIssue() {
+      // Mid-pass: service appends another event after ingest (simulating race window).
+      const mid = {
+        ...firstEvent,
+        ts: "2026-07-15T12:00:01.000Z",
+        msg: "mid-pass event",
+        err: {
+          name: "RangeError",
+          message: "invalid since",
+          stack: "RangeError: invalid since\n    at listOrders (src/server.ts:20:1)",
+        },
+      };
+      await Bun.write(logPath, `${await Bun.file(logPath).text()}${JSON.stringify(mid)}\n`);
+      return { number: 1, url: "https://example.test/issues/1" };
+    },
+    async readIssue() {
+      return null;
+    },
+    async commentIssue() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("unused");
+    },
+  };
+
+  const reproStrategy = {
+    derive() {
+      return {
+        command: "curl",
+        async reproduce() {
+          return { reproduced: true, evidence: "HTTP 500" };
+        },
+        async verify() {
+          return { passes: true, detail: "ok" };
+        },
+      };
+    },
+  } satisfies ReproStrategy;
+
+  const routingPolicy: RoutingPolicy = {
+    authorizedClasses: [],
+    evaluate: () => ({ kind: "deny", reason: "ticket only" }),
+  };
+
+  const pass1 = await runAgentSdkPipeline(config, {
+    fromStart: false,
+    fix: false,
+    live: false,
+    watch: true,
+    commitCursorOffset: batchEndOffset,
+    watchSessionId: "sess-cursor",
+    watchPass: 1,
+    tracePath: join(TMP, "pass1.json"),
+  }, { github, reproStrategy, routingPolicy, repoRoot: TMP });
+
+  expect(pass1.summary.eventsRead).toBe(1);
+  const cursorAfter = await Bun.file(cursorPath).json() as { offset: number };
+  expect(cursorAfter.offset).toBe(batchEndOffset);
+  expect(Bun.file(logPath).size).toBeGreaterThan(batchEndOffset);
+
+  const pass2 = await runAgentSdkPipeline(config, {
+    fromStart: false,
+    fix: false,
+    live: false,
+    watch: true,
+    commitCursorOffset: Bun.file(logPath).size,
+    watchSessionId: "sess-cursor",
+    watchPass: 2,
+    tracePath: join(TMP, "pass2.json"),
+  }, { github, reproStrategy, routingPolicy, repoRoot: TMP });
+
+  expect(pass2.summary.eventsRead).toBe(1);
+  expect(pass2.summary.incidents).toBe(1);
+});
+
+test("watch --fix: same fingerprint routes/tickets twice but fix loop only once per session", async () => {
+  const logPath = join(TMP, "watch-fix.jsonl");
+  const cursorPath = join(TMP, "watch-fix-cursor.json");
+  const event = {
+    ts: "2026-07-15T12:00:00.000Z",
+    level: "error" as const,
+    msg: "handler error",
+    route: "POST /orders",
+    err: {
+      name: "TypeError",
+      message: "undefined customer",
+      stack: "TypeError: undefined customer\n    at handleCreate (src/server.ts:10:1)",
+    },
+  };
+  await Bun.write(logPath, `${JSON.stringify(event)}\n`);
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath,
+  });
+
+  const sessionFixFingerprints = new Set<string>();
+  const fixCalls: number[] = [];
+  const openIssues: Array<{ number: number; url: string; body: string }> = [];
+
+  const github: GitHubOperations = {
+    async listOpenIssues() {
+      return openIssues.map((issue) => ({ ...issue }));
+    },
+    async createIssue(input) {
+      const number = openIssues.length + 1;
+      const issue = { number, url: `https://example.test/issues/${number}`, body: input.body };
+      openIssues.push(issue);
+      return { number, url: issue.url };
+    },
+    async readIssue() {
+      return null;
+    },
+    async commentIssue(number, body) {
+      const issue = openIssues.find((item) => item.number === number);
+      if (issue) issue.body = `${issue.body}\n${body}`;
+    },
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      return { number: 9, url: "https://example.test/pull/9" };
+    },
+  };
+
+  const worktrees: WorktreeOperations = {
+    async create(input) {
+      return { worktreeDir: join(TMP, input.fingerprint8), branch: input.branch, baseCommit: "base" };
+    },
+    async commit() {
+      return { commit: "c1" };
+    },
+    async push() {},
+    async remove() {},
+    async reset() {},
+    async verifyProvenance() {
+      return {
+        passes: true,
+        changedPaths: ["apps/leaky-service/src/server.ts"],
+        outOfScopePaths: [],
+        unexpectedCommits: [],
+        detail: "ok",
+      };
+    },
+  };
+
+  const redPending = new Set<string>();
+  const verifier: VerifyRunner = {
+    async verifyRepro() {
+      return { passes: true, detail: "signature absent" };
+    },
+    async runTests() {
+      return { passes: true, detail: "green" };
+    },
+    async runTestFiles(_worktreeDir, files) {
+      const file = files[0] ?? "";
+      if (redPending.delete(file)) {
+        return { passes: false, detail: "expected non-5xx, received 500" };
+      }
+      return { passes: true, detail: "green" };
+    },
+    async runTypecheck() {
+      return { passes: true, detail: "clean" };
+    },
+  };
+
+  const triageAgent = new FakeTriageAgent(async () => ({
+    kind: "authorized",
+    incidentClass: "leaky-service.missing-customer",
+    reason: "mapped",
+    fixBrief: "fix missing customer",
+  }));
+  const routingPolicy: RoutingPolicy = {
+    authorizedClasses: ["leaky-service.missing-customer"],
+    evaluate: () => ({ kind: "unknown", reason: "agent" }),
+  };
+  const reproStrategy = {
+    derive() {
+      return {
+        command: "curl",
+        async reproduce() {
+          return { reproduced: true, evidence: "HTTP 500" };
+        },
+        async verify() {
+          return { passes: true, detail: "ok" };
+        },
+      };
+    },
+  } satisfies ReproStrategy;
+
+  const deps = {
+    triageAgent,
+    createFixer: () => new FakeFixer(async () => {
+      fixCalls.push(1);
+      return {
+        description: "patch",
+        filesChanged: ["apps/leaky-service/src/server.ts"],
+      };
+    }),
+    createTestWriter: () => new FakeTestWriter(async ({ incident }) => {
+      const path = `apps/leaky-service/test/${incident.fingerprint.hash.slice(0, 8)}.test.ts`;
+      redPending.add(path);
+      return { description: "test", filesChanged: [path] };
+    }),
+    verifier,
+    worktrees,
+    github,
+    reproStrategy,
+    routingPolicy,
+    repoRoot: TMP,
+  };
+
+  const pass1 = await runAgentSdkPipeline(config, {
+    fromStart: true,
+    fix: true,
+    live: false,
+    watch: true,
+    sessionFixFingerprints,
+    watchSessionId: "sess-fix",
+    watchPass: 1,
+    tracePath: join(TMP, "fix-pass1.json"),
+  }, deps);
+
+  expect(pass1.summary.issuesFiled).toBe(1);
+  expect(fixCalls).toHaveLength(1);
+  expect(sessionFixFingerprints.size).toBe(1);
+
+  // Same fingerprint reappears (reset cursor) while issue stays open.
+  await Bun.write(cursorPath, `${JSON.stringify({ offset: 0 }, null, 2)}\n`);
+
+  const pass2 = await runAgentSdkPipeline(config, {
+    fromStart: false,
+    fix: true,
+    live: false,
+    watch: true,
+    sessionFixFingerprints,
+    watchSessionId: "sess-fix",
+    watchPass: 2,
+    tracePath: join(TMP, "fix-pass2.json"),
+  }, deps);
+
+  // Second pass still routes/tickets existing open issue...
+  expect(pass2.summary.incidents).toBe(1);
+  expect(pass2.summary.newIncidents).toBe(0);
+  // ...but does not re-enter the fix loop.
+  expect(fixCalls).toHaveLength(1);
+  const trace2 = await Bun.file(join(TMP, "fix-pass2.json")).json() as RunTrace;
+  expect(trace2.events.filter((event) => event.stage === "fix")).toHaveLength(0);
+  expect(trace2.events.some((event) => event.stage === "route")).toBe(true);
+  expect(trace2.events.some((event) => event.stage === "ticket")).toBe(true);
+});

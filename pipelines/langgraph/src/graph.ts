@@ -8,6 +8,7 @@ import {
   createResolvedFixer,
   runIncidentWorkers,
   resolvePipelineRuntime,
+  shouldEnterWatchFixLoop,
   type FixAttempt,
   type Fixer,
   type TestWriter,
@@ -101,6 +102,9 @@ export function createInitialState(
       fix: options.fix ?? false,
       live: options.live ?? false,
       ...(options.watch === true ? { watch: true } : {}),
+      ...(options.commitCursorOffset === undefined
+        ? {}
+        : { commitCursorOffset: options.commitCursorOffset }),
     },
     retryCount: 0,
     errors: [],
@@ -128,6 +132,11 @@ export interface GraphOptions {
   recorder?: TraceRecorder;
   resolved?: ResolvedPipeline;
   repoRoot?: string;
+  /**
+   * Fingerprints that already entered the fix loop this watch session.
+   * Mutated after each fix attempt so later passes skip re-entry.
+   */
+  sessionFixFingerprints?: Set<string>;
 }
 
 export function routeAfterTicket(
@@ -258,9 +267,26 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     }),
   );
   const workers = async (state: TriageState): Promise<Partial<TriageState>> => {
-    const mechanical = (state.triage ?? []).filter(
+    let mechanical = (state.triage ?? []).filter(
       (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
     );
+    if (state.config?.watch === true) {
+      const sessionProcessed = options.sessionFixFingerprints ?? new Set<string>();
+      const openIssues = await github.listOpenIssues();
+      const bodyByNumber = new Map(openIssues.map((issue) => [issue.number, issue.body]));
+      mechanical = mechanical.filter((item) => {
+        const fingerprint = item.incident.fingerprint.hash;
+        const issueNumber = item.ticket?.issueNumber;
+        const openIssueBody = issueNumber === undefined
+          ? undefined
+          : bodyByNumber.get(issueNumber);
+        return shouldEnterWatchFixLoop({
+          fingerprint,
+          sessionProcessed,
+          ...(openIssueBody === undefined ? {} : { openIssueBody }),
+        });
+      });
+    }
     if (
       mechanical.length > 1 &&
       (options.fixer !== undefined || options.testWriter !== undefined)
@@ -296,6 +322,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
       const result = completed[index];
       const item = mechanical[index];
       if (!item || !result) continue;
+      options.sessionFixFingerprints?.add(item.incident.fingerprint.hash);
       if (result instanceof Error) {
         errors.push(`fix ${item.incident.fingerprint.hash}: ${result.message}`);
         continue;

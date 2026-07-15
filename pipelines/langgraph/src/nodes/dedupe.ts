@@ -1,6 +1,7 @@
 import {
   groupIncidents,
   findOpenIssueByMarker,
+  resolveCommitCursorOffset,
   type Incident,
   type IssueRef,
   type LogEvent,
@@ -28,10 +29,16 @@ export async function dedupeWithLookup(
 ): Promise<Partial<TriageState>> {
   const result = await dedupeEvents(state.actionableEvents ?? [], openIssues);
   const config = state.config;
-  if (result.fresh.length === 0 && config?.nextCursorOffset !== undefined) {
+  if (
+    result.fresh.length === 0 &&
+    config &&
+    (config.commitCursorOffset !== undefined || config.nextCursorOffset !== undefined)
+  ) {
     const cursorPath = state.pipelineConfig?.cursorPath;
     if (!cursorPath) throw new Error("dedupe requires pipelineConfig.cursorPath");
-    await writeCursor(cursorPath, { offset: config.nextCursorOffset });
+    await writeCursor(cursorPath, {
+      offset: resolveCommitCursorOffset(config, state.logPath),
+    });
   }
   console.log(`[dedupe] incidents=${result.all.length} new=${result.fresh.length}`);
   const incidents = config?.fix ? result.all : result.fresh;

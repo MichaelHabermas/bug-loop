@@ -261,6 +261,9 @@ function parseResolved(value: unknown): ResolvedPipeline {
   for (const key of ["fix", "live", "fromStart"] as const) {
     if (typeof mode[key] !== "boolean") throw new Error(`resolved.mode.${key} must be boolean`);
   }
+  if (mode["watch"] !== undefined && typeof mode["watch"] !== "boolean") {
+    throw new Error("resolved.mode.watch must be boolean when present");
+  }
   return {
     pipeline: value["pipeline"] as PipelineKind,
     triage: parseResolvedAgent(value["triage"], "resolved.triage"),
@@ -273,6 +276,7 @@ function parseResolved(value: unknown): ResolvedPipeline {
       fix: mode["fix"] as boolean,
       live: mode["live"] as boolean,
       fromStart: mode["fromStart"] as boolean,
+      ...(mode["watch"] === true ? { watch: true } : {}),
     },
   };
 }
@@ -285,11 +289,23 @@ function parseWorkload(value: unknown): TraceWorkload {
   for (const key of ["seed", "caseCount"] as const) {
     if (!nonNegative(value[key])) throw new Error(`workload.${key} must be non-negative`);
   }
+  if (value["watchSessionId"] !== undefined && typeof value["watchSessionId"] !== "string") {
+    throw new Error("workload.watchSessionId must be a string when present");
+  }
+  if (value["watchPass"] !== undefined) {
+    if (!Number.isInteger(value["watchPass"]) || (value["watchPass"] as number) < 1) {
+      throw new Error("workload.watchPass must be a positive integer when present");
+    }
+  }
   return {
     benchmarkId: value["benchmarkId"] as string,
     seed: value["seed"] as number,
     caseCount: value["caseCount"] as number,
     codeRevision: value["codeRevision"] as string,
+    ...(typeof value["watchSessionId"] === "string"
+      ? { watchSessionId: value["watchSessionId"] }
+      : {}),
+    ...(Number.isInteger(value["watchPass"]) ? { watchPass: value["watchPass"] as number } : {}),
   };
 }
 
@@ -523,6 +539,8 @@ export function resolvedConfigKey(trace: PublishedTrace): string {
     value.effectiveModel ?? "unknown",
     value.effort ?? "none",
   ].join(":");
+  const modeWatch =
+    "watch" in resolved.mode && resolved.mode.watch === true ? "watch" : "one-shot";
   return [
     resolved.pipeline,
     agent(resolved.triage),
@@ -531,7 +549,7 @@ export function resolvedConfigKey(trace: PublishedTrace): string {
     resolved.regressionTests,
     String(resolved.maxFixAttempts),
     String(resolved.incidentConcurrency),
-    `${resolved.mode.fix}:${resolved.mode.live}:${resolved.mode.fromStart}`,
+    `${resolved.mode.fix}:${resolved.mode.live}:${resolved.mode.fromStart}:${modeWatch}`,
   ].join("|");
 }
 
