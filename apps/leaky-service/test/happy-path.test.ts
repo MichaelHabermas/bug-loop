@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
 import { join } from "node:path";
-import { rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resetStore } from "../src/store";
 
 const BASE = "http://leaky-service.test";
@@ -11,6 +11,8 @@ let handleRequest: (
   request: Request,
   dependencies?: { shippingProvider?: (orderId: string) => Promise<{ trackingNumber: string }> },
 ) => Promise<Response>;
+let canonicalizeRoute: (method: string, pathname: string) => string;
+let matchedRoutePattern: (method: string, pathname: string) => string | undefined;
 
 function appFetch(path: string, init?: RequestInit): Promise<Response> {
   return handleRequest(new Request(`${BASE}${path}`, init), {
@@ -18,10 +20,21 @@ function appFetch(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
+function readErrorRoutes(): string[] {
+  if (!existsSync(LOG_PATH)) return [];
+  return readFileSync(LOG_PATH, "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { level?: string; msg?: string; route?: string })
+    .filter((e) => e.level === "error" && e.msg === "handler error")
+    .map((e) => e.route ?? "");
+}
+
 beforeAll(async () => {
   rmSync(join(import.meta.dir, ".tmp-test-logs"), { recursive: true, force: true });
   process.env["LOG_PATH"] = LOG_PATH;
-  ({ handleRequest } = await import("../src/server"));
+  ({ handleRequest, canonicalizeRoute, matchedRoutePattern } = await import("../src/server"));
 });
 
 beforeEach(() => {
@@ -162,6 +175,34 @@ describe("leaky-service happy path", () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as { id: string };
     expect(body.id).toMatch(/^ord_/);
+  });
+
+  test("POST /orders/import error logs carry route POST /orders/import (not :id)", async () => {
+    // Repro: malformed body → 500; fingerprint/policy need the literal import route.
+    const before = readErrorRoutes().length;
+    const res = await appFetch("/orders/import", {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: "{not-json",
+    });
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    const errorRoutes = readErrorRoutes().slice(before);
+    expect(errorRoutes.length).toBeGreaterThanOrEqual(1);
+    expect(errorRoutes[errorRoutes.length - 1]).toBe("POST /orders/import");
+    expect(errorRoutes).not.toContain("POST /orders/:id");
+  });
+
+  test("canonicalizeRoute keeps literal paths; only true params become :id", () => {
+    expect(canonicalizeRoute("POST", "/orders/import")).toBe("POST /orders/import");
+    expect(canonicalizeRoute("GET", "/stats/orders")).toBe("GET /stats/orders");
+    expect(canonicalizeRoute("GET", "/orders")).toBe("GET /orders");
+    expect(canonicalizeRoute("POST", "/orders")).toBe("POST /orders");
+    expect(canonicalizeRoute("GET", "/orders/ord_abc")).toBe("GET /orders/:id");
+    expect(canonicalizeRoute("POST", "/orders/ord_abc/ship")).toBe("POST /orders/:id/ship");
+    // Collision guard: import is never treated as an order id.
+    expect(matchedRoutePattern("POST", "/orders/import")).toBe("POST /orders/import");
+    expect(matchedRoutePattern("GET", "/orders/ord_abc")).toBe("GET /orders/:id");
+    expect(matchedRoutePattern("GET", "/stats/orders")).toBe("GET /stats/orders");
   });
 
   test("GET /orders/:id/receipt returns receipt for existing order", async () => {

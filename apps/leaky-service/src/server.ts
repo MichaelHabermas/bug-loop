@@ -356,14 +356,83 @@ async function handleTax(id: string, orderId: string): Promise<Response> {
   return json({ orderId: order.id, region, rate, taxCents });
 }
 
+/**
+ * Paths that are literal routes (not `:id` params). Must be checked before
+ * collapsing `/orders/<segment>` → `/orders/:id`, otherwise fixed segments
+ * like `import` would be mis-fingerprinted as order ids.
+ */
+const LITERAL_PATHS = new Set([
+  "/orders",
+  "/orders/import",
+  "/stats/orders",
+  "/health",
+]);
+
+/**
+ * Param route patterns in match order (most specific first). Each entry's
+ * `pathPattern` is the fingerprint/policy route path (without method).
+ */
+const PARAM_ROUTE_PATTERNS: Array<{ re: RegExp; pathPattern: string }> = [
+  { re: /^\/orders\/[^/]+\/ship$/, pathPattern: "/orders/:id/ship" },
+  { re: /^\/orders\/[^/]+\/cancel$/, pathPattern: "/orders/:id/cancel" },
+  { re: /^\/orders\/[^/]+\/refund$/, pathPattern: "/orders/:id/refund" },
+  { re: /^\/orders\/[^/]+\/items$/, pathPattern: "/orders/:id/items" },
+  { re: /^\/orders\/[^/]+\/receipt$/, pathPattern: "/orders/:id/receipt" },
+  { re: /^\/orders\/[^/]+\/tax$/, pathPattern: "/orders/:id/tax" },
+  { re: /^\/orders\/[^/]+$/, pathPattern: "/orders/:id" },
+];
+
+/**
+ * Route pattern for the handler that would serve this request, if any.
+ * Literal segments (e.g. `import`) stay literal; only true param segments
+ * become `:id`. Used for error logging so fingerprints match policy classes.
+ */
+export function matchedRoutePattern(method: string, pathname: string): string | undefined {
+  if (method === "POST" && pathname === "/orders") return "POST /orders";
+  if (method === "POST" && pathname === "/orders/import") return "POST /orders/import";
+  if (method === "GET" && pathname === "/orders") return "GET /orders";
+  if (method === "GET" && pathname === "/stats/orders") return "GET /stats/orders";
+  if (method === "GET" && pathname === "/health") return "GET /health";
+
+  // Param routes: only when the path is not a known literal (guards collisions
+  // like POST /orders/import vs GET /orders/:id shapes).
+  if (LITERAL_PATHS.has(pathname)) return undefined;
+
+  for (const { re, pathPattern } of PARAM_ROUTE_PATTERNS) {
+    if (!re.test(pathname)) continue;
+    if (method === "GET" && (
+      pathPattern === "/orders/:id" ||
+      pathPattern === "/orders/:id/items" ||
+      pathPattern === "/orders/:id/receipt" ||
+      pathPattern === "/orders/:id/tax"
+    )) {
+      return `GET ${pathPattern}`;
+    }
+    if (method === "POST" && (
+      pathPattern === "/orders/:id/ship" ||
+      pathPattern === "/orders/:id/cancel" ||
+      pathPattern === "/orders/:id/refund"
+    )) {
+      return `POST ${pathPattern}`;
+    }
+  }
+  return undefined;
+}
+
 async function routeRequest(
   req: Request,
   id: string,
   shippingProvider: ShippingProvider,
+  matched: { pattern?: string },
 ): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
   const method = req.method;
+
+  // Set pattern before invoking the handler so catch-path error logs use the
+  // matched route even when the handler throws.
+  const pattern = matchedRoutePattern(method, path);
+  if (pattern !== undefined) matched.pattern = pattern;
 
   if (method === "POST" && path === "/orders") {
     return handleCreate(req, id);
@@ -433,13 +502,16 @@ export async function handleRequest(
   dependencies: HandleRequestDependencies = {},
 ): Promise<Response> {
   const id = reqId();
+  const matched: { pattern?: string } = {};
   try {
     const shippingProvider = dependencies.shippingProvider ?? ((orderId) =>
       callShippingProvider(orderId, { timeoutMs: 15, latencyMs: 80 }));
-    return await routeRequest(req, id, shippingProvider);
+    return await routeRequest(req, id, shippingProvider, matched);
   } catch (err) {
     const url = new URL(req.url);
-    const route = canonicalizeRoute(req.method, url.pathname);
+    // Prefer the pattern of the handler that actually matched; fall back to
+    // path canonicalization for anything unmatched / unexpected.
+    const route = matched.pattern ?? canonicalizeRoute(req.method, url.pathname);
     logError("handler error", {
       reqId: id,
       route,
@@ -450,23 +522,16 @@ export async function handleRequest(
   }
 }
 
-/** Collapse concrete order ids so fingerprints and policy stay stable. */
+/**
+ * Collapse concrete order ids so fingerprints and policy stay stable.
+ * Literal routes (import, stats, …) are never rewritten to `:id`.
+ */
 export function canonicalizeRoute(method: string, pathname: string): string {
-  if (pathname === "/orders" || pathname === "/orders/import" || pathname === "/stats/orders" ||
-    pathname === "/health") {
+  if (LITERAL_PATHS.has(pathname)) {
     return `${method} ${pathname}`;
   }
-  const patterns: Array<[RegExp, string]> = [
-    [/^\/orders\/[^/]+\/ship$/, "/orders/:id/ship"],
-    [/^\/orders\/[^/]+\/cancel$/, "/orders/:id/cancel"],
-    [/^\/orders\/[^/]+\/refund$/, "/orders/:id/refund"],
-    [/^\/orders\/[^/]+\/items$/, "/orders/:id/items"],
-    [/^\/orders\/[^/]+\/receipt$/, "/orders/:id/receipt"],
-    [/^\/orders\/[^/]+\/tax$/, "/orders/:id/tax"],
-    [/^\/orders\/[^/]+$/, "/orders/:id"],
-  ];
-  for (const [re, canonical] of patterns) {
-    if (re.test(pathname)) return `${method} ${canonical}`;
+  for (const { re, pathPattern } of PARAM_ROUTE_PATTERNS) {
+    if (re.test(pathname)) return `${method} ${pathPattern}`;
   }
   return `${method} ${pathname}`;
 }

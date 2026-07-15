@@ -10,7 +10,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { resetStore } from "../../apps/leaky-service/src/store";
 import { handleRequest } from "../../apps/leaky-service/src/server";
 
@@ -104,13 +104,21 @@ describeBench("seeded-bug repro fires (meta; not eligibility coverage)", () => {
     expect(res.status).toBeGreaterThanOrEqual(500);
   });
 
-  test("malformed-json: POST /orders/import with bad body → 500", async () => {
+  test("malformed-json: POST /orders/import with bad body → 500 and logs literal route", async () => {
     const res = await appFetch("/orders/import", {
       method: "POST",
       headers: { "content-type": "text/plain" },
       body: "{not-json",
     });
     expect(res.status).toBeGreaterThanOrEqual(500);
+    // Fingerprint/policy require the literal import route, not POST /orders/:id.
+    expect(existsSync(LOG_PATH)).toBe(true);
+    const lines = readFileSync(LOG_PATH, "utf8").trim().split("\n").filter(Boolean);
+    const lastError = [...lines]
+      .reverse()
+      .map((line) => JSON.parse(line) as { level?: string; msg?: string; route?: string })
+      .find((e) => e.level === "error" && e.msg === "handler error");
+    expect(lastError?.route).toBe("POST /orders/import");
   });
 
   test("missing-receipt: GET receipt for unknown id → 500", async () => {

@@ -7,9 +7,10 @@ import {
   LEAKY_SERVICE_SEEDED_CASE_COUNT,
   createLeakyServicePipelineConfig,
   leakyServiceRegressionTestStrategy,
+  leakyServiceReproStrategy,
   leakyServiceRoutingPolicy,
 } from "../src/bug-loop";
-import type { Incident } from "@bug-loop/core";
+import type { Incident, LogEvent } from "@bug-loop/core";
 
 function incident(
   route: string,
@@ -233,4 +234,33 @@ test("regression strategy declines unsupported shapes instead of inventing metad
     ),
     repro,
   })).toBeNull();
+});
+
+test("normalizeEvent preserves POST /orders/import (literal) and collapses true order ids", () => {
+  const importEvent: LogEvent = {
+    ts: "2026-07-14T00:00:00.000Z",
+    level: "error",
+    msg: "handler error",
+    route: "POST /orders/import",
+    err: { name: "SyntaxError", message: "JSON Parse error", stack: "at handleImport (src/server.ts)" },
+  };
+  expect(leakyServiceReproStrategy.normalizeEvent(importEvent).route).toBe("POST /orders/import");
+
+  const shipConcrete: LogEvent = {
+    ts: "2026-07-14T00:00:00.000Z",
+    level: "error",
+    msg: "handler error",
+    route: "POST /orders/ord_abc123/ship",
+    err: { name: "Error", message: "shipping provider timeout", stack: "at callShippingProvider" },
+  };
+  expect(leakyServiceReproStrategy.normalizeEvent(shipConcrete).route).toBe("POST /orders/:id/ship");
+
+  const getConcrete: LogEvent = {
+    ts: "2026-07-14T00:00:00.000Z",
+    level: "error",
+    msg: "handler error",
+    route: "GET /orders/ord_xyz",
+    err: { name: "TypeError", message: "x", stack: "at handleGet" },
+  };
+  expect(leakyServiceReproStrategy.normalizeEvent(getConcrete).route).toBe("GET /orders/:id");
 });

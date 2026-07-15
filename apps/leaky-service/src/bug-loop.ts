@@ -1033,8 +1033,26 @@ async function verify(input: VerifyReproInput): Promise<CheckResult> {
   }
 }
 
+/**
+ * Collapse concrete order ids in already-logged routes for stable fingerprints.
+ *
+ * Must NOT rewrite literal route segments (e.g. `POST /orders/import`) to
+ * `:id` — that breaks policy exact-match for authorized classes. Mirrors
+ * server.canonicalizeRoute / matchedRoutePattern: literals first, then params.
+ */
 function canonicalizeLoggedRoute(route: string | undefined): string | undefined {
   if (route === undefined) return undefined;
+  // Already-canonical or known-literal routes pass through unchanged.
+  if (
+    route.includes("/:id") ||
+    route === "POST /orders" ||
+    route === "GET /orders" ||
+    route === "POST /orders/import" ||
+    route === "GET /stats/orders" ||
+    route === "GET /health"
+  ) {
+    return route;
+  }
   return route
     .replace(/^POST \/orders\/[^/]+\/ship$/, "POST /orders/:id/ship")
     .replace(/^POST \/orders\/[^/]+\/cancel$/, "POST /orders/:id/cancel")
@@ -1042,8 +1060,10 @@ function canonicalizeLoggedRoute(route: string | undefined): string | undefined 
     .replace(/^GET \/orders\/[^/]+\/items$/, "GET /orders/:id/items")
     .replace(/^GET \/orders\/[^/]+\/receipt$/, "GET /orders/:id/receipt")
     .replace(/^GET \/orders\/[^/]+\/tax$/, "GET /orders/:id/tax")
-    .replace(/^GET \/orders\/[^/]+$/, "GET /orders/:id")
-    .replace(/^POST \/orders\/[^/]+$/, "POST /orders/:id");
+    // Negative lookbehind-ish via explicit exclusion: only collapse true ids,
+    // never the literal `import` segment (POST /orders/import).
+    .replace(/^GET \/orders\/(?!import$)[^/]+$/, "GET /orders/:id")
+    .replace(/^POST \/orders\/(?!import$)[^/]+$/, "POST /orders/:id");
 }
 
 export class LeakyServiceReproStrategy implements ReproStrategy {
