@@ -32,6 +32,7 @@ export interface PipelineConfig {
   regressionTests: RegressionTestPolicy;
   contractRegistry: ContractRegistryEntry[];
   invariantWarnPrefixes: string[];
+  incidentConcurrency: number;
   workload: PipelineWorkloadDefinition;
 }
 
@@ -39,12 +40,13 @@ export type RegressionTestPolicy = "always" | "triage-decides" | "never";
 
 export type PipelineConfigInput = Omit<
   PipelineConfig,
-  "branchPrefix" | "regressionTests" | "contractRegistry" | "workload"
+  "branchPrefix" | "regressionTests" | "contractRegistry" | "workload" | "incidentConcurrency"
 > & {
   branchPrefix?: string;
   regressionTests?: RegressionTestPolicy;
   contractRegistry?: ContractRegistryEntry[];
   workload?: PipelineWorkloadDefinition;
+  incidentConcurrency?: number;
 };
 
 function normalizePrefix(prefix: string): string {
@@ -66,6 +68,10 @@ export function definePipelineConfig(input: PipelineConfigInput): PipelineConfig
   if (!Number.isInteger(input.maxFixAttempts) || input.maxFixAttempts < 1) {
     throw new Error("maxFixAttempts must be a positive integer");
   }
+  const incidentConcurrency = input.incidentConcurrency ?? 1;
+  if (!Number.isInteger(incidentConcurrency) || incidentConcurrency < 1 || incidentConcurrency > 3) {
+    throw new Error("incidentConcurrency must be an integer between 1 and 3");
+  }
   const contractRegistry = input.contractRegistry ?? [];
   const contractIds = new Set<string>();
   for (const contract of contractRegistry) {
@@ -85,6 +91,7 @@ export function definePipelineConfig(input: PipelineConfigInput): PipelineConfig
     branchPrefix: input.branchPrefix ?? "bugloop/fix-",
     regressionTests: input.regressionTests ?? "triage-decides",
     contractRegistry: contractRegistry.map((contract) => ({ ...contract })),
+    incidentConcurrency,
     workload: input.workload === undefined
       ? { benchmarkId: "unknown", seed: 0, caseCount: 0 }
       : { ...input.workload },

@@ -16,6 +16,8 @@ export interface TraceEvent {
   seq: number;
   stage: string;
   fingerprint?: string;
+  correlationId?: string;
+  attemptId?: string;
   startedAt: string;
   durationMs: number;
   outcome: string;
@@ -83,6 +85,8 @@ export interface AgentCall {
   seq: number;
   stage: string;
   fingerprint?: string;
+  correlationId?: string;
+  attemptId?: string;
   harness: string;
   effectiveModel: string | null;
   effort: string | null;
@@ -119,6 +123,8 @@ export interface RecordAgentCallInput {
   stage: "triage" | "testWriter" | "fixer" | string;
   resolution: "triage" | "testWriter" | "fixer";
   fingerprint?: string;
+  correlationId?: string;
+  attemptId?: string;
   durationMs: number;
   outcome: string;
   cost?: CostSample;
@@ -132,6 +138,23 @@ export interface TraceEventHandle {
     detail?: Record<string, unknown>,
     cost?: CostSample,
   ): TraceEvent;
+}
+
+export interface TraceIdentity {
+  correlationId: string;
+  attemptId?: string;
+}
+
+export function createCorrelationId(runId: string, fingerprint: string): string {
+  return `${runId}:${fingerprint}`;
+}
+
+export function createAttemptId(
+  correlationId: string,
+  stage: string,
+  attempt: number,
+): string {
+  return `${correlationId}:${stage}:${attempt}`;
 }
 
 function cloneResolved(resolved: ResolvedPipeline): ResolvedPipeline {
@@ -193,7 +216,7 @@ export class TraceRecorder {
     this.startedAt = this.now().toISOString();
   }
 
-  start(stage: string, fingerprint?: string): TraceEventHandle {
+  start(stage: string, fingerprint?: string, identity?: TraceIdentity): TraceEventHandle {
     const started = this.now();
     let completed = false;
     return {
@@ -204,6 +227,8 @@ export class TraceRecorder {
           seq: this.events.length + 1,
           stage,
           ...(fingerprint === undefined ? {} : { fingerprint }),
+          ...(identity === undefined ? {} : { correlationId: identity.correlationId }),
+          ...(identity?.attemptId === undefined ? {} : { attemptId: identity.attemptId }),
           startedAt: started.toISOString(),
           durationMs: Math.max(0, this.now().getTime() - started.getTime()),
           outcome,
@@ -216,6 +241,8 @@ export class TraceRecorder {
             stage: "fixer",
             resolution: "fixer",
             ...(fingerprint === undefined ? {} : { fingerprint }),
+            ...(identity === undefined ? {} : { correlationId: identity.correlationId }),
+            ...(identity?.attemptId === undefined ? {} : { attemptId: identity.attemptId }),
             durationMs: event.durationMs,
             outcome,
             ...(cost === undefined ? {} : { cost }),
@@ -225,6 +252,8 @@ export class TraceRecorder {
             stage: "testWriter",
             resolution: "testWriter",
             ...(fingerprint === undefined ? {} : { fingerprint }),
+            ...(identity === undefined ? {} : { correlationId: identity.correlationId }),
+            ...(identity?.attemptId === undefined ? {} : { attemptId: identity.attemptId }),
             durationMs: event.durationMs,
             outcome,
             ...(cost === undefined ? {} : { cost }),
@@ -241,6 +270,8 @@ export class TraceRecorder {
       seq: this.agentCalls.length + 1,
       stage: input.stage,
       ...(input.fingerprint === undefined ? {} : { fingerprint: input.fingerprint }),
+      ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
+      ...(input.attemptId === undefined ? {} : { attemptId: input.attemptId }),
       harness: resolution.harness,
       effectiveModel: input.cost?.model ?? resolution.effectiveModel,
       effort: resolution.effort,

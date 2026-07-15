@@ -31,6 +31,7 @@ test("PipelineConfig applies defaults and normalizes path-like values", () => {
   expect(config.fixScope).toEqual(["services/api/src"]);
   expect(config.testScope).toEqual(["services/api/test"]);
   expect(config.regressionTests).toBe("triage-decides");
+  expect(config.incidentConcurrency).toBe(1);
   expect(isPathInFixScope("services/api/src/handler.ts", config.fixScope)).toBe(true);
   expect(isPathInFixScope("services/api/src-old/handler.ts", config.fixScope)).toBe(false);
 });
@@ -160,4 +161,14 @@ test("PipelineConfig rejects overlapping fix and test scopes", () => {
     fixScope: ["services/api"],
     testScope: ["services/api/test"],
   })).toThrow("fixScope and testScope must not overlap");
+});
+
+test("PipelineConfig bounds incident concurrency at three", () => {
+  expect(definePipelineConfig({ ...config, incidentConcurrency: 3 }).incidentConcurrency).toBe(3);
+  expect(() => definePipelineConfig({ ...config, incidentConcurrency: 0 })).toThrow(
+    "incidentConcurrency must be an integer between 1 and 3",
+  );
+  expect(() => definePipelineConfig({ ...config, incidentConcurrency: 4 })).toThrow(
+    "incidentConcurrency must be an integer between 1 and 3",
+  );
 });

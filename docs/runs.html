@@ -1383,5 +1383,27 @@
       if (!loadPublishedRuns()) loadDemo();
     })();
   </script>
+<script>
+  // Optional launcher back-link: a page that links here may pass ?hub=<relative path>;
+  // the link is remembered for the session and only relative targets are accepted.
+  (function () {
+    var hub = new URLSearchParams(window.location.search).get("hub");
+    try {
+      if (hub) sessionStorage.setItem("bugloop-hub-link", hub);
+      else hub = sessionStorage.getItem("bugloop-hub-link");
+    } catch (e) { return; }
+    if (!hub || hub.indexOf(":") !== -1 || hub.indexOf("//") === 0 || hub.indexOf("\\") !== -1) return;
+    var nav = document.querySelector('nav[aria-label="Dashboard pages"]');
+    if (!nav) return;
+    var sep = document.createElement("span");
+    sep.setAttribute("aria-hidden", "true");
+    sep.textContent = " | ";
+    nav.insertBefore(sep, nav.firstChild);
+    var link = document.createElement("a");
+    link.href = hub;
+    link.textContent = "Hub";
+    nav.insertBefore(link, nav.firstChild);
+  })();
+</script>
 </body>
 </html>

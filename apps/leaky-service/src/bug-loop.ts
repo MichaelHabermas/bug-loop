@@ -1,5 +1,5 @@
-import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import {
   definePipelineConfig,
   readNewEvents,
@@ -12,6 +12,10 @@ import {
   type ReproResult,
   type ReproStrategy,
   type ReproStrategyInput,
+  type RegressionFixturePlan,
+  type RegressionTestStrategy,
+  type RoutingPolicy,
+  type RoutingPolicyDecision,
   type VerifyReproInput,
 } from "@bug-loop/core";
 
@@ -20,6 +24,7 @@ export interface LeakyServiceConfigInput {
   baseUrl: string;
   fixer: PipelineConfig["fixer"];
   logPath?: string;
+  incidentConcurrency?: number;
 }
 
 export const LEAKY_SERVICE_CONTRACTS = [
@@ -36,6 +41,195 @@ export const LEAKY_SERVICE_CONTRACTS = [
     statement: "A valid ship-order request returns HTTP 200.",
   },
 ] as const;
+
+export const LEAKY_SERVICE_INCIDENT_CLASSES = {
+  missingCustomer: "leaky-service.missing-customer",
+  invalidSince: "leaky-service.invalid-since",
+  shippingTimeout: "leaky-service.shipping-timeout",
+} as const;
+
+type LeakyServiceIncidentClass = typeof LEAKY_SERVICE_INCIDENT_CLASSES[keyof typeof LEAKY_SERVICE_INCIDENT_CLASSES];
+
+const AUTHORIZED_CLASSES: readonly LeakyServiceIncidentClass[] = [
+  LEAKY_SERVICE_INCIDENT_CLASSES.missingCustomer,
+  LEAKY_SERVICE_INCIDENT_CLASSES.invalidSince,
+  LEAKY_SERVICE_INCIDENT_CLASSES.shippingTimeout,
+];
+
+function classifyIncident(incident: Incident): RoutingPolicyDecision {
+  const sample = incident.sampleEvents[0];
+  if (sample?.level === "warn") {
+    return {
+      kind: "deny",
+      reason: "Warning-level invariants require product-policy review, not a mechanical fix.",
+    };
+  }
+  const fingerprint = incident.fingerprint;
+  if (
+    fingerprint.route === "POST /orders" && fingerprint.errName === "TypeError" &&
+    fingerprint.topFrame.includes("handleCreate")
+  ) {
+    return {
+      kind: "authorized",
+      incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.missingCustomer,
+      reason: "The missing-customer crash matches the application-owned create-order contract.",
+    };
+  }
+  if (
+    fingerprint.route === "GET /orders" && fingerprint.errName === "RangeError" &&
+    fingerprint.topFrame.includes("handleList")
+  ) {
+    return {
+      kind: "authorized",
+      incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.invalidSince,
+      reason: "The invalid-since crash matches the application-owned list-orders contract.",
+    };
+  }
+  if (
+    fingerprint.route === "POST /orders/:id/ship" && fingerprint.errName === "Error" &&
+    (fingerprint.topFrame.includes("callShippingProvider") ||
+      sample?.err?.message.startsWith("shipping provider timeout") === true)
+  ) {
+    return {
+      kind: "authorized",
+      incidentClass: LEAKY_SERVICE_INCIDENT_CLASSES.shippingTimeout,
+      reason: "The provider-timeout crash matches the application-owned ship-order contract.",
+    };
+  }
+  return { kind: "unknown", reason: "The incident does not match a known crash contract." };
+}
+
+export const leakyServiceRoutingPolicy: RoutingPolicy = {
+  authorizedClasses: AUTHORIZED_CLASSES,
+  evaluate: ({ incident }) => classifyIncident(incident),
+};
+
+interface FixtureManifestEntry {
+  fixtureId: string;
+  contractSource: string;
+  matches(incident: Incident): boolean;
+  source(incident: Incident, reproCommand: string): string;
+}
+
+function fixtureHeader(reproCommand: string, signature: string): string {
+  return [
+    'import { expect, test } from "bun:test";',
+    'import { handleRequest } from "../src/server";',
+    "",
+    `const reproRequest = ${JSON.stringify(reproCommand)};`,
+    `const failureSignature = ${JSON.stringify(signature)};`,
+    "void reproRequest;",
+    "void failureSignature;",
+    "",
+  ].join("\n");
+}
+
+const REGRESSION_FIXTURE_MANIFEST: Record<LeakyServiceIncidentClass, FixtureManifestEntry> = {
+  [LEAKY_SERVICE_INCIDENT_CLASSES.missingCustomer]: {
+    fixtureId: "leaky-service.missing-customer.v1",
+    contractSource: "leaky-service.valid-create.status-201",
+    matches: (incident) => incident.fingerprint.route === "POST /orders" &&
+      incident.fingerprint.errName === "TypeError" &&
+      incident.fingerprint.topFrame.includes("handleCreate"),
+    source: (incident, command) => `${fixtureHeader(command, incident.fingerprint.errName)}test("missing customer never crashes the create route", async () => {
+  const response = await handleRequest(new Request("http://leaky-service.test/orders", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ items: [{ sku: "REPRO-CUSTOMER", qty: 1, priceCents: 100 }] }),
+  }));
+  expect(response.status).toBeLessThan(500);
+});
+`,
+  },
+  [LEAKY_SERVICE_INCIDENT_CLASSES.invalidSince]: {
+    fixtureId: "leaky-service.invalid-since.v1",
+    contractSource: "leaky-service.valid-list.status-200",
+    matches: (incident) => incident.fingerprint.route === "GET /orders" &&
+      incident.fingerprint.errName === "RangeError" &&
+      incident.fingerprint.topFrame.includes("handleList"),
+    source: (incident, command) => `${fixtureHeader(command, incident.fingerprint.errName)}test("invalid since never crashes the list route", async () => {
+  const response = await handleRequest(new Request("http://leaky-service.test/orders?since=last-week"));
+  expect(response.status).toBeLessThan(500);
+});
+`,
+  },
+  [LEAKY_SERVICE_INCIDENT_CLASSES.shippingTimeout]: {
+    fixtureId: "leaky-service.shipping-timeout.v1",
+    contractSource: "leaky-service.valid-ship.status-200",
+    matches: (incident) => incident.fingerprint.route === "POST /orders/:id/ship" &&
+      incident.fingerprint.errName === "Error",
+    source: (incident, command) => `${fixtureHeader(command, incident.fingerprint.errName)}test("provider rejection is handled by the ship route", async () => {
+  const create = await handleRequest(new Request("http://leaky-service.test/orders", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      customer: { id: "fixture", name: "Fixture" },
+      items: [{ sku: "REPRO-SHIP", qty: 1, priceCents: 100 }],
+    }),
+  }));
+  const body = await create.json() as { id: string };
+  const response = await handleRequest(
+    new Request(\`http://leaky-service.test/orders/\${body.id}/ship\`, { method: "POST" }),
+    { shippingProvider: async () => { throw new Error("provider timeout"); } },
+  );
+  expect(response.status).toBeLessThan(500);
+});
+`,
+  },
+};
+
+function fixturePlan(
+  incidentClass: LeakyServiceIncidentClass,
+  incident: Incident,
+  reproCommand: string,
+): RegressionFixturePlan | null {
+  const entry = REGRESSION_FIXTURE_MANIFEST[incidentClass];
+  if (!entry.matches(incident)) return null;
+  const relativePath = `apps/leaky-service/test/bug-loop-${incidentClass.replace("leaky-service.", "")}-${incident.fingerprint.hash}.test.ts`;
+  return {
+    metadata: {
+      fixtureId: entry.fixtureId,
+      incidentClass,
+      contractSources: [entry.contractSource],
+    },
+    spec: {
+      warranted: true,
+      reason: `Application manifest fixture ${entry.fixtureId}`,
+      mustPin: [
+        {
+          claim: `the ${incident.fingerprint.errName} failure signature is absent`,
+          class: "signature-absence",
+        },
+        {
+          claim: "the response stays outside the 5xx status-code class",
+          class: "status-class",
+        },
+      ],
+      mustNotPin: ["exact response message text", "timestamps", "generated IDs"],
+      suggestedLocation: relativePath,
+    },
+    async write(worktreeDir) {
+      const path = join(worktreeDir, relativePath);
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, entry.source(incident, reproCommand), "utf8");
+      return {
+        description: `Generated ${entry.fixtureId} from the application manifest.`,
+        filesChanged: [relativePath],
+      };
+    },
+  };
+}
+
+export const leakyServiceRegressionTestStrategy: RegressionTestStrategy = {
+  prepare(input) {
+    if (!AUTHORIZED_CLASSES.includes(input.incidentClass as LeakyServiceIncidentClass)) return null;
+    return fixturePlan(
+      input.incidentClass as LeakyServiceIncidentClass,
+      input.incident,
+      input.repro.command,
+    );
+  },
+};
 
 export function createLeakyServicePipelineConfig(
   input: LeakyServiceConfigInput,
@@ -54,6 +248,9 @@ export function createLeakyServicePipelineConfig(
     testScope: ["apps/leaky-service/test"],
     worktreeRoot: ".worktrees",
     maxFixAttempts: 2,
+    ...(input.incidentConcurrency === undefined
+      ? {}
+      : { incidentConcurrency: input.incidentConcurrency }),
     fixer: input.fixer,
     contractRegistry: LEAKY_SERVICE_CONTRACTS.map((contract) => ({ ...contract })),
     invariantWarnPrefixes: ["order total negative"],

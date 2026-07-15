@@ -88,7 +88,7 @@ test("invalid Grok effort fails during the shared resolution snapshot", () => {
   })).toThrow("BUGLOOP_GROK_EFFORT must be one of");
 });
 
-test("an empty classifier credential resolves to the heuristic harness", () => {
+test("LangGraph triage is policy-only regardless of classifier credentials", () => {
   const resolved = resolvePipelineRuntime({
     pipeline: "langgraph",
     config,
@@ -97,7 +97,7 @@ test("an empty classifier credential resolves to the heuristic harness", () => {
   });
 
   expect(resolved.triage).toMatchObject({
-    harness: "heuristic",
+    harness: "policy-only",
     requestedModel: null,
     effectiveModel: null,
     source: "default",

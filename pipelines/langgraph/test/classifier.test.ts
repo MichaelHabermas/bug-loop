@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { LogEvent } from "@bug-loop/core";
-import { HeuristicClassifier } from "../src/classifier";
-
-const classifier = new HeuristicClassifier(["order total negative"]);
+import type { LogEvent, TriageState } from "@bug-loop/core";
+import { detectStructured } from "../src/nodes/detect";
 
 function event(overrides: Partial<LogEvent>): LogEvent {
   return {
@@ -13,23 +11,32 @@ function event(overrides: Partial<LogEvent>): LogEvent {
   };
 }
 
-describe("HeuristicClassifier", () => {
-  test("marks errors and the negative-total invariant actionable", async () => {
-    expect(await classifier.classify(event({ level: "error" }))).toBe(true);
-    expect(
-      await classifier.classify(
-        event({
-          level: "warn",
-          msg: "order total negative; spec unclear whether discounts may exceed subtotal",
-        }),
-      ),
-    ).toBe(true);
+function state(events: LogEvent[]): TriageState {
+  return {
+    logPath: "logs/app.jsonl",
+    events,
+    incidents: [],
+    retryCount: 0,
+    errors: [],
+  };
+}
+
+describe("structured LangGraph detection", () => {
+  test("selects errors and configured invariant warnings by level and prefix", async () => {
+    const result = await detectStructured(state([
+      event({ level: "error" }),
+      event({ level: "warn", msg: "order total negative; policy unclear" }),
+      event({ level: "warn", msg: "slow request" }),
+      event({}),
+    ]), ["order total negative"]);
+    expect(result.actionableEvents).toHaveLength(2);
+    expect(result.actionableEvents?.map((item) => item.level)).toEqual(["error", "warn"]);
   });
 
-  test("rejects info logs and unrelated warnings", async () => {
-    expect(await classifier.classify(event({}))).toBe(false);
-    expect(await classifier.classify(event({ level: "warn", msg: "slow request" }))).toBe(
-      false,
-    );
+  test("does not expose an event classifier dependency", async () => {
+    expect(detectStructured.length).toBeGreaterThanOrEqual(2);
+    const source = await Bun.file(new URL("../src/nodes/detect.ts", import.meta.url)).text();
+    expect(source).not.toContain("fetch(");
+    expect(source).not.toContain("Classifier");
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import {
   formatPrFilesList,
+  findOpenIssueByMarker,
   GitHubClient,
   rewritePathsForPrBody,
   toRepoRelativePath,
@@ -53,6 +54,22 @@ describe("github DRY_RUN", () => {
   test("addLabels is a no-op that does not throw", async () => {
     await github.addLabels(9001, ["needs-human"]);
   });
+});
+
+test("open issue markers are matched locally from one list snapshot", () => {
+  const issues = [
+    { number: 1, url: "https://example.test/1", body: "unrelated" },
+    {
+      number: 2,
+      url: "https://example.test/2",
+      body: "bug-loop:fingerprint:deadbeef",
+    },
+  ];
+  expect(findOpenIssueByMarker(issues, "deadbeef")).toEqual({
+    number: 2,
+    url: "https://example.test/2",
+  });
+  expect(findOpenIssueByMarker(issues, "missing")).toBeNull();
 });
 
 describe("PR body path rewriting", () => {

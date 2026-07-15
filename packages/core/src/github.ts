@@ -24,6 +24,10 @@ export interface IssueRef {
   url: string;
 }
 
+export interface OpenIssue extends IssueRef {
+  body: string;
+}
+
 export interface PRRef {
   number: number;
   url: string;
@@ -67,11 +71,10 @@ export class GitHubClient {
     return { number: match?.[1] ? Number(match[1]) : 0, url: stdout };
   }
 
-  async findOpenIssueByMarker(hash: string): Promise<IssueRef | null> {
-    const marker = FINGERPRINT_MARKER(hash);
+  async listOpenIssues(): Promise<OpenIssue[]> {
     if (isDryRun()) {
-      console.log(`[DRY_RUN] gh issue list --repo ${this.repo} --state open --search marker:${marker}`);
-      return null;
+      console.log(`[DRY_RUN] gh issue list --repo ${this.repo} --state open`);
+      return [];
     }
     const { stdout, stderr, exitCode } = await runGh([
       "issue", "list", "--repo", this.repo, "--state", "open", "--json", "number,url,body",
@@ -85,11 +88,18 @@ export class GitHubClient {
     }
     try {
       const issues = JSON.parse(stdout) as GhIssue[];
-      const found = issues.find((issue) => (issue.body ?? "").includes(marker));
-      return found ? { number: found.number, url: found.url } : null;
+      return issues.map((issue) => ({
+        number: issue.number,
+        url: issue.url,
+        body: issue.body ?? "",
+      }));
     } catch {
-      return null;
+      return [];
     }
+  }
+
+  async findOpenIssueByMarker(hash: string): Promise<IssueRef | null> {
+    return findOpenIssueByMarker(await this.listOpenIssues(), hash);
   }
 
   async createPullRequest(input: PRInput): Promise<PRRef> {
@@ -211,3 +221,12 @@ export function formatPrFilesList(
 }
 
 export { FINGERPRINT_MARKER };
+
+export function findOpenIssueByMarker(
+  issues: readonly OpenIssue[],
+  hash: string,
+): IssueRef | null {
+  const marker = FINGERPRINT_MARKER(hash);
+  const found = issues.find((issue) => issue.body.includes(marker));
+  return found ? { number: found.number, url: found.url } : null;
+}

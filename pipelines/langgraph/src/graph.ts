@@ -5,17 +5,23 @@ import {
   GitWorktreeOperations,
   RealVerifyRunner,
   createResolvedFixer,
-  resolvePipelineRuntime,
+  mapWithConcurrency,
+  PristineSuiteCache,
+  runIncidentWorker,
   takeFixerCost,
   verifyWithRunner,
+  resolvePipelineRuntime,
   type FixAttempt,
   type Fixer,
   type TestWriter,
   type Incident,
   type IncidentTriage,
+  type IncidentResult,
   type IssueInput,
+  type IssueDetails,
   type IssueRef,
   type LogEvent,
+  type OpenIssue,
   type PipelineConfig,
   type PRInput,
   type PRRef,
@@ -24,6 +30,8 @@ import {
   type RegressionTestRecord,
   type ReproResult,
   type ReproStrategy,
+  type RegressionTestStrategy,
+  type RoutingPolicy,
   type ResolvedPipeline,
   type TicketRef,
   type TraceRecorder,
@@ -34,7 +42,6 @@ import {
   type VerifyRunner,
   type WorktreeOperations,
 } from "@bug-loop/core";
-import { type Classifier, selectClassifier } from "./classifier";
 import {
   dedupeNode,
   detectNode,
@@ -65,6 +72,7 @@ const TriageAnnotation = Annotation.Root({
   pipelineHeadCommit: Annotation<string | undefined>,
   activeRepro: Annotation<ReproResult | undefined>,
   activeTicket: Annotation<TicketRef | undefined>,
+  activeIssue: Annotation<IssueDetails | null | undefined>,
   activeFix: Annotation<FixAttempt | undefined>,
   activeRegressionTest: Annotation<RegressionTestRecord | undefined>,
   activeVerify: Annotation<VerifyResult | undefined>,
@@ -104,16 +112,20 @@ export function createInitialState(
 }
 
 interface PipelineGitHubOperations extends GitHubOperations {
-  findOpenIssueByMarker(hash: string): Promise<IssueRef | null>;
+  listOpenIssues(): Promise<OpenIssue[]>;
   createIssue(input: IssueInput): Promise<IssueRef>;
   createPullRequest(input: PRInput): Promise<PRRef>;
 }
 
 export interface GraphOptions {
-  classifier?: Classifier;
+  routingPolicy?: RoutingPolicy;
+  regressionTestStrategy?: RegressionTestStrategy;
   fixer?: Fixer;
+  createFixer?: () => Fixer;
   testWriter?: TestWriter;
+  createTestWriter?: () => TestWriter;
   verifier?: VerifyRunner;
+  createVerifier?: () => VerifyRunner;
   worktrees?: WorktreeOperations;
   github?: PipelineGitHubOperations;
   reproStrategy?: ReproStrategy;
@@ -176,16 +188,19 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     config,
     mode: { fromStart: false, fix: false, live: false },
     overrides: {
-      triage: options.classifier !== undefined,
+      triage: false,
       testWriter: options.testWriter !== undefined,
       fixer: options.fixer !== undefined,
     },
   });
   const github = options.github ?? new GitHubClient(config.repo);
-  const classifier = options.classifier ?? selectClassifier(
-    config.invariantWarnPrefixes,
-    resolvedRuntime.triage,
-  );
+  const routingPolicy: RoutingPolicy = options.routingPolicy ?? {
+    authorizedClasses: [],
+    evaluate: () => ({
+      kind: "unknown",
+      reason: "No consumer routing policy was supplied.",
+    }),
+  };
   const reproStrategy = options.reproStrategy;
   const worktrees = options.worktrees ?? new GitWorktreeOperations(
     repoRoot,
@@ -203,6 +218,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     recorder: options.recorder,
     repoRoot,
     testWriterResolution: resolvedRuntime.testWriter,
+    regressionTestStrategy: options.regressionTestStrategy,
   });
 
   const ingest = (state: TriageState) => tracedNode(
@@ -218,20 +234,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     options.recorder,
     "detect",
     async () => {
-      const result = await detectNode(state, classifier, reproStrategy);
-      for (const call of classifier.takeAgentCalls?.() ?? []) {
-        options.recorder?.recordAgentCall({
-          stage: "triage",
-          resolution: "triage",
-          durationMs: call.durationMs,
-          outcome: call.outcome,
-          unavailableReason: "openai-chat-completions-usage-not-captured",
-          ...(call.fallbackReason === undefined
-            ? {}
-            : { fallback: { type: "heuristic", reason: call.fallbackReason } }),
-        });
-      }
-      return result;
+      return detectNode(state, config.invariantWarnPrefixes, reproStrategy);
     },
     (result) => ({
       outcome: `${result.summary?.actionable ?? 0} actionable`,
@@ -241,7 +244,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
   const dedupe = (state: TriageState) => tracedNode(
     options.recorder,
     "dedupe",
-    () => dedupeNode(state, (hash) => github.findOpenIssueByMarker(hash)),
+    async () => dedupeNode(state, await github.listOpenIssues()),
     (result) => ({
       outcome: `${result.summary?.newIncidents ?? 0} new incidents`,
       detail: {
@@ -262,7 +265,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
   const route = (state: TriageState) => tracedNode(
     options.recorder,
     "route",
-    () => routeNode(state, classifier),
+    () => routeNode(state, routingPolicy),
     (result) => {
       const triage = result.triage ?? [];
       const mechanical = triage.filter((item) => item.route?.kind === "mechanical").length;
@@ -353,6 +356,108 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     }),
     state.activeIncident?.fingerprint.hash,
   );
+  const workers = async (state: TriageState): Promise<Partial<TriageState>> => {
+    if (
+      config.incidentConcurrency > 1 &&
+      (options.fixer !== undefined || options.testWriter !== undefined)
+    ) {
+      throw new Error(
+        "incidentConcurrency > 1 requires createFixer/createTestWriter factories instead of shared instances",
+      );
+    }
+    const mechanical = (state.triage ?? []).filter(
+      (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
+    );
+    const pristineSuiteCache = new PristineSuiteCache();
+    const createFixer = options.createFixer ?? (() =>
+      options.fixer ?? createResolvedFixer(config.fixScope, resolvedRuntime.fixer));
+    const createVerifier = options.createVerifier ?? (() =>
+      options.verifier ?? new RealVerifyRunner(config, reproStrategy));
+    const createTestWriter = options.createTestWriter ??
+      (options.testWriter === undefined ? undefined : () => options.testWriter!);
+    const completed: Array<IncidentResult | Error> = await mapWithConcurrency(
+      mechanical,
+      config.incidentConcurrency,
+      async (item) => {
+        try {
+          return await runIncidentWorker({
+            item,
+            config,
+            recorder: options.recorder,
+            worktrees,
+            createFixer,
+            ...(createTestWriter === undefined ? {} : { createTestWriter }),
+            testWriterResolution: resolvedRuntime.testWriter,
+            createVerifier,
+            readIssue: (number) => github.readIssue(number),
+            regressionTestStrategy: options.regressionTestStrategy,
+            pristineSuiteCache,
+          });
+        } catch (error: unknown) {
+          return error instanceof Error ? error : new Error(String(error));
+        }
+      },
+    );
+    let errors = [...state.errors];
+    let pullRequests = [...(state.pullRequests ?? [])];
+    const fixAttempts = [...(state.fixAttempts ?? [])];
+    const regressionTestAttempts = [...(state.regressionTestAttempts ?? [])];
+    const verifyResults = [...(state.verifyResults ?? [])];
+    for (let index = 0; index < completed.length; index += 1) {
+      const result = completed[index];
+      const item = mechanical[index];
+      if (!item || !result) continue;
+      if (result instanceof Error) {
+        errors.push(`fix ${item.incident.fingerprint.hash}: ${result.message}`);
+        continue;
+      }
+      fixAttempts.push(...result.fixAttempts);
+      regressionTestAttempts.push(...result.regressionTest.attempts);
+      verifyResults.push(...result.verifyResults);
+      const lifecycleState: TriageState = {
+        ...state,
+        activeIncident: result.item.incident,
+        worktreeDir: result.worktreeDir,
+        activeTicket: result.item.ticket,
+        activeRepro: result.item.repro,
+        activeFix: result.finalFix,
+        activeRegressionTest: result.regressionTest,
+        activeVerify: result.finalVerify,
+        retryCount: result.fixAttempts.length,
+        errors,
+        pullRequests,
+      };
+      const stage = result.outcome === "verified" ? "pr" : "give-up";
+      const event = options.recorder?.start(
+        stage,
+        result.item.incident.fingerprint.hash,
+        { correlationId: result.correlationId },
+      );
+      const lifecycle = result.outcome === "verified"
+        ? await prWithDependencies(lifecycleState, { config, github, worktrees, repoRoot })
+        : await giveUpWithDependencies(lifecycleState, { config, github, worktrees, repoRoot });
+      errors = lifecycle.errors ?? errors;
+      pullRequests = lifecycle.pullRequests ?? pullRequests;
+      event?.finish(
+        errors.length > lifecycleState.errors.length
+          ? "error"
+          : result.outcome === "verified"
+            ? "completed"
+            : "needs human",
+        { issueNumber: result.item.ticket?.issueNumber },
+      );
+    }
+    return {
+      fixAttempts,
+      regressionTestAttempts,
+      verifyResults,
+      pullRequests,
+      errors,
+      activeIncident: null,
+      worktreeDir: null,
+      retryCount: 0,
+    };
+  };
 
   return new StateGraph(TriageAnnotation)
     .addNode("ingest", ingest)
@@ -366,6 +471,7 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     .addNode("verify", verify)
     .addNode("give-up", giveUp)
     .addNode("pr", pr)
+    .addNode("workers", workers)
     .addEdge(START, "ingest")
     .addEdge("ingest", "detect")
     .addEdge("detect", "dedupe")
@@ -378,9 +484,10 @@ export function createTriageGraph(config: PipelineConfig, options: GraphOptions 
     .addEdge("route", "ticket")
     .addConditionalEdges(
       "ticket",
-      (state) => (routeAfterTicket(state) === "testgen" ? "testgen" : END),
-      ["testgen", END],
+      (state) => (routeAfterTicket(state) === "testgen" ? "workers" : END),
+      ["workers", END],
     )
+    .addEdge("workers", END)
     .addEdge("testgen", "fix")
     .addEdge("fix", "verify")
     .addConditionalEdges("verify", routeAfterVerify, ["pr", "fix", "give-up"])

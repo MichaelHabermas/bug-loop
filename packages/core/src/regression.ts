@@ -8,6 +8,7 @@ import type { CheckResult, VerifyRunner } from "./verifier";
 import type { TestWriter } from "./test-writer";
 import { takeTestWriterCost } from "./test-writer";
 import type { TraceRecorder } from "./trace";
+import { createAttemptId, createCorrelationId } from "./trace";
 import type {
   Incident,
   RegressionTestAttempt,
@@ -28,6 +29,33 @@ export interface RegressionTestEligibilityInput {
   repro: ReproResult;
   route: RouteDecision;
   baseline: CheckResult;
+}
+
+export interface RegressionFixtureMetadata {
+  fixtureId: string;
+  incidentClass: string;
+  contractSources: readonly string[];
+}
+
+export interface RegressionFixtureWriteResult {
+  description: string;
+  filesChanged: string[];
+}
+
+export interface RegressionFixturePlan {
+  metadata: RegressionFixtureMetadata;
+  spec: RegressionTestSpec;
+  write(worktreeDir: string): Promise<RegressionFixtureWriteResult>;
+}
+
+export interface RegressionTestStrategyInput {
+  incidentClass: string;
+  incident: Incident;
+  repro: ReproResult;
+}
+
+export interface RegressionTestStrategy {
+  prepare(input: RegressionTestStrategyInput): RegressionFixturePlan | null;
 }
 
 function todoQuestion(route: RouteDecision, incident: Incident): string {
@@ -140,6 +168,8 @@ export interface RegressionTestStageInput {
   route: RouteDecision;
   writer?: TestWriter;
   createWriter?: () => TestWriter;
+  strategy?: RegressionTestStrategy;
+  pristineSuiteCache?: import("./verifier").PristineSuiteCache;
   verifier: VerifyRunner;
   worktrees: WorktreeOperations;
   baseCommit: string;
@@ -183,7 +213,17 @@ async function safeCheck(check: () => Promise<CheckResult>): Promise<CheckResult
 export async function runRegressionTestStage(
   input: RegressionTestStageInput,
 ): Promise<RegressionTestStageResult> {
-  const proposedSpec = input.route.regressionTest ?? heuristicRegressionTestSpec(
+  const correlationId = input.recorder
+    ? createCorrelationId(input.recorder.runId, input.incident.fingerprint.hash)
+    : undefined;
+  const fixture = input.route.kind === "mechanical"
+    ? input.strategy?.prepare({
+        incidentClass: input.route.incidentClass,
+        incident: input.incident,
+        repro: input.repro,
+      }) ?? null
+    : null;
+  const proposedSpec = fixture?.spec ?? input.route.regressionTest ?? heuristicRegressionTestSpec(
     input.route,
     input.incident,
     input.repro,
@@ -208,8 +248,14 @@ export async function runRegressionTestStage(
   const baselineEvent = input.recorder?.start(
     "verify-test-eligibility",
     input.incident.fingerprint.hash,
+    correlationId === undefined ? undefined : { correlationId },
   );
-  const baseline = await safeCheck(() => input.verifier.runTests(input.worktreeDir));
+  const baseline = input.pristineSuiteCache
+    ? await input.pristineSuiteCache.get(
+        input.baseCommit,
+        () => input.verifier.runTests(input.worktreeDir),
+      )
+    : await safeCheck(() => input.verifier.runTests(input.worktreeDir));
   const eligibility = assessRegressionTestEligibility({
     repro: input.repro,
     route: input.route,
@@ -236,26 +282,41 @@ export async function runRegressionTestStage(
   const attempts: RegressionTestAttempt[] = [];
   let previousFailure: string | undefined;
   let writer = input.writer;
+  const maxAttempts = fixture ? 1 : input.config.maxFixAttempts;
 
-  for (let attempt = 1; attempt <= input.config.maxFixAttempts; attempt += 1) {
-    const testgenEvent = input.recorder?.start("testgen", input.incident.fingerprint.hash);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const attemptId = correlationId === undefined
+      ? undefined
+      : createAttemptId(correlationId, "testgen", attempt);
+    const identity = correlationId === undefined
+      ? undefined
+      : { correlationId, ...(attemptId === undefined ? {} : { attemptId }) };
+    const testgenEvent = input.recorder?.start(
+      "testgen",
+      input.incident.fingerprint.hash,
+      identity,
+    );
     let output: RegressionTestAttempt;
     try {
-      writer ??= input.createWriter?.();
-      if (!writer) throw new Error("regression test generation requires a TestWriter");
-      const written = await writer.write({
-        worktreeDir: input.worktreeDir,
-        incident: input.incident,
-        repro: input.repro,
-        assertionSpec: effectiveSpec,
-        attempt,
-        ...(previousFailure === undefined ? {} : { previousFailure }),
-      });
+      const written = fixture
+        ? await fixture.write(input.worktreeDir)
+        : await (async () => {
+            writer ??= input.createWriter?.();
+            if (!writer) throw new Error("regression test generation requires a TestWriter");
+            return writer.write({
+              worktreeDir: input.worktreeDir,
+              incident: input.incident,
+              repro: input.repro,
+              assertionSpec: effectiveSpec,
+              attempt,
+              ...(previousFailure === undefined ? {} : { previousFailure }),
+            });
+          })();
       output = { attempt, ...written };
       testgenEvent?.finish(
         `attempt ${attempt}`,
         { attempt, filesChanged: written.filesChanged },
-        takeTestWriterCost(writer),
+        fixture || !writer ? undefined : takeTestWriterCost(writer),
       );
     } catch (error: unknown) {
       output = {
@@ -266,7 +327,7 @@ export async function runRegressionTestStage(
       testgenEvent?.finish(
         "error",
         { attempt, error: errorDetail(error) },
-        writer ? takeTestWriterCost(writer) : undefined,
+        fixture || !writer ? undefined : takeTestWriterCost(writer),
       );
     }
     attempts.push(output);
@@ -279,7 +340,11 @@ export async function runRegressionTestStage(
     });
     const scopePasses = provenance.passes && output.filesChanged.length > 0 &&
       output.filesChanged.every((path) => isPathInTestScope(path, input.config.testScope));
-    const redEvent = input.recorder?.start("verify-test-red", input.incident.fingerprint.hash);
+    const redEvent = input.recorder?.start(
+      "verify-test-red",
+      input.incident.fingerprint.hash,
+      identity,
+    );
     const red = scopePasses && input.verifier.runTestFiles
       ? await safeCheck(() => input.verifier.runTestFiles!(input.worktreeDir, output.filesChanged))
       : {
@@ -316,6 +381,8 @@ export async function runRegressionTestStage(
           attempts,
           baselineEvidence: baseline.detail,
           redEvidence: red.detail,
+          generationSource: fixture ? "fixture" : "agent",
+          ...(fixture ? { fixtureId: fixture.metadata.fixtureId } : {}),
         },
         pipelineHeadCommit: committed.commit,
       };
@@ -334,6 +401,8 @@ export async function runRegressionTestStage(
       filesChanged: [],
       attempts,
       baselineEvidence: baseline.detail,
+      generationSource: fixture ? "fixture" : "agent",
+      ...(fixture ? { fixtureId: fixture.metadata.fixtureId } : {}),
     },
     pipelineHeadCommit: input.expectedHead,
   };

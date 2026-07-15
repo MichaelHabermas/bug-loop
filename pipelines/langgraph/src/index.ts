@@ -5,7 +5,11 @@ import {
   TraceRecorder,
   type TriageSummary,
 } from "@bug-loop/core";
-import { leakyServiceReproStrategy } from "@bug-loop/leaky-service/bug-loop";
+import {
+  leakyServiceRegressionTestStrategy,
+  leakyServiceReproStrategy,
+  leakyServiceRoutingPolicy,
+} from "@bug-loop/leaky-service/bug-loop";
 import { createInitialState, createTriageGraph } from "./graph";
 import { createLangGraphConfig } from "./config";
 
@@ -102,6 +106,8 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   });
   const graph = createTriageGraph(config, {
     reproStrategy: leakyServiceReproStrategy,
+    routingPolicy: leakyServiceRoutingPolicy,
+    regressionTestStrategy: leakyServiceRegressionTestStrategy,
     recorder,
     resolved: resolvedRuntime,
   });

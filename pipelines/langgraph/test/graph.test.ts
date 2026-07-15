@@ -3,11 +3,11 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { createInitialState, createTriageGraph } from "../src/graph";
 import { routeAfterTicket } from "../src/graph";
-import { HeuristicClassifier } from "../src/classifier";
 import { resolvePipelineRuntime, TraceRecorder, type RunTrace } from "@bug-loop/core";
 import {
   createLeakyServicePipelineConfig,
   leakyServiceReproStrategy,
+  leakyServiceRoutingPolicy,
 } from "@bug-loop/leaky-service/bug-loop";
 
 const TMP = join(import.meta.dir, ".tmp-graph");
@@ -41,7 +41,6 @@ test("graph processes all four signatures and tolerates an unreachable service",
     pipeline: "langgraph",
     config,
     mode: { fromStart: true, fix: false, live: false },
-    overrides: { triage: true },
   });
   const tracePath = join(TMP, "langgraph-trace.json");
   const recorder = new TraceRecorder({
@@ -52,7 +51,7 @@ test("graph processes all four signatures and tolerates an unreachable service",
     runId: "langgraph-test-run",
   });
   const graph = createTriageGraph(config, {
-    classifier: new HeuristicClassifier(config.invariantWarnPrefixes),
+    routingPolicy: leakyServiceRoutingPolicy,
     reproStrategy: leakyServiceReproStrategy,
     recorder,
     resolved,
@@ -98,14 +97,11 @@ test("graph processes all four signatures and tolerates an unreachable service",
 test("compiled graph exposes the fix cycle and only routes fix-enabled mechanical work into it", () => {
   const config = pipelineConfig();
   const graph = createTriageGraph(config, {
-    classifier: new HeuristicClassifier(config.invariantWarnPrefixes),
+    routingPolicy: leakyServiceRoutingPolicy,
   });
   const edges = graph.getGraph().edges.map((edge) => `${edge.source}->${edge.target}`);
-  expect(edges).toContain("ticket->testgen");
-  expect(edges).toContain("testgen->fix");
-  expect(edges).toContain("fix->verify");
-  expect(edges).toContain("verify->fix");
-  expect(edges).toContain("verify->pr");
+  expect(edges).toContain("ticket->workers");
+  expect(edges).toContain("workers->__end__");
 
   const active = {
     fingerprint: {
@@ -121,7 +117,11 @@ test("compiled graph exposes the fix cycle and only routes fix-enabled mechanica
   };
   const mechanical = {
     incident: active,
-    route: { kind: "mechanical" as const, reason: "reproduced" },
+    route: {
+      kind: "mechanical" as const,
+      incidentClass: "orders.missing-customer",
+      reason: "reproduced",
+    },
     ticket: { issueNumber: 1, url: "https://example.test/issues/1" },
   };
   const needsHuman = {

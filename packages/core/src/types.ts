@@ -1,5 +1,6 @@
 /** Parsed structured log line supplied by a consumer application. */
 import type { PipelineConfig } from "./config";
+import type { IssueDetails } from "./github";
 
 export type LogLevel = "info" | "warn" | "error";
 
@@ -70,12 +71,20 @@ export interface RegressionTestSpec {
   unratifiedBehavior?: RegressionAssertionClaim[];
 }
 
-export interface RouteDecision {
-  kind: RouteKind;
-  reason: string;
-  fixBrief?: string;
-  regressionTest?: RegressionTestSpec;
-}
+export type RouteDecision =
+  | {
+      kind: "mechanical";
+      incidentClass: string;
+      reason: string;
+      fixBrief?: string;
+      regressionTest?: RegressionTestSpec;
+    }
+  | {
+      kind: "needs-human";
+      reason: string;
+      fixBrief?: string;
+      regressionTest?: RegressionTestSpec;
+    };
 
 /** Result of running the reproducibility, routing, and ticket stages for one incident. */
 export interface IncidentTriage {
@@ -133,6 +142,8 @@ export interface RegressionTestRecord {
   baselineEvidence?: string;
   redEvidence?: string;
   greenEvidence?: string;
+  generationSource?: "fixture" | "agent";
+  fixtureId?: string;
 }
 
 export interface VerifyResult {
@@ -169,6 +180,7 @@ export interface TriageState {
   pipelineHeadCommit?: string;
   activeRepro?: ReproResult;
   activeTicket?: TicketRef;
+  activeIssue?: IssueDetails | null;
   activeFix?: FixAttempt;
   activeRegressionTest?: RegressionTestRecord;
   activeVerify?: VerifyResult;

@@ -46,8 +46,8 @@ export function heuristicRoute(
   }
   if (repro.reproduced) {
     return {
-      kind: "mechanical",
-      reason: "The crash has a deterministic request-level reproduction.",
+      kind: "needs-human",
+      reason: "The reproduced crash has no consumer-authorized incident class.",
     };
   }
   return {

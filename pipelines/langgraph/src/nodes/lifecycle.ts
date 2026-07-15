@@ -60,6 +60,7 @@ function advance(state: TriageState): Partial<TriageState> {
     activeVerify: undefined,
     activeRegressionTest: undefined,
     activeTicket: undefined,
+    activeIssue: undefined,
     activeRepro: undefined,
   };
 }

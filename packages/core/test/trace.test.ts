@@ -1,7 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
-import { TraceRecorder, type RunTrace } from "../src";
+import {
+  createAttemptId,
+  createCorrelationId,
+  TraceRecorder,
+  type RunTrace,
+} from "../src";
 
 const outputPath = join(import.meta.dir, ".tmp-trace", "trace.json");
 
@@ -123,4 +128,39 @@ test("TraceRecorder records one agent call with explicit usage status per attemp
     status: "unavailable",
     reason: "harness-did-not-report-usage",
   });
+});
+
+test("correlation and attempt IDs stay stable when events finish out of order", async () => {
+  const recorder = new TraceRecorder({
+    pipeline: "langgraph",
+    resolved,
+    workload,
+    outputPath,
+    runId: "stable-run",
+    now: () => new Date("2026-07-14T12:00:00.000Z"),
+  });
+  const firstCorrelation = createCorrelationId(recorder.runId, "first");
+  const secondCorrelation = createCorrelationId(recorder.runId, "second");
+  const firstAttempt = createAttemptId(firstCorrelation, "fix", 1);
+  const secondAttempt = createAttemptId(secondCorrelation, "fix", 1);
+  const first = recorder.start("fix", "first", {
+    correlationId: firstCorrelation,
+    attemptId: firstAttempt,
+  });
+  const second = recorder.start("fix", "second", {
+    correlationId: secondCorrelation,
+    attemptId: secondAttempt,
+  });
+  second.finish("attempt 1");
+  first.finish("attempt 1");
+  const trace = await recorder.finish();
+
+  expect(trace.events.map((event) => [event.fingerprint, event.correlationId, event.attemptId])).toEqual([
+    ["second", secondCorrelation, secondAttempt],
+    ["first", firstCorrelation, firstAttempt],
+  ]);
+  expect(trace.agentCalls.map((call) => [call.fingerprint, call.correlationId, call.attemptId])).toEqual([
+    ["second", secondCorrelation, secondAttempt],
+    ["first", firstCorrelation, firstAttempt],
+  ]);
 });

@@ -4,6 +4,7 @@ import {
   runRegressionTestStage,
   type PipelineConfig,
   type ResolvedAgent,
+  type RegressionTestStrategy,
   type TestWriter,
   type TraceRecorder,
   type TriageState,
@@ -20,6 +21,7 @@ export interface TestgenDependencies {
   recorder?: TraceRecorder;
   repoRoot?: string;
   testWriterResolution: ResolvedAgent;
+  regressionTestStrategy?: RegressionTestStrategy;
 }
 
 export async function testgenWithDependencies(
@@ -58,6 +60,7 @@ export async function testgenWithDependencies(
       dependencies.config.testScope,
       dependencies.testWriterResolution,
     ),
+    strategy: dependencies.regressionTestStrategy,
     verifier: dependencies.verifier,
     worktrees,
     baseCommit: expectedHead,

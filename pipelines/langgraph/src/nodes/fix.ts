@@ -72,13 +72,16 @@ export async function fixWithDependencies(
 
   const item = activeItem(state, incident);
   const generatedIssue = buildIssueInput(item, dependencies.config.labels);
-  let issue: IssueDetails | null = null;
-  try {
-    issue = await dependencies.readIssue?.(item.ticket?.issueNumber ?? 0) ?? null;
-  } catch (error: unknown) {
-    console.warn(
-      `[fix] issue read failed; using generated issue body: ${error instanceof Error ? error.message : String(error)}`,
-    );
+  let issue = state.activeIssue;
+  if (issue === undefined) {
+    try {
+      issue = await dependencies.readIssue?.(item.ticket?.issueNumber ?? 0) ?? null;
+    } catch (error: unknown) {
+      issue = null;
+      console.warn(
+        `[fix] issue read failed; using generated issue body: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
   const attempt = state.retryCount + 1;
   const stageBaseCommit = state.pipelineHeadCommit ?? state.worktreeBaseCommit;
@@ -98,6 +101,7 @@ export async function fixWithDependencies(
       fixQueue: selected.fixQueue,
       worktreeDir,
       activeTicket: item.ticket,
+      activeIssue: issue,
       activeRepro: item.repro,
       activeFix: { attempt, branch, ...output, stageBaseCommit },
       fixAttempts: [
@@ -113,6 +117,7 @@ export async function fixWithDependencies(
       fixQueue: selected.fixQueue,
       worktreeDir,
       activeTicket: item.ticket,
+      activeIssue: issue,
       activeRepro: item.repro,
       activeFix: { attempt, branch, description, filesChanged: [], stageBaseCommit },
       fixAttempts: [

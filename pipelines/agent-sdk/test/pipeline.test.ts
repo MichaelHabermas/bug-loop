@@ -9,6 +9,7 @@ import {
   type PRInput,
   type ReproStrategy,
   type ReproStrategyInput,
+  type RoutingPolicy,
   type RunTrace,
   type VerifyRunner,
   type WorktreeOperations,
@@ -111,9 +112,12 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   const comments: string[] = [];
   const labelSwaps: string[] = [];
   const pullRequests: PRInput[] = [];
+  let issueListCalls = 0;
+  let issueReadCalls = 0;
   const github: GitHubOperations = {
-    async findOpenIssueByMarker() {
-      return null;
+    async listOpenIssues() {
+      issueListCalls += 1;
+      return [];
     },
     async createIssue(input) {
       issues.push(input);
@@ -121,6 +125,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
       return { number, url: `https://example.test/issues/${number}` };
     },
     async readIssue() {
+      issueReadCalls += 1;
       return null;
     },
     async commentIssue(number, body) {
@@ -139,29 +144,28 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   let triageCalls = 0;
   const triageAgent = new FakeTriageAgent(async ({ incident }) => {
     triageCalls += 1;
+    const incidentClass = incident.fingerprint.errName === "TypeError"
+      ? "leaky-service.missing-customer"
+      : incident.fingerprint.errName === "RangeError"
+        ? "leaky-service.invalid-since"
+        : "leaky-service.shipping-timeout";
     return {
-      decision: incident.sampleEvents[0]?.level === "warn" ? "needs-human" : "mechanical",
-      reason: incident.sampleEvents[0]?.level === "warn" ? "policy ambiguity" : "reproduced crash",
+      kind: "authorized",
+      incidentClass,
+      reason: "mapped to authorized class",
       fixBrief: `Inspect ${incident.fingerprint.topFrame}. Apply the smallest source fix.`,
-      regressionTest: {
-        warranted: incident.sampleEvents[0]?.level !== "warn",
-        reason: incident.sampleEvents[0]?.level === "warn"
-          ? 'test.todo("What discount behavior should be required?")'
-          : "The deterministic crash is missing regression coverage.",
-        mustPin: incident.sampleEvents[0]?.level === "warn"
-          ? []
-          : [
-              { claim: "status is outside the 5xx class", class: "status-class" },
-              {
-                claim: `${incident.fingerprint.errName} signature is absent`,
-                class: "signature-absence",
-              },
-            ],
-        mustNotPin: ["exact response message text", "generated IDs"],
-        suggestedLocation: "apps/leaky-service/test",
-      },
     };
   });
+  const routingPolicy: RoutingPolicy = {
+    authorizedClasses: [
+      "leaky-service.missing-customer",
+      "leaky-service.invalid-since",
+      "leaky-service.shipping-timeout",
+    ],
+    evaluate: ({ incident }) => incident.sampleEvents[0]?.level === "warn"
+      ? { kind: "deny", reason: "policy ambiguity" }
+      : { kind: "unknown", reason: "agent mapping required" },
+  };
 
   const reproStrategy = {
     derive({ incident }: ReproStrategyInput) {
@@ -198,6 +202,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     worktrees,
     github,
     reproStrategy,
+    routingPolicy,
     repoRoot: TMP,
   });
 
@@ -210,6 +215,8 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     issuesFiled: 4,
   });
   expect(issues).toHaveLength(4);
+  expect(issueListCalls).toBe(1);
+  expect(issueReadCalls).toBe(3);
   expect(worktreeCalls.filter((call) => call.startsWith("create:"))).toHaveLength(3);
   expect(fixInputs.some((input) => input.issueTitle.includes("WarnInvariant"))).toBe(false);
 
@@ -244,7 +251,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(trace.events.filter((event) => event.stage === "verify")).toHaveLength(5);
   expect(trace.events.filter((event) => event.stage === "testgen")).toHaveLength(3);
   expect(trace.events.filter((event) => event.stage === "verify-test-red")).toHaveLength(3);
-  expect(trace.agentCalls.filter((call) => call.stage === "triage")).toHaveLength(4);
+  expect(trace.agentCalls.filter((call) => call.stage === "triage")).toHaveLength(3);
   expect(trace.agentCalls.filter((call) => call.stage === "fixer")).toHaveLength(5);
   expect(trace.agentCalls.filter((call) => call.stage === "testWriter")).toHaveLength(3);
   expect(pullRequests.every((pr) => pr.body.includes("## Regression test intent"))).toBe(true);
@@ -255,10 +262,11 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     fix: false,
     live: false,
     tracePath: join(TMP, "rerun-trace.json"),
-  }, { triageAgent, github, repoRoot: TMP, reproStrategy });
+  }, { triageAgent, github, repoRoot: TMP, reproStrategy, routingPolicy });
   expect(rerun.summary.eventsRead).toBe(0);
   expect(rerun.summary.newIncidents).toBe(0);
-  expect(triageCalls).toBe(4);
+  expect(issueListCalls).toBe(2);
+  expect(triageCalls).toBe(3);
 });
 
 test("records a failed stage before finalizing the trace", async () => {
@@ -270,7 +278,7 @@ test("records a failed stage before finalizing the trace", async () => {
     logPath: FIXTURE,
   });
   const github: GitHubOperations = {
-    async findOpenIssueByMarker() {
+    async listOpenIssues() {
       throw new Error("lookup failed");
     },
     async createIssue() {

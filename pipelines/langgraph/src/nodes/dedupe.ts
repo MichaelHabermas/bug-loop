@@ -1,22 +1,22 @@
 import {
   groupIncidents,
+  findOpenIssueByMarker,
   type Incident,
   type IssueRef,
   type LogEvent,
+  type OpenIssue,
   type TriageState,
   writeCursor,
 } from "@bug-loop/core";
 import { currentSummary } from "../state";
 
-type IssueLookup = (hash: string) => Promise<IssueRef | null>;
-
 export async function dedupeEvents(
   events: LogEvent[],
-  lookup: IssueLookup,
+  openIssues: readonly OpenIssue[],
 ): Promise<{ all: Incident[]; fresh: Incident[]; existingIssues: Array<IssueRef | null> }> {
   const all = groupIncidents(events);
-  const existingIssues = await Promise.all(
-    all.map((incident) => lookup(incident.fingerprint.hash)),
+  const existingIssues = all.map((incident) =>
+    findOpenIssueByMarker(openIssues, incident.fingerprint.hash)
   );
   const fresh = all.filter((_, index) => existingIssues[index] === null);
   return { all, fresh, existingIssues };
@@ -24,9 +24,9 @@ export async function dedupeEvents(
 
 export async function dedupeWithLookup(
   state: TriageState,
-  lookup: IssueLookup,
+  openIssues: readonly OpenIssue[],
 ): Promise<Partial<TriageState>> {
-  const result = await dedupeEvents(state.actionableEvents ?? [], lookup);
+  const result = await dedupeEvents(state.actionableEvents ?? [], openIssues);
   const config = state.config;
   if (result.fresh.length === 0 && config?.nextCursorOffset !== undefined) {
     const cursorPath = state.pipelineConfig?.cursorPath;
@@ -54,7 +54,7 @@ export async function dedupeWithLookup(
 
 export async function dedupeNode(
   state: TriageState,
-  lookup: IssueLookup,
+  openIssues: readonly OpenIssue[],
 ): Promise<Partial<TriageState>> {
-  return dedupeWithLookup(state, lookup);
+  return dedupeWithLookup(state, openIssues);
 }

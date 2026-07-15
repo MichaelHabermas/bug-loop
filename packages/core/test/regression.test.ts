@@ -55,9 +55,10 @@ const config = definePipelineConfig({
 const repro = { reproduced: true, command: "curl example.test", evidence: "HTTP 500" };
 const mechanical: RouteDecision = {
   kind: "mechanical",
+  incidentClass: "orders.missing-customer",
   reason: "deterministic",
   regressionTest: heuristicRegressionTestSpec(
-    { kind: "mechanical", reason: "deterministic" },
+    { kind: "mechanical", incidentClass: "orders.missing-customer", reason: "deterministic" },
     incident,
     repro,
     "services/api/test",
@@ -204,6 +205,57 @@ describe("regression-test eligibility and policy", () => {
 });
 
 describe("red-pre and green-post enforcement", () => {
+  test("uses a manifest fixture before the agent writer and preserves red evidence", async () => {
+    let agentCalls = 0;
+    const result = await runRegressionTestStage({
+      config: { ...config, maxFixAttempts: 1 },
+      worktreeDir: "/tmp/worktree",
+      incident,
+      repro,
+      route: mechanical,
+      strategy: {
+        prepare() {
+          return {
+            metadata: {
+              fixtureId: "orders.missing-customer.v1",
+              incidentClass: "orders.missing-customer",
+              contractSources: [],
+            },
+            spec: {
+              warranted: true,
+              reason: "manifest",
+              mustPin: [{ claim: "TypeError absent", class: "signature-absence" }],
+              mustNotPin: ["exact text"],
+              suggestedLocation: "services/api/test/orders.test.ts",
+            },
+            async write() {
+              return {
+                description: "manifest fixture",
+                filesChanged: ["services/api/test/orders.test.ts"],
+              };
+            },
+          };
+        },
+      },
+      createWriter: () => {
+        agentCalls += 1;
+        return new FakeTestWriter(async () => ({ description: "unused", filesChanged: [] }));
+      },
+      verifier: runner([
+        { passes: true, detail: "suite green" },
+        { passes: false, detail: "expected non-5xx, received 500" },
+      ]),
+      worktrees: worktrees([]),
+      baseCommit: "base",
+      expectedHead: "base",
+    });
+    expect(result.record.status).toBe("established");
+    expect(result.record.generationSource).toBe("fixture");
+    expect(result.record.fixtureId).toBe("orders.missing-customer.v1");
+    expect(result.record.redEvidence).toContain("received 500");
+    expect(agentCalls).toBe(0);
+  });
+
   test("rejects a test-writer source edit before running the test", async () => {
     const calls: string[] = [];
     const result = await runRegressionTestStage({

@@ -23,6 +23,25 @@ export type {
   TriageState,
 } from "./types";
 
+export { routeIncident } from "./policy";
+export type {
+  RouteIncidentInput,
+  RoutingPolicy,
+  RoutingPolicyDecision,
+  RoutingPolicyInput,
+  UnknownRouteResolution,
+  UnknownRouteResolver,
+  UnknownRouteResolverInput,
+} from "./policy";
+
+export { mapWithConcurrency } from "./concurrency";
+export { runIncidentWorker } from "./incident-worker";
+export type {
+  IncidentOutcome,
+  IncidentResult,
+  IncidentWorkerInput,
+} from "./incident-worker";
+
 export {
   definePipelineConfig,
   isPathInFixScope,
@@ -38,7 +57,12 @@ export type {
   RegressionTestPolicy,
 } from "./config";
 
-export { TraceRecorder, combineCostSamples } from "./trace";
+export {
+  TraceRecorder,
+  combineCostSamples,
+  createAttemptId,
+  createCorrelationId,
+} from "./trace";
 export type {
   CostSample,
   AgentCall,
@@ -53,6 +77,7 @@ export type {
   TraceWorkload,
   TraceEvent,
   TraceEventHandle,
+  TraceIdentity,
   TraceRecorderOptions,
 } from "./trace";
 
@@ -138,13 +163,23 @@ export {
   shouldGenerateRegressionTest,
 } from "./regression";
 export type {
+  RegressionFixtureMetadata,
+  RegressionFixturePlan,
+  RegressionFixtureWriteResult,
   RegressionTestEligibility,
   RegressionTestEligibilityInput,
   RegressionTestStageInput,
   RegressionTestStageResult,
+  RegressionTestStrategy,
+  RegressionTestStrategyInput,
 } from "./regression";
 
-export { RealVerifyRunner, reproCheckPasses, verifyWithRunner } from "./verifier";
+export {
+  PristineSuiteCache,
+  RealVerifyRunner,
+  reproCheckPasses,
+  verifyWithRunner,
+} from "./verifier";
 export type {
   CheckResult,
   VerifyReproInput,
@@ -173,5 +208,6 @@ export {
   rewritePathsForPrBody,
   formatPrFilesList,
   FINGERPRINT_MARKER,
+  findOpenIssueByMarker,
 } from "./github";
-export type { IssueInput, PRInput, IssueRef, PRRef, IssueDetails } from "./github";
+export type { IssueInput, PRInput, IssueRef, PRRef, IssueDetails, OpenIssue } from "./github";

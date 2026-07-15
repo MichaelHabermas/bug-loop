@@ -11,7 +11,7 @@ Most agent systems are pipeline-shaped - a router plus specialists covers the la
 Three principles drive the design:
 
 1. **Verification is the load-bearing layer.** Every stage that writes has a verifier in front of it: reproduction before the ticket, repro-gone + tests + typecheck before the PR. The fix→verify edge is a bounded retry cycle - exactly the thing a graph expresses that a chain can't.
-2. **Route to the right capability.** Deterministic stages use no model. Cheap classification where judgment is thin, an agent (Claude Agent SDK, read-only tools) where judgment is real, and a coding agent (Codex or Grok, behind one `Fixer` interface) only in the fix stage. The harness is swappable because the contract is the boundary.
+2. **Route to the right capability.** Deterministic stages use no model. An application-owned tri-state policy authorizes known classes, denies policy-sensitive classes, and leaves everything else unknown. The Agent SDK pipeline may map unknowns to an authorized class with read-only tools; LangGraph is deliberately policy-only and sends unknowns to a human.
 3. **Failure routes to a human, by design.** One seeded bug is a product-policy ambiguity; the pipeline reproduces it, documents it, and *declines to fix it*. Auto-PRs that waste review time burn trust faster than they save toil.
 
 For review agents specifically: same shape, fan-out instead of a chain - parallel specialist reviewers, then dedupe and rank findings, with a confidence gate before anything reaches a human.
@@ -37,7 +37,7 @@ flowchart TD
   red -->|yes| fix[delegate fix in worktree]
   red -->|retry| testgen
   red -->|attempts exhausted: fix-only| fix
-  fix --> verify[verify: repro + regression GREEN + suite + typecheck]
+  fix --> verify[verify: scope + regression GREEN + repro + suite + typecheck]
   verify -->|pass| pr[open PR]
   verify -->|first failure| fix
   verify -->|second failure| human[comment + needs-human]
@@ -50,17 +50,17 @@ flowchart TD
 ## Design principles
 
 - **Verifier before writer.** A fix is not done until the failure signature disappears, the suite passes, and TypeScript is clean.
-- **Agentic judgment has a narrow seam.** The Agent SDK triage agent plans and returns a fix brief; Grok or Codex executes; deterministic code verifies.
+- **Agentic judgment has a narrow seam.** Consumer policy owns authority. The Agent SDK agent can only map an unknown to a manifest-authorized class or return human; Grok or Codex executes; deterministic code verifies.
 - **The pipeline never edits application code.** The core `Fixer` interface delegates edits to `GrokFixer` or `CodexFixer`, while tests inject `FakeFixer`.
 - **Isolation is mandatory.** Each incident runs on `bugloop/fix-<fingerprint8>` in `.worktrees/<fingerprint8>` and is cleaned up after PR or give-up.
 - **Failure routes to a human.** A second failed verification comments with evidence and swaps `auto-fix-candidate` for `needs-human`.
 
-### Regression tests - four authorities, red→green enforced
+### Regression tests - manifest authority, red→green enforced
 
 Eligibility is mechanical: the repro must be deterministic and the full suite must pass on the pristine incident worktree.
-The triage planner separately supplies the warrant plus `mustPin`, `mustNotPin`, and a suggested test location.
+The application manifest supplies deterministic fixture metadata, `mustPin`, `mustNotPin`, and the test template for each authorized incident class.
 Needs-human incidents receive only a `test.todo(...)` ambiguity question and never pin unratified behavior.
-A separate `TestWriter` writes one focused test inside `testScope`; the fixer remains confined to `fixScope`.
+The agent `TestWriter` is a tier-two fallback only when the manifest explicitly does not support the incident shape; the fixer remains confined to `fixScope`.
 Snapshot tests and exact-message assertions are banned unless message text is explicitly part of `mustPin`.
 The generated test must fail before the source fix, then pass after it alongside the repro check, full suite, and typecheck.
 The RED check runs directly in the still-unfixed incident worktree, then the proven test is committed before the fixer runs.
@@ -72,8 +72,8 @@ Every PR quotes the assertion specification under `## Regression test intent` so
 
 | | LangGraph | Agent SDK |
 |---|---|---|
-| Orchestration | `StateGraph`, conditional edges, fix/verify cycle, `MemorySaver` | Typed functions, mutable run state, `for` loops, explicit branches |
-| Triage judgment | Classifier behind the graph route node | Claude Agent SDK with read-only `Read`/`Grep`/`Glob` access |
+| Orchestration | `StateGraph`, bounded immutable incident workers, `MemorySaver` | Typed functions, bounded immutable incident workers, explicit branches |
+| Triage judgment | Consumer policy only; unknown routes to human | Consumer policy, then Claude Agent SDK for unknowns with read-only `Read`/`Grep`/`Glob` access |
 | Fix planning | Issue and reproduction evidence | SDK result adds a 2-4 sentence root-cause fix brief |
 | Fix execution | `CodexFixer` by default | `GrokFixer` by default |
 | Verification and lifecycle | Core deterministic verifier, worktree, GitHub helpers | The same core machinery |
@@ -159,7 +159,8 @@ Demo-sized simplifications you'd close before trusting this at work - kept hones
 - **Intermittent bugs**: repro is one-shot, so flaky bugs route `needs-human` - safe but low recall.
 - **Cost completeness**: SDK cost is structured, while Codex and Grok capture only usage lines their CLIs choose to print.
 
-Efficiency roadmap in the same spirit: one dedupe query per run instead of one per fingerprint; parallel fix fan-out (worktrees already isolate); verify fast-path (repro check before the full suite); a "seen again, count N" heartbeat on open issues; batch triage in one SDK session.
+Implemented efficiency controls include one dedupe query per run, issue-body caching per incident, bounded fix fan-out behind `incidentConcurrency`, and fail-fast verification from scope through typecheck.
+Remaining candidates include a "seen again, count N" heartbeat on open issues and batching unknown triage into one SDK session.
 
 ## Reset the demo
 

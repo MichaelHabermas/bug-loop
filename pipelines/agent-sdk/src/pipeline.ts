@@ -6,6 +6,7 @@ import {
   createResolvedTestWriter,
   formatRegressionTestIntent,
   formatPrFilesList,
+  findOpenIssueByMarker,
   GitHubClient,
   GitWorktreeOperations,
   groupIncidents,
@@ -15,9 +16,13 @@ import {
   readNewEvents,
   RealVerifyRunner,
   reproduceIncident,
+  routeIncident,
   resolvePipelineRuntime,
   resolveTraceWorkload,
   runRegressionTestStage,
+  runIncidentWorker,
+  mapWithConcurrency,
+  PristineSuiteCache,
   rewritePathsForPrBody,
   takeFixerCost,
   TraceRecorder,
@@ -28,13 +33,17 @@ import {
   type TestWriter,
   type CostSample,
   type IncidentTriage,
+  type IncidentResult,
   type IssueDetails,
   type IssueInput,
   type IssueRef,
+  type OpenIssue,
   type PRInput,
   type PRRef,
   type PipelineConfig,
   type ReproStrategy,
+  type RegressionTestStrategy,
+  type RoutingPolicy,
   type ResolvedPipeline,
   type TriageRunConfig,
   type TriageState,
@@ -59,7 +68,7 @@ export interface AgentSdkPipelineOptions extends TriageRunConfig {
 }
 
 export interface GitHubOperations {
-  findOpenIssueByMarker(hash: string): Promise<IssueRef | null>;
+  listOpenIssues(): Promise<OpenIssue[]>;
   createIssue(input: IssueInput): Promise<IssueRef>;
   readIssue(number: number): Promise<IssueDetails | null>;
   commentIssue(number: number, body: string): Promise<void>;
@@ -70,11 +79,16 @@ export interface GitHubOperations {
 export interface PipelineDependencies {
   triageAgent?: TriageAgent;
   fixer?: Fixer;
+  createFixer?: () => Fixer;
   testWriter?: TestWriter;
+  createTestWriter?: () => TestWriter;
   verifier?: VerifyRunner;
+  createVerifier?: () => VerifyRunner;
   worktrees?: WorktreeOperations;
   github?: GitHubOperations;
   reproStrategy?: ReproStrategy;
+  routingPolicy?: RoutingPolicy;
+  regressionTestStrategy?: RegressionTestStrategy;
   recorder?: TraceRecorder;
   repoRoot?: string;
 }
@@ -140,8 +154,9 @@ async function dedupe(
   github: GitHubOperations,
 ): Promise<void> {
   const all = groupIncidents(state.actionableEvents ?? []);
-  const existing = await Promise.all(
-    all.map((incident) => github.findOpenIssueByMarker(incident.fingerprint.hash)),
+  const openIssues = await github.listOpenIssues();
+  const existing = all.map((incident) =>
+    findOpenIssueByMarker(openIssues, incident.fingerprint.hash)
   );
   const fresh = all.filter((_, index) => existing[index] === null);
   const config = state.config;
@@ -189,6 +204,7 @@ async function reproduce(
 
 async function route(
   state: TriageState,
+  policy: RoutingPolicy,
   agent: TriageAgent,
   recorder: TraceRecorder,
 ): Promise<CostSample[]> {
@@ -200,14 +216,19 @@ async function route(
       command: "",
       evidence: "Reproduction stage did not return a result.",
     };
+    const policyDecision = policy.evaluate({ incident: item.incident, repro });
     const started = performance.now();
-    const decision = await agent.triage({
+    const decision = await routeIncident({
+      policy: {
+        authorizedClasses: policy.authorizedClasses,
+        evaluate: () => policyDecision,
+      },
+      resolver: agent,
       incident: item.incident,
       repro,
-      testScope: state.pipelineConfig?.testScope,
     });
     const calls = agent.takeAgentCalls?.() ?? [];
-    if (calls.length === 0) {
+    if (policyDecision.kind === "unknown" && calls.length === 0) {
       recorder.recordAgentCall({
         stage: "triage",
         resolution: "triage",
@@ -229,23 +250,16 @@ async function route(
         ...(call.fallback === undefined ? {} : { fallback: call.fallback }),
       });
     }
-    const route = {
-      kind: decision.decision,
-      reason: decision.reason,
-      fixBrief: decision.fixBrief,
-    };
     triage.push({
       ...item,
       route: {
-        ...route,
-        regressionTest: decision.decision === "needs-human"
-          ? heuristicRegressionTestSpec(
-              route,
-              item.incident,
-              repro,
-              state.pipelineConfig?.testScope[0] ?? "test",
-            )
-          : decision.regressionTest,
+        ...decision,
+        regressionTest: heuristicRegressionTestSpec(
+          decision,
+          item.incident,
+          repro,
+          state.pipelineConfig?.testScope[0] ?? "test",
+        ),
       },
     });
   }
@@ -463,11 +477,12 @@ async function openPullRequest(
   }
 }
 
-async function fixIncident(
+export async function fixIncident(
   state: TriageState,
   item: IncidentTriage,
   fixer: Fixer,
   testWriter: TestWriter | undefined,
+  regressionTestStrategy: RegressionTestStrategy | undefined,
   verifier: VerifyRunner,
   worktrees: WorktreeOperations,
   github: GitHubOperations,
@@ -481,6 +496,12 @@ async function fixIncident(
   state.worktreeBaseCommit = created.baseCommit;
   state.pipelineHeadCommit = created.baseCommit;
   const generatedIssue = buildIssueInput(item, config.labels);
+  let issue: IssueDetails | null = null;
+  try {
+    issue = await github.readIssue(item.ticket?.issueNumber ?? 0);
+  } catch (error: unknown) {
+    console.warn(`[fix] issue read failed; using generated issue body: ${errorDetail(error)}`);
+  }
   let previousFailure: string | undefined;
   const route = item.route;
   const repro = item.repro;
@@ -493,6 +514,7 @@ async function fixIncident(
     route,
     writer: testWriter,
     createWriter: () => createResolvedTestWriter(config.testScope, resolved.testWriter),
+    strategy: regressionTestStrategy,
     verifier,
     worktrees,
     baseCommit: created.baseCommit,
@@ -507,13 +529,6 @@ async function fixIncident(
   ];
 
   for (let attempt = 1; attempt <= config.maxFixAttempts; attempt += 1) {
-    let issue: IssueDetails | null = null;
-    try {
-      issue = await github.readIssue(item.ticket?.issueNumber ?? 0);
-    } catch (error: unknown) {
-      console.warn(`[fix] issue read failed; using generated issue body: ${errorDetail(error)}`);
-    }
-
     let fix: FixAttempt;
     const fixEvent = recorder.start("fix", item.incident.fingerprint.hash);
     try {
@@ -696,10 +711,16 @@ export async function runAgentSdkPipeline(
       }),
     );
 
+    const policy: RoutingPolicy = dependencies.routingPolicy ?? {
+      authorizedClasses: [],
+      evaluate: () => ({
+        kind: "unknown",
+        reason: "No consumer routing policy was supplied.",
+      }),
+    };
     const agent = dependencies.triageAgent ?? new ClaudeTriageAgent(
       repoRoot,
       config.fixScope,
-      config.testScope,
       undefined,
       undefined,
       resolvedRuntime.triage.requestedModel ?? "sonnet",
@@ -707,7 +728,7 @@ export async function runAgentSdkPipeline(
     await runTracedStage(
       recorder,
       "route",
-      () => route(state, agent, recorder),
+      () => route(state, policy, agent, recorder),
       (routeCosts) => {
         const mechanicalCount = (state.triage ?? []).filter(
           (item) => item.route?.kind === "mechanical",
@@ -729,8 +750,14 @@ export async function runAgentSdkPipeline(
     }));
 
     if (state.config?.fix) {
-      const fixer = dependencies.fixer ?? createResolvedFixer(config.fixScope, resolvedRuntime.fixer);
-      const verifier = dependencies.verifier ?? new RealVerifyRunner(config, dependencies.reproStrategy);
+      if (
+        config.incidentConcurrency > 1 &&
+        (dependencies.fixer !== undefined || dependencies.testWriter !== undefined)
+      ) {
+        throw new Error(
+          "incidentConcurrency > 1 requires createFixer/createTestWriter factories instead of shared instances",
+        );
+      }
       const worktrees = dependencies.worktrees ?? new GitWorktreeOperations(
         repoRoot,
         config.worktreeRoot,
@@ -740,20 +767,77 @@ export async function runAgentSdkPipeline(
       const mechanical = (state.triage ?? []).filter(
         (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
       );
-      for (const item of mechanical) {
+      const pristineSuiteCache = new PristineSuiteCache();
+      const createFixer = dependencies.createFixer ?? (() =>
+        dependencies.fixer ?? createResolvedFixer(config.fixScope, resolvedRuntime.fixer));
+      const createVerifier = dependencies.createVerifier ?? (() =>
+        dependencies.verifier ?? new RealVerifyRunner(config, dependencies.reproStrategy));
+      const createTestWriter = dependencies.createTestWriter ??
+        (dependencies.testWriter === undefined ? undefined : () => dependencies.testWriter!);
+      const completed: Array<IncidentResult | Error> = await mapWithConcurrency(
+        mechanical,
+        config.incidentConcurrency,
+        async (item) => {
+          try {
+            return await runIncidentWorker({
+              item,
+              config,
+              recorder,
+              worktrees,
+              createFixer,
+              ...(createTestWriter === undefined ? {} : { createTestWriter }),
+              testWriterResolution: resolvedRuntime.testWriter,
+              createVerifier,
+              readIssue: (number) => github.readIssue(number),
+              regressionTestStrategy: dependencies.regressionTestStrategy,
+              pristineSuiteCache,
+            });
+          } catch (error: unknown) {
+            return error instanceof Error ? error : new Error(String(error));
+          }
+        },
+      );
+      for (let index = 0; index < completed.length; index += 1) {
+        const result = completed[index];
+        const item = mechanical[index];
+        if (!item || !result) continue;
+        if (result instanceof Error) {
+          state.errors.push(`fix ${item.incident.fingerprint.hash}: ${result.message}`);
+          continue;
+        }
+        state.fixAttempts = [...state.fixAttempts ?? [], ...result.fixAttempts];
+        state.regressionTestAttempts = [
+          ...state.regressionTestAttempts ?? [],
+          ...result.regressionTest.attempts,
+        ];
+        state.verifyResults = [...state.verifyResults ?? [], ...result.verifyResults];
+        state.activeRegressionTest = result.regressionTest;
+        state.worktreeBaseCommit = result.finalFix.stageBaseCommit;
+        state.pipelineHeadCommit = result.finalFix.stageBaseCommit;
         try {
-          await fixIncident(
-            state,
-            item,
-            fixer,
-            dependencies.testWriter,
-            verifier,
-            worktrees,
-            github,
-            config,
-            recorder,
-            resolvedRuntime,
-          );
+          if (result.outcome === "verified") {
+            await openPullRequest(
+              state,
+              github,
+              worktrees,
+              result.item,
+              result.worktreeDir,
+              result.finalFix,
+              result.finalVerify,
+              config,
+            );
+          } else {
+            await giveUp(
+              state,
+              github,
+              worktrees,
+              result.item,
+              result.worktreeDir,
+              result.fixAttempts.length,
+              result.finalVerify.detail,
+              config,
+            );
+          }
         } catch (error: unknown) {
           state.errors.push(`fix ${item.incident.fingerprint.hash}: ${errorDetail(error)}`);
         }

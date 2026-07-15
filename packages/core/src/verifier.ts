@@ -22,6 +22,21 @@ export interface VerifyRunner {
   runTypecheck(worktreeDir: string): Promise<CheckResult>;
 }
 
+export class PristineSuiteCache {
+  private readonly results = new Map<string, Promise<CheckResult>>();
+
+  get(baseSha: string, run: () => Promise<CheckResult>): Promise<CheckResult> {
+    const cached = this.results.get(baseSha);
+    if (cached) return cached;
+    const pending = run().catch((error: unknown) => ({
+      passes: false,
+      detail: error instanceof Error ? error.message : String(error),
+    }));
+    this.results.set(baseSha, pending);
+    return pending;
+  }
+}
+
 export function reproCheckPasses(
   requestCompleted: boolean,
   signaturePresent: boolean,
@@ -110,17 +125,6 @@ export async function verifyWithRunner(
   if (!incident || !worktreeDir) {
     throw new Error("verify requires activeIncident and worktreeDir");
   }
-  const repro = await safeCheck(() => runner.verifyRepro({ worktreeDir, incident }));
-  const regression = state.activeRegressionTest?.status === "established"
-    ? runner.runTestFiles
-      ? await safeCheck(() => runner.runTestFiles!(
-          worktreeDir,
-          state.activeRegressionTest?.filesChanged ?? [],
-        ))
-      : { passes: false, detail: "Verifier cannot run selected regression test files." }
-    : { passes: true, detail: "No established regression test to verify." };
-  const tests = await safeCheck(() => runner.runTests(worktreeDir));
-  const typecheck = await safeCheck(() => runner.runTypecheck(worktreeDir));
   const stageBaseCommit = state.activeFix?.stageBaseCommit ?? state.pipelineHeadCommit ??
     state.worktreeBaseCommit;
   if (!stageBaseCommit) throw new Error("verify requires a trusted fix-stage base commit");
@@ -136,6 +140,29 @@ export async function verifyWithRunner(
     return { passes: result.passes, detail: result.detail };
   });
   const scopePasses = provenance.passes;
+  const skipped = (stage: string, prerequisite: string): CheckResult => ({
+    passes: false,
+    detail: `${stage} skipped because ${prerequisite} failed.`,
+  });
+  const regression = !scopePasses
+    ? skipped("regression test", "scope verification")
+    : state.activeRegressionTest?.status === "established"
+      ? runner.runTestFiles
+        ? await safeCheck(() => runner.runTestFiles!(
+            worktreeDir,
+            state.activeRegressionTest?.filesChanged ?? [],
+          ))
+        : { passes: false, detail: "Verifier cannot run selected regression test files." }
+      : { passes: true, detail: "No established regression test to verify." };
+  const repro = !scopePasses || !regression.passes
+    ? skipped("repro", !scopePasses ? "scope verification" : "regression test")
+    : await safeCheck(() => runner.verifyRepro({ worktreeDir, incident }));
+  const tests = !scopePasses || !regression.passes || !repro.passes
+    ? skipped("tests", !repro.passes ? "repro" : "an earlier verification stage")
+    : await safeCheck(() => runner.runTests(worktreeDir));
+  const typecheck = !scopePasses || !regression.passes || !repro.passes || !tests.passes
+    ? skipped("typecheck", !tests.passes ? "tests" : "an earlier verification stage")
+    : await safeCheck(() => runner.runTypecheck(worktreeDir));
   const verified = scopePasses && repro.passes && regression.passes && tests.passes && typecheck.passes;
   const detail = [
     `scope: ${scopePasses ? "pass" : "fail"} - ${provenance.detail}`,

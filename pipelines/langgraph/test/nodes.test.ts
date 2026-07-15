@@ -13,17 +13,17 @@ import { GitHubClient } from "@bug-loop/core";
 import {
   createLeakyServicePipelineConfig,
   leakyServiceReproStrategy,
+  leakyServiceRoutingPolicy,
 } from "@bug-loop/leaky-service/bug-loop";
 import {
   buildIssueInput,
   dedupeEvents,
   dedupeWithLookup,
-  detectWithClassifier,
-  routeWithClassifier,
+  detectStructured,
+  routeWithPolicy,
   ticketNode,
   ticketWithCreator,
 } from "../src/nodes";
-import { HeuristicClassifier } from "../src/classifier";
 
 const PIPELINE_CONFIG = createLeakyServicePipelineConfig({
   cursorPath: ".cursor.json",
@@ -73,16 +73,16 @@ function state(overrides: Partial<TriageState> = {}): TriageState {
 }
 
 describe("detectNode", () => {
-  test("uses the supplied classifier and enriches ship timeout routes", async () => {
+  test("uses structured levels and enriches ship timeout routes", async () => {
     const ship: LogEvent = {
       ts: "2026-07-13T12:00:00.000Z",
       level: "error",
       msg: "unhandledRejection",
       err: { name: "Error", message: "shipping provider timeout for ord_000123" },
     };
-    const result = await detectWithClassifier(
+    const result = await detectStructured(
       state({ events: [ship, { ...ship, level: "info" }] }),
-      new HeuristicClassifier(PIPELINE_CONFIG.invariantWarnPrefixes),
+      PIPELINE_CONFIG.invariantWarnPrefixes,
       leakyServiceReproStrategy,
     );
     expect(result.actionableEvents).toHaveLength(1);
@@ -94,7 +94,7 @@ describe("dedupeEvents", () => {
   test("collapses same-cause events despite request and line differences", async () => {
     const result = await dedupeEvents(
       [errorEvent("a", 1), errorEvent("b", 2)],
-      async () => null,
+      [],
     );
     expect(result.all).toHaveLength(1);
     expect(result.all[0]?.count).toBe(2);
@@ -102,20 +102,23 @@ describe("dedupeEvents", () => {
   });
 
   test("skips a fingerprint with an existing open ticket", async () => {
-    const result = await dedupeEvents([errorEvent("a", 1)], async () => ({
+    const target = incident(errorEvent("a", 1));
+    const result = await dedupeEvents([errorEvent("a", 1)], [{
       number: 42,
       url: "https://example.test/issues/42",
-    }));
+      body: FINGERPRINT_MARKER(target.fingerprint.hash),
+    }]);
     expect(result.all).toHaveLength(1);
     expect(result.fresh).toHaveLength(0);
   });
 
   test("retains an existing ticket in the fix queue only when fix mode is enabled", async () => {
     const sample = errorEvent("existing", 1);
-    const existing = async () => ({
+    const existing = [{
       number: 3,
       url: "https://example.test/issues/3",
-    });
+      body: FINGERPRINT_MARKER(incident(sample).fingerprint.hash),
+    }];
     const fixResult = await dedupeWithLookup(state({
       actionableEvents: [sample],
       config: {
@@ -156,9 +159,9 @@ describe("routeNode", () => {
       { incident: crash, repro: reproduced },
       { incident: warning, repro: { ...reproduced, reproduced: false } },
     ];
-    const result = await routeWithClassifier(
+    const result = await routeWithPolicy(
       state({ triage }),
-      new HeuristicClassifier(PIPELINE_CONFIG.invariantWarnPrefixes),
+      leakyServiceRoutingPolicy,
     );
     expect(result.triage?.[0]?.route?.kind).toBe("mechanical");
     expect(result.triage?.[1]?.route?.kind).toBe("needs-human");
@@ -184,7 +187,11 @@ describe("buildIssueInput", () => {
     const triage: IncidentTriage = {
       incident: ticketIncident,
       repro: { reproduced: true, command: "curl example.test", evidence: "HTTP 500" },
-      route: { kind: "mechanical", reason: "Crash reproduced." },
+      route: {
+        kind: "mechanical",
+        incidentClass: "orders.missing-customer",
+        reason: "Crash reproduced.",
+      },
     };
     const input = buildIssueInput(triage, PIPELINE_CONFIG.labels);
     expect(input.body).toContain(FINGERPRINT_MARKER(ticketIncident.fingerprint.hash));
@@ -213,7 +220,11 @@ describe("buildIssueInput", () => {
         triage: [{
           incident: ticketIncident,
           repro: { reproduced: true, command: "curl example.test", evidence: "HTTP 500" },
-          route: { kind: "mechanical", reason: "Crash reproduced." },
+          route: {
+            kind: "mechanical",
+            incidentClass: "orders.missing-customer",
+            reason: "Crash reproduced.",
+          },
         }],
       }),
       async () => {

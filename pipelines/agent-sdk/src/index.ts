@@ -1,5 +1,9 @@
 import type { TriageSummary } from "@bug-loop/core";
-import { leakyServiceReproStrategy } from "@bug-loop/leaky-service/bug-loop";
+import {
+  leakyServiceRegressionTestStrategy,
+  leakyServiceReproStrategy,
+  leakyServiceRoutingPolicy,
+} from "@bug-loop/leaky-service/bug-loop";
 import { createAgentSdkConfig } from "./config";
 import { runAgentSdkPipeline } from "./pipeline";
 
@@ -82,6 +86,8 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     ...(args.label === undefined ? {} : { label: args.label }),
   }, {
     reproStrategy: leakyServiceReproStrategy,
+    routingPolicy: leakyServiceRoutingPolicy,
+    regressionTestStrategy: leakyServiceRegressionTestStrategy,
   });
   printSummary(result.summary);
   if (result.state.errors.length > 0) {

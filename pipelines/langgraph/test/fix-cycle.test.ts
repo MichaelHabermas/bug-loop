@@ -72,6 +72,7 @@ function triage(active = incident()): IncidentTriage {
     },
     route: {
       kind: "mechanical",
+      incidentClass: "orders.missing-customer",
       reason: "Crash reproduced.",
       fixBrief: "Guard missing customer input in handleCreate.",
     },
@@ -251,6 +252,7 @@ describe("fix node", () => {
       return { description: `patch ${input.attempt}`, filesChanged: ["apps/leaky-service/src/server.ts"] };
     });
     const calls: string[] = [];
+    let issueReads = 0;
     const fakeWorktrees = worktrees(calls);
     fakeWorktrees.create = async (input) => {
       calls.push(`create:${input.branch}`);
@@ -262,6 +264,7 @@ describe("fix node", () => {
       fixer,
       worktrees: fakeWorktrees,
       async readIssue() {
+        issueReads += 1;
         return { title: "TypeError on POST /orders", body: "issue body" };
       },
     });
@@ -272,6 +275,7 @@ describe("fix node", () => {
     await fixWithDependencies(state({
       retryCount: 1,
       worktreeDir: first.worktreeDir,
+      activeIssue: first.activeIssue,
       activeVerify: {
         verified: false,
         scopePasses: true,
@@ -286,6 +290,7 @@ describe("fix node", () => {
       fixer,
       worktrees: worktrees(calls),
       async readIssue() {
+        issueReads += 1;
         return { title: "TypeError on POST /orders", body: "issue body" };
       },
     });
@@ -293,6 +298,7 @@ describe("fix node", () => {
     expect(inputs[1]?.attempt).toBe(2);
     expect(inputs[1]?.fixBrief).toBe("Guard missing customer input in handleCreate.");
     expect(inputs[1]?.previousFailure).toBe("signature still present\nexact evidence");
+    expect(issueReads).toBe(1);
     rmSync(FIXER_TMP, { recursive: true, force: true });
   });
 });

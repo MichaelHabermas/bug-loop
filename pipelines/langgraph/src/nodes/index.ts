@@ -1,8 +1,8 @@
 export { ingestNode } from "./ingest";
-export { detectNode, detectWithClassifier } from "./detect";
+export { detectNode, detectStructured } from "./detect";
 export { dedupeEvents, dedupeNode, dedupeWithLookup } from "./dedupe";
 export { reproduceNode } from "./reproduce";
-export { routeNode, routeWithClassifier } from "./route";
+export { routeNode, routeWithPolicy } from "./route";
 export { buildIssueInput, ticketNode, ticketWithCreator } from "./ticket";
 export { activeItem, fixWithDependencies, initializeFixQueue } from "./fix";
 export type { FixDependencies } from "./fix";

@@ -1,13 +1,14 @@
 import {
   heuristicRegressionTestSpec,
+  routeIncident,
   type IncidentTriage,
+  type RoutingPolicy,
   type TriageState,
 } from "@bug-loop/core";
-import type { Classifier } from "../classifier";
 
-export async function routeWithClassifier(
+export async function routeWithPolicy(
   state: TriageState,
-  classifier: Classifier,
+  policy: RoutingPolicy,
 ): Promise<Partial<TriageState>> {
   const triage: IncidentTriage[] = [];
   for (const item of state.triage ?? []) {
@@ -16,7 +17,7 @@ export async function routeWithClassifier(
       command: "",
       evidence: "Reproduction stage did not return a result.",
     };
-    const route = await classifier.route(item.incident, repro);
+    const route = await routeIncident({ policy, incident: item.incident, repro });
     triage.push({
       ...item,
       route: {
@@ -39,7 +40,7 @@ export async function routeWithClassifier(
 
 export async function routeNode(
   state: TriageState,
-  classifier: Classifier,
+  policy: RoutingPolicy,
 ): Promise<Partial<TriageState>> {
-  return routeWithClassifier(state, classifier);
+  return routeWithPolicy(state, policy);
 }
