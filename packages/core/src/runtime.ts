@@ -69,7 +69,7 @@ function resolveTriage(
       source: configuredModel === undefined ? "default" : "env",
     };
   }
-  if (env["OPENAI_API_KEY"] !== undefined) {
+  if (nonEmptyEnv(env, "OPENAI_API_KEY") !== undefined) {
     const model = nonEmptyEnv(env, "BUGLOOP_CLASSIFIER_MODEL") ?? "gpt-4o-mini";
     return {
       harness: "openai-api",

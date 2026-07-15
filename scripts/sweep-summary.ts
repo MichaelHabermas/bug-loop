@@ -102,7 +102,7 @@ function fixAttemptNumber(event: TraceEvent): number | undefined {
 }
 
 function seamForStage(stage: string): string {
-  if (stage === "triage" || stage === "route") return "triage";
+  if (stage === "triage" || stage === "detect" || stage === "route") return "triage";
   if (stage === "fix" || stage === "fixer") return "fix";
   if (stage === "testgen" || stage === "testWriter") return "test-writing";
   return "other";
@@ -150,8 +150,14 @@ export function summarizeTrace(path: string, trace: RunTraceLike): SweepRow {
   const knownUsd = seamUsd.size === 0
     ? undefined
     : [...seamUsd.values()].reduce((sum, usd) => sum + usd, 0);
-  const dominantSeam = [...seamUsd.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ??
-    "unknown";
+  const seamDurationMs = new Map<string, number>();
+  for (const event of trace.events) {
+    const seam = seamForStage(event.stage);
+    if (seam === "other") continue;
+    seamDurationMs.set(seam, (seamDurationMs.get(seam) ?? 0) + event.durationMs);
+  }
+  const dominantSeam = [...seamDurationMs.entries()]
+    .sort((left, right) => right[1] - left[1])[0]?.[0] ?? "unknown";
   return {
     config: configNameFromPath(path),
     path,

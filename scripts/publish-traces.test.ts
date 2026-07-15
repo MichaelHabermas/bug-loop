@@ -60,6 +60,49 @@ function minimalTrace(overrides: Partial<LegacyTrace> = {}): LegacyTrace {
   };
 }
 
+function minimalV2Trace(): Record<string, unknown> {
+  const agent = {
+    harness: "grok",
+    requestedModel: null,
+    effectiveModel: null,
+    effort: "low",
+    source: "env",
+  };
+  return {
+    schemaVersion: 2,
+    runId: "run-v2",
+    startedAt: "2026-07-14T12:00:00.000Z",
+    finishedAt: "2026-07-14T12:00:01.000Z",
+    label: "v2",
+    resolved: {
+      pipeline: "langgraph",
+      triage: { ...agent, harness: "heuristic", effort: null, source: "default" },
+      testWriter: { ...agent },
+      fixer: { ...agent },
+      regressionTests: "triage-decides",
+      maxFixAttempts: 2,
+      mode: { fix: true, live: false, fromStart: true },
+    },
+    workload: {
+      benchmarkId: "leaky-service-seeded-v1",
+      seed: 42,
+      caseCount: 50,
+      codeRevision: "abc123",
+    },
+    events: minimalTrace().events,
+    agentCalls: [{
+      seq: 1,
+      stage: "fixer",
+      harness: "grok",
+      effectiveModel: null,
+      effort: "low",
+      durationMs: 25,
+      outcome: "success",
+      usage: { status: "tokens-only", totalTokens: 10 },
+    }],
+  };
+}
+
 describe("parseRunTrace", () => {
   test("accepts a valid RunTrace", () => {
     const trace = parseRunTrace(minimalTrace({ label: "baseline" }));
@@ -105,6 +148,29 @@ describe("parseRunTrace", () => {
     });
     expect(() => parseRunTrace(bad)).toThrow("events[0].cost.harness is invalid");
   });
+
+  test("validates and accepts schema v2 traces", () => {
+    const trace = parseRunTrace(minimalV2Trace());
+    expect(trace.schemaVersion).toBe(2);
+    expect(trace.workload.benchmarkId).toBe("leaky-service-seeded-v1");
+    expect(trace.agentCalls).toHaveLength(1);
+  });
+
+  test("rejects malformed v2 usage and fallback metadata", () => {
+    const missingTokens = minimalV2Trace();
+    const calls = missingTokens["agentCalls"] as Array<Record<string, unknown>>;
+    calls[0] = { ...calls[0], usage: { status: "tokens-only" } };
+    expect(() => parseRunTrace(missingTokens)).toThrow(
+      "tokens-only usage must include at least one token count",
+    );
+
+    const malformedFallback = minimalV2Trace();
+    const fallbackCalls = malformedFallback["agentCalls"] as Array<Record<string, unknown>>;
+    fallbackCalls[0] = { ...fallbackCalls[0], fallback: { type: "heuristic" } };
+    expect(() => parseRunTrace(malformedFallback)).toThrow(
+      "fallback must include string type and reason",
+    );
+  });
 });
 
 describe("labelFromFilename / labelForTrace", () => {
@@ -146,6 +212,7 @@ describe("buildRunsDataSource / publishTraces", () => {
 
   test("safe projection strips absolute paths, prompts, argv, and raw usage", () => {
     const trace = parseRunTrace(minimalTrace({
+      label: "C:\\Users\\michael\\private-run",
       config: {
         logPath: "/Users/michael/secret/log.jsonl",
         maxFixAttempts: 2,
@@ -159,7 +226,9 @@ describe("buildRunsDataSource / publishTraces", () => {
         outcome: "edited /Users/michael/repo/src/app.ts",
         detail: {
           prompt: "private prompt",
+          userPrompt: "second private prompt",
           argv: ["--secret"],
+          rawArgv: ["--other-secret"],
           file: "/Users/michael/repo/src/app.ts",
         },
         cost: {
@@ -176,8 +245,11 @@ describe("buildRunsDataSource / publishTraces", () => {
       trace,
     }]);
     expect(source).not.toContain("/Users/");
+    expect(source).not.toContain("C:\\\\Users\\\\");
     expect(source).not.toContain("private prompt");
+    expect(source).not.toContain("second private prompt");
     expect(source).not.toContain("--secret");
+    expect(source).not.toContain("--other-secret");
     expect(source).not.toContain('"raw"');
     expect(source).toContain("[local-path-redacted]");
   });

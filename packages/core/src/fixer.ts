@@ -376,7 +376,7 @@ export class GrokFixer extends CliFixer {
 
   protected command(input: FixInput): string[] {
     // Stay on plain mode. Grok's --output-format json envelope only documents
-    // text/stopReason/sessionId/requestId[/thought] — no usage/token/cost fields
+    // text/stopReason/sessionId/requestId[/thought] - no usage/token/cost fields
     // (verified against grok --help + headless docs). Switching to json would not
     // improve CostSample capture; parseGrokJsonOutput exists if that changes.
     // Plain stdout also prints no usage lines today, so cost often stays omitted.

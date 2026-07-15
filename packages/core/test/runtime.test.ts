@@ -60,3 +60,46 @@ test("injected implementations are labeled as argument-sourced", () => {
   expect(resolved.fixer).toMatchObject({ harness: "injected", source: "arg" });
   expect(resolved.testWriter).toMatchObject({ harness: "injected", source: "arg" });
 });
+
+test("empty overrides resolve exactly like absent overrides", () => {
+  const resolved = resolvePipelineRuntime({
+    pipeline: "agent-sdk",
+    config,
+    mode: { fromStart: false },
+    env: {
+      BUGLOOP_TRIAGE_MODEL: "",
+      BUGLOOP_FIXER: "",
+      BUGLOOP_TESTWRITER: "",
+      BUGLOOP_GROK_EFFORT: "",
+    },
+  });
+
+  expect(resolved.triage).toMatchObject({ requestedModel: "sonnet", source: "default" });
+  expect(resolved.fixer).toMatchObject({ harness: "grok", effort: null, source: "default" });
+  expect(resolved.testWriter).toMatchObject({ harness: "grok", effort: null, source: "default" });
+});
+
+test("invalid Grok effort fails during the shared resolution snapshot", () => {
+  expect(() => resolvePipelineRuntime({
+    pipeline: "agent-sdk",
+    config,
+    mode: { fromStart: false },
+    env: { BUGLOOP_GROK_EFFORT: "turbo" },
+  })).toThrow("BUGLOOP_GROK_EFFORT must be one of");
+});
+
+test("an empty classifier credential resolves to the heuristic harness", () => {
+  const resolved = resolvePipelineRuntime({
+    pipeline: "langgraph",
+    config,
+    mode: { fromStart: false },
+    env: { OPENAI_API_KEY: "", BUGLOOP_CLASSIFIER_MODEL: "gpt-custom" },
+  });
+
+  expect(resolved.triage).toMatchObject({
+    harness: "heuristic",
+    requestedModel: null,
+    effectiveModel: null,
+    source: "default",
+  });
+});

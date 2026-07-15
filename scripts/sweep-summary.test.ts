@@ -40,7 +40,7 @@ test("separates initial fixes from retries and sums known USD", () => {
   expect(row.knownUsd).toBeCloseTo(0.3);
 });
 
-test("uses v2 agent calls for spend without double-counting event costs", () => {
+test("uses v2 agent calls for spend and event duration for the dominant seam", () => {
   const row = summarizeTrace("traces/sweep-v2.json", {
     startedAt: "2026-07-14T00:00:00.000Z",
     finishedAt: "2026-07-14T00:00:01.000Z",
@@ -59,5 +59,19 @@ test("uses v2 agent calls for spend without double-counting event costs", () => 
   });
 
   expect(row.knownUsd).toBeCloseTo(0.7);
+  expect(row.dominantSeam).toBe("fix");
+});
+
+test("dominant seam follows duration rather than spend", () => {
+  const row = summarizeTrace("traces/sweep-duration.json", {
+    startedAt: "2026-07-14T00:00:00.000Z",
+    finishedAt: "2026-07-14T00:00:05.000Z",
+    events: [
+      { stage: "detect", outcome: "done", durationMs: 3_000, cost: { usd: 0.01 } },
+      { stage: "fix", outcome: "attempt 1", durationMs: 1_000, cost: { usd: 1 } },
+    ],
+  });
+
+  expect(row.knownUsd).toBeCloseTo(1.01);
   expect(row.dominantSeam).toBe("triage");
 });
