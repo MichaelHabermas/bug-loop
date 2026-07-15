@@ -346,6 +346,11 @@ function parseAgentCall(value: unknown, path: string): AgentCall {
   if (value["fingerprint"] !== undefined && typeof value["fingerprint"] !== "string") {
     throw new Error(`${path}.fingerprint must be a string`);
   }
+  for (const key of ["correlationId", "attemptId"] as const) {
+    if (value[key] !== undefined && typeof value[key] !== "string") {
+      throw new Error(`${path}.${key} must be a string`);
+    }
+  }
   if (!nonNegative(value["durationMs"])) throw new Error(`${path}.durationMs is invalid`);
   let fallback: AgentCall["fallback"];
   if (value["fallback"] !== undefined) {
@@ -364,6 +369,8 @@ function parseAgentCall(value: unknown, path: string): AgentCall {
     seq: value["seq"] as number,
     stage: value["stage"] as string,
     ...(typeof value["fingerprint"] === "string" ? { fingerprint: value["fingerprint"] } : {}),
+    ...(typeof value["correlationId"] === "string" ? { correlationId: value["correlationId"] } : {}),
+    ...(typeof value["attemptId"] === "string" ? { attemptId: value["attemptId"] } : {}),
     harness: value["harness"] as string,
     effectiveModel: value["effectiveModel"] as string | null,
     effort: value["effort"] as string | null,

@@ -9,6 +9,8 @@
     try {
       const savedTheme = localStorage.getItem("bug-loop-theme");
       if (savedTheme === "light" || savedTheme === "dark") document.documentElement.dataset.theme = savedTheme;
+      const savedView = localStorage.getItem("bug-loop-view");
+      if (savedView === "present" || savedView === "analyze") document.documentElement.dataset.view = savedView;
     } catch {}
   </script>
   <style>
@@ -35,8 +37,11 @@
       --testgen: #009e73;
       --verify: #cc79a7;
       --other: #73766f;
-      --reported: #d55e00;
+      --reported: #1c7a3f;
       --estimated: #0072b2;
+      --unknown: #8a6d1f;
+      --ok: #1c7a3f;
+      --ok-soft: #d6ead9;
       --serif: "Iowan Old Style", "Baskerville", "Palatino Linotype", Georgia, serif;
       --sans: "Avenir Next", Avenir, "Century Gothic", "Trebuchet MS", sans-serif;
       --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -66,8 +71,11 @@
         --testgen: #42c79a;
         --verify: #f092c7;
         --other: #9da29a;
-        --reported: #e69f00;
+        --reported: #57c47d;
         --estimated: #56b4e9;
+        --unknown: #d7b45a;
+        --ok: #57c47d;
+        --ok-soft: #17371f;
       }
     }
 
@@ -94,8 +102,11 @@
       --testgen: #42c79a;
       --verify: #f092c7;
       --other: #9da29a;
-      --reported: #e69f00;
+      --reported: #57c47d;
       --estimated: #56b4e9;
+      --unknown: #d7b45a;
+      --ok: #57c47d;
+      --ok-soft: #17371f;
     }
 
     :root[data-theme="light"] { color-scheme: light; }
@@ -129,9 +140,12 @@
     .shell { width: min(1440px, calc(100% - 48px)); margin: 0 auto; }
     .topbar {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
+      gap: 10px;
       min-height: 56px;
+      padding: 8px 0;
       border-bottom: 1px solid var(--rule-strong);
       font-family: var(--mono);
       font-size: 0.74rem;
@@ -139,7 +153,8 @@
       text-transform: uppercase;
     }
     .topbar-mark, .topbar-actions { display: flex; align-items: center; gap: 10px; }
-    .topbar-actions { gap: 14px; }
+    .topbar-actions { gap: 12px; flex-wrap: wrap; }
+    .topbar nav a[aria-current="page"] { color: var(--agent); text-decoration: none; }
     .status-dot {
       width: 9px;
       height: 9px;
@@ -147,7 +162,7 @@
       background: var(--signal);
       box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 16%, transparent);
     }
-    .theme-toggle, .control-button, .file-label, .glossary-jump, select {
+    .theme-toggle, .control-button, .file-label, .glossary-jump, select, .view-button {
       border: 1px solid var(--rule-strong);
       border-radius: 0;
       color: var(--ink);
@@ -167,21 +182,30 @@
       background: var(--ink);
     }
 
+    .view-switch { display: inline-flex; border: 1px solid var(--rule-strong); }
+    .view-button { border: 0; padding: 9px 13px; line-height: 1; background: transparent; }
+    .view-button + .view-button { border-left: 1px solid var(--rule-strong); }
+    .view-button[aria-pressed="true"] { color: var(--paper); background: var(--ink); }
+
+    /* View gating */
+    :root[data-view="present"] .analyze-only { display: none !important; }
+    :root:not([data-view="present"]) .present-only { display: none !important; }
+
     .hero {
       position: relative;
       display: grid;
       grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
       gap: 6vw;
       align-items: end;
-      min-height: 510px;
-      padding: 76px 0 62px;
+      min-height: 460px;
+      padding: 70px 0 54px;
       border-bottom: 4px solid var(--ink);
     }
     .hero::after {
       content: "01 / RUN ECONOMICS";
       position: absolute;
       right: 0;
-      top: 34px;
+      top: 30px;
       color: var(--ink-faint);
       font-family: var(--mono);
       font-size: 0.68rem;
@@ -198,7 +222,7 @@
     .eyebrow { color: var(--agent); }
     h1 {
       max-width: 950px;
-      margin: 18px 0 26px;
+      margin: 18px 0 24px;
       font-family: var(--serif);
       font-size: clamp(4rem, 9vw, 8.8rem);
       font-weight: 400;
@@ -214,31 +238,48 @@
       line-height: 1.15;
     }
     .headline {
-      padding: 24px 0 5px 24px;
+      padding: 22px 0 5px 24px;
       border-left: 1px solid var(--rule-strong);
     }
     .headline-value {
       display: block;
-      margin: 10px 0 5px;
+      margin: 10px 0 6px;
       font-family: var(--serif);
-      font-size: clamp(3rem, 7vw, 6rem);
-      letter-spacing: -0.06em;
-      line-height: 0.95;
+      font-size: clamp(2.4rem, 5.2vw, 4.4rem);
+      letter-spacing: -0.05em;
+      line-height: 0.98;
     }
     .headline-detail { margin: 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.72rem; line-height: 1.6; }
 
+    /* Evidence header uses the .tldr treatment from the other pages. */
     .tldr {
-      margin-top: 24px;
-      padding: clamp(20px, 2.5vw, 28px);
+      margin-top: 26px;
+      padding: clamp(20px, 2.5vw, 30px);
       border: 1px solid var(--rule-strong);
       border-left: 7px solid var(--agent);
       background: color-mix(in srgb, var(--paper-raised) 86%, transparent);
     }
-
-    .tldr .eyebrow { margin-bottom: 10px; }
-    .tldr ul { display: grid; gap: 6px; margin: 0; padding-left: 1.2rem; }
-    .tldr li { padding-left: 4px; }
-    .tldr li::marker { color: var(--agent); }
+    .tldr .eyebrow { margin-bottom: 12px; }
+    .evidence-claim {
+      margin: 0 0 14px;
+      font-family: var(--serif);
+      font-size: clamp(1.4rem, 3vw, 2.2rem);
+      font-weight: 400;
+      line-height: 1.14;
+    }
+    .evidence-claim strong { font-weight: 700; font-style: italic; }
+    .evidence-grounds { display: grid; gap: 7px; margin: 0; padding-left: 1.2rem; }
+    .evidence-grounds li { padding-left: 4px; color: var(--ink-soft); font-size: 0.96rem; }
+    .evidence-grounds li::marker { color: var(--agent); }
+    .evidence-caveat {
+      margin: 14px 0 0;
+      padding-top: 12px;
+      border-top: 1px solid var(--rule);
+      color: var(--ink-faint);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      line-height: 1.5;
+    }
 
     .term { position: relative; display: inline-block; border-bottom: 1px dotted currentColor; cursor: help; }
     .term-tip {
@@ -269,147 +310,186 @@
     }
     .term:hover .term-tip, .term:focus .term-tip { opacity: 1; transform: translate(-50%, 0); visibility: visible; }
 
-    .loader-section { padding: 32px 0 20px; border-bottom: 1px solid var(--rule-strong); }
-    .loader-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(310px, 0.8fr); gap: 16px; }
-    .drop-zone, .price-panel {
-      min-height: 190px;
-      padding: 24px;
-      border: 1px solid var(--rule-strong);
-      background: color-mix(in srgb, var(--paper-raised) 84%, transparent);
-    }
-    .drop-zone {
-      display: grid;
-      place-content: center;
-      text-align: center;
-      cursor: pointer;
-      transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
-    }
-    .drop-zone.is-over { color: var(--paper-raised); border-color: var(--agent); background: var(--agent); }
-    .drop-zone strong { display: block; font-family: var(--serif); font-size: clamp(1.6rem, 3vw, 2.6rem); font-weight: 400; }
-    .drop-zone span { color: var(--ink-soft); font-family: var(--mono); font-size: 0.72rem; }
-    .drop-zone.is-over span { color: inherit; }
-    .drop-zone input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-    .price-panel { display: grid; gap: 10px; align-content: start; }
-    .price-panel label { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
-    .price-panel textarea {
-      width: 100%;
-      min-height: 76px;
-      resize: vertical;
-      border: 1px solid var(--rule);
-      border-radius: 0;
-      color: var(--ink);
-      background: var(--paper);
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      line-height: 1.45;
-    }
-    .panel-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .control-button { min-height: 36px; padding: 0 12px; }
-    .inline-message { margin: 0; color: var(--ink-faint); font-family: var(--mono); font-size: 0.68rem; }
-    .inline-message.error { color: var(--agent); font-weight: 800; }
-    .error-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 30px; margin-top: 12px; }
-    .error-chip, .badge {
-      display: inline-flex;
-      align-items: center;
-      width: fit-content;
-      padding: 6px 8px;
-      border: 1px solid currentColor;
-      font-family: var(--mono);
-      font-size: 0.62rem;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      line-height: 1.25;
-      text-transform: uppercase;
-    }
-    .error-chip { color: var(--agent); background: var(--agent-soft); text-transform: none; }
-    .badge.partial { color: var(--human); background: var(--human-soft); }
-    .badge.estimated { color: var(--estimated); background: color-mix(in srgb, var(--estimated) 13%, var(--paper-raised)); border-style: dashed; }
-    .badge.reported { color: var(--reported); background: color-mix(in srgb, var(--reported) 13%, var(--paper-raised)); }
-    #price-meta { margin-top: 4px; max-width: 52ch; line-height: 1.45; text-transform: none; letter-spacing: 0; }
-
-    .section { padding: 90px 0; border-bottom: 1px solid var(--rule-strong); }
-    .section-head { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 32px; align-items: start; margin-bottom: 42px; }
+    .section { padding: 84px 0; border-bottom: 1px solid var(--rule-strong); }
+    .section-head { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 32px; align-items: start; margin-bottom: 40px; }
     .section-number { color: var(--ink-faint); font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; }
-    .section-title { margin: 0; font-family: var(--serif); font-size: clamp(2.5rem, 6vw, 5.4rem); font-weight: 400; letter-spacing: -0.048em; line-height: 0.95; }
+    .section-title { margin: 0; font-family: var(--serif); font-size: clamp(2.3rem, 5.4vw, 4.8rem); font-weight: 400; letter-spacing: -0.048em; line-height: 0.95; }
     .section-intro { max-width: 760px; margin: 16px 0 0; color: var(--ink-soft); font-size: 1rem; }
 
-    .table-wrap, .chart-scroll {
+    /* Chips + badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      width: fit-content;
+      padding: 5px 8px;
+      border: 1px solid currentColor;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+    .badge.reported { color: var(--reported); background: color-mix(in srgb, var(--reported) 14%, var(--paper-raised)); }
+    .badge.estimated { color: var(--estimated); background: color-mix(in srgb, var(--estimated) 13%, var(--paper-raised)); border-style: dashed; }
+    .badge.partial { color: var(--human); background: var(--human-soft); }
+    .badge.unknown { color: var(--unknown); background: color-mix(in srgb, var(--unknown) 15%, var(--paper-raised)); border-style: dashed; }
+    .badge.nickname { color: var(--ink-faint); background: transparent; text-transform: none; letter-spacing: 0; }
+    .badge.reference { color: var(--agent); background: var(--agent-soft); }
+    .badge.ok { color: var(--ok); background: var(--ok-soft); }
+    .badge.demo { color: var(--estimated); background: color-mix(in srgb, var(--estimated) 12%, var(--paper-raised)); }
+
+    /* Frontier */
+    .chart-scroll {
       width: 100%;
       overflow-x: auto;
       overscroll-behavior-inline: contain;
       border: 1px solid var(--rule-strong);
       background: var(--paper-raised);
       scrollbar-color: var(--agent) var(--paper);
+      padding: 14px 10px 6px;
     }
-    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-    .runs-table { min-width: 1280px; }
-    th, td { padding: 13px 12px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); text-align: right; vertical-align: top; }
-    th:last-child, td:last-child { border-right: 0; }
-    tbody tr:last-child td { border-bottom: 0; }
-    th { color: var(--ink-faint); background: color-mix(in srgb, var(--paper) 72%, transparent); font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; }
-    th button { width: 100%; padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; text-align: right; text-transform: inherit; }
-    th:first-child button, th:nth-child(2) button, td:first-child, td:nth-child(2) { text-align: left; }
-    th button:hover { color: var(--agent); }
-    td { font-family: var(--mono); font-size: 0.73rem; }
-    td:first-child { min-width: 170px; font-weight: 800; }
-    .cell-main { display: block; color: var(--ink); font-weight: 800; }
-    .cell-sub { display: block; margin-top: 3px; color: var(--ink-faint); font-size: 0.61rem; line-height: 1.35; }
-    .cell-detail { margin-top: 4px; color: var(--ink-soft); font-size: 0.61rem; }
-    .cell-detail summary { cursor: pointer; }
-    .cell-detail ul { min-width: 260px; margin: 6px 0 0; padding-left: 17px; text-align: left; }
-    .label-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-    .empty-row { padding: 28px; color: var(--ink-faint); text-align: center !important; }
-
-    .chart-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 16px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 13px; align-items: center; color: var(--ink-soft); font-family: var(--mono); font-size: 0.66rem; }
-    .legend-item { display: inline-flex; gap: 6px; align-items: center; }
-    .legend-swatch { width: 14px; height: 10px; border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); background: var(--swatch); }
-    .legend-swatch.estimated { opacity: 0.55; border-style: dashed; }
-    .metric-select { display: flex; gap: 8px; align-items: center; font-family: var(--mono); font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
-    .metric-select select { min-height: 36px; padding: 0 30px 0 10px; }
-    .chart-scroll { padding: 12px 8px 4px; }
-    .chart-scroll svg { display: block; max-width: none; min-height: 260px; }
+    .chart-scroll svg { display: block; max-width: none; }
     .chart-axis { stroke: var(--rule-strong); stroke-width: 1; }
     .chart-gridline { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 5; }
     .chart-text { fill: var(--ink-soft); font-family: var(--mono); font-size: 11px; }
     .chart-value { fill: var(--ink); font-family: var(--mono); font-size: 11px; font-weight: 800; }
     .chart-label { fill: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 800; }
+    .chart-note { fill: var(--ink-faint); font-family: var(--mono); font-size: 11px; font-style: italic; }
     .chart-empty { fill: var(--ink-faint); font-family: var(--serif); font-size: 20px; font-style: italic; }
-    .line-path { fill: none; stroke: var(--triage); stroke-width: 3; }
-    .line-point { fill: var(--paper-raised); stroke: var(--triage); stroke-width: 3; }
-    .chart-data { margin-top: 10px; color: var(--ink-soft); font-family: var(--mono); font-size: 0.68rem; }
-    .chart-data summary { width: fit-content; cursor: pointer; font-weight: 800; text-transform: uppercase; }
-    .chart-data .table-wrap { margin-top: 8px; }
-    .chart-data table { min-width: 700px; }
+    .frontier-line { fill: none; stroke: var(--ok); stroke-width: 2.5; stroke-dasharray: 1 0; }
+    .point-solid { stroke: var(--ink); stroke-width: 1.5; }
+    .point-hollow { fill: var(--paper-raised); stroke-width: 2.5; }
+    .point-muted { opacity: 0.42; }
+    .point-ref { stroke: var(--agent); stroke-width: 3; fill: none; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 14px; color: var(--ink-soft); font-family: var(--mono); font-size: 0.66rem; }
+    .chart-legend span { display: inline-flex; gap: 6px; align-items: center; }
+    .swatch { width: 15px; height: 15px; display: inline-block; border: 1px solid color-mix(in srgb, var(--ink) 40%, transparent); }
+    .swatch.solid { background: var(--ok); border-radius: 50%; }
+    .swatch.hollow { background: var(--paper-raised); border-color: var(--human); border-radius: 50%; }
+    .swatch.refring { background: transparent; border-color: var(--agent); border-width: 2px; border-radius: 50%; }
+    .swatch.muted { background: var(--other); opacity: 0.42; border-radius: 50%; }
 
-    .glossary-section { padding-top: 76px; padding-bottom: 76px; }
+    /* Scoreboard */
+    .board-wrap { width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; border: 1px solid var(--rule-strong); background: var(--paper-raised); scrollbar-color: var(--agent) var(--paper); }
+    table.board { width: 100%; min-width: 900px; border-collapse: collapse; }
+    .board th, .board td { padding: 14px 14px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+    .board th { color: var(--ink-faint); background: color-mix(in srgb, var(--paper) 72%, transparent); font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+    .board tbody tr.run-row { cursor: pointer; }
+    .board tbody tr.run-row:hover { background: color-mix(in srgb, var(--agent) 6%, transparent); }
+    .board tbody tr.run-row.is-open { background: color-mix(in srgb, var(--agent) 10%, var(--paper-raised)); }
+    .board tbody tr.run-row.muted td { opacity: 0.6; }
+    .group-row td { background: color-mix(in srgb, var(--paper) 80%, transparent); border-bottom: 1px solid var(--rule-strong); }
+    .group-row .group-title { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+    .group-row .group-agg { margin-top: 5px; color: var(--ink-soft); font-family: var(--mono); font-size: 0.66rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
+    .cfg-primary { display: block; font-family: var(--mono); font-size: 0.82rem; font-weight: 800; line-height: 1.35; }
+    .cfg-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    .metric-main { display: block; font-family: var(--mono); font-size: 0.92rem; font-weight: 800; }
+    .metric-sub { display: block; margin-top: 4px; color: var(--ink-soft); font-family: var(--mono); font-size: 0.64rem; line-height: 1.4; }
+    .cost-lb { color: var(--human); }
+    .cost-na { color: var(--ink-faint); }
+    .cost-exact { color: var(--reported); }
+    .delta-up { color: var(--fix); }
+    .delta-down { color: var(--ok); }
+    .delta-flat { color: var(--ink-faint); }
+    .row-toggle { color: var(--ink-faint); font-family: var(--mono); font-size: 0.62rem; }
+    .board tr.run-row .cfg-primary::before { content: "▸ "; color: var(--ink-faint); }
+    .board tr.run-row.is-open .cfg-primary::before { content: "▾ "; color: var(--agent); }
+
+    /* Detail panel */
+    .detail-cell { padding: 0 !important; }
+    .detail-inner { padding: 22px 20px 26px; background: color-mix(in srgb, var(--paper) 82%, transparent); border-bottom: 2px solid var(--agent); }
+    .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; }
+    .detail-block h4 { margin: 0 0 12px; font-family: var(--mono); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+    .seam-bar { display: grid; grid-template-columns: 96px minmax(0,1fr) auto; gap: 10px; align-items: center; margin-bottom: 7px; font-family: var(--mono); font-size: 0.68rem; }
+    .seam-bar .track { height: 12px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+    .seam-bar .track span { display: block; height: 100%; }
+    .seam-name { color: var(--ink-soft); }
+    .seam-val { color: var(--ink); font-weight: 800; text-align: right; white-space: nowrap; }
+    .cost-seam-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; font-family: var(--mono); font-size: 0.68rem; }
+    .cost-seam-row .seam-name { min-width: 96px; }
+    .mini-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.64rem; }
+    .mini-table th, .mini-table td { padding: 6px 8px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+    .mini-table th { color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+    .mini-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--rule); }
+    .kv { display: grid; grid-template-columns: 150px minmax(0,1fr); gap: 6px 14px; font-family: var(--mono); font-size: 0.68rem; }
+    .kv dt { color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.62rem; }
+    .kv dd { margin: 0; color: var(--ink); }
+    .coverage-line { margin: 4px 0 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.68rem; line-height: 1.5; }
+    .timeline-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--rule); font-family: var(--mono); font-size: 0.64rem; }
+    .timeline-list div { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; padding: 5px 9px; border-bottom: 1px solid var(--rule); }
+    .timeline-list div:last-child { border-bottom: 0; }
+    .timeline-list .tl-stage { color: var(--ink); font-weight: 700; }
+    .timeline-list .tl-dur { color: var(--ink-soft); }
+
+    /* Loader drawer + methodology (analyze only) */
+    .loader-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(310px, 0.8fr); gap: 16px; }
+    .drop-zone, .price-panel { min-height: 180px; padding: 24px; border: 1px solid var(--rule-strong); background: color-mix(in srgb, var(--paper-raised) 84%, transparent); }
+    .drop-zone { display: grid; place-content: center; text-align: center; cursor: pointer; transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease; }
+    .drop-zone.is-over { color: var(--paper-raised); border-color: var(--agent); background: var(--agent); }
+    .drop-zone strong { display: block; font-family: var(--serif); font-size: clamp(1.5rem, 3vw, 2.4rem); font-weight: 400; }
+    .drop-zone span { color: var(--ink-soft); font-family: var(--mono); font-size: 0.72rem; }
+    .drop-zone.is-over span { color: inherit; }
+    .drop-zone input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .price-panel { display: grid; gap: 10px; align-content: start; }
+    .price-panel label { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .price-panel textarea { width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--rule); border-radius: 0; color: var(--ink); background: var(--paper); font-family: var(--mono); font-size: 0.72rem; line-height: 1.45; }
+    .panel-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .control-button { min-height: 36px; padding: 0 12px; }
+    .inline-message { margin: 0; color: var(--ink-faint); font-family: var(--mono); font-size: 0.68rem; }
+    .inline-message.error { color: var(--agent); font-weight: 800; }
+    .error-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 20px; margin-top: 12px; }
+    .error-chip { display: inline-flex; padding: 6px 8px; border: 1px solid var(--agent); color: var(--agent); background: var(--agent-soft); font-family: var(--mono); font-size: 0.62rem; font-weight: 800; }
+    #price-meta { margin-top: 4px; max-width: 60ch; line-height: 1.45; }
+
+    .chart-data { margin-top: 12px; color: var(--ink-soft); font-family: var(--mono); font-size: 0.68rem; }
+    .chart-data summary { width: fit-content; cursor: pointer; font-weight: 800; text-transform: uppercase; }
+    .chart-data .board-wrap { margin-top: 8px; }
+    .chart-data table { min-width: 640px; font-size: 0.64rem; }
+    .chart-data th, .chart-data td { padding: 8px 10px; }
+
+    .method { display: grid; gap: 18px; }
+    .method .honesty { margin: 0; padding: 18px 20px; border: 1px solid var(--rule-strong); border-left: 6px solid var(--agent); background: color-mix(in srgb, var(--paper-raised) 86%, transparent); font-size: 0.98rem; }
+    details.method-block { border: 1px solid var(--rule); background: var(--paper-raised); }
+    details.method-block > summary { padding: 13px 16px; cursor: pointer; font-family: var(--mono); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+    details.method-block[open] > summary { border-bottom: 1px solid var(--rule); }
+    .method-body { padding: 14px 18px 18px; }
+    .method-body dl { display: grid; grid-template-columns: minmax(150px, 0.34fr) minmax(0, 1fr); gap: 10px 18px; margin: 0; }
+    .method-body dt { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; }
+    .method-body dd { margin: 0; color: var(--ink-soft); font-size: 0.86rem; }
+    .method-body ul { margin: 0; padding-left: 1.1rem; color: var(--ink-soft); font-size: 0.86rem; }
+
+    .glossary-section { padding-top: 72px; padding-bottom: 72px; }
     .glossary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--rule-strong); border-left: 1px solid var(--rule-strong); background: color-mix(in srgb, var(--paper-raised) 82%, transparent); }
     .glossary-item { display: grid; grid-template-columns: minmax(130px, 0.38fr) minmax(0, 1fr); gap: 16px; margin: 0; padding: 13px 16px; border-right: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
     .glossary-item dt { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; line-height: 1.35; }
     .glossary-item dd { margin: 0; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; }
-    footer { padding: 32px 0 48px; }
+
+    footer { padding: 30px 0 48px; }
     .footer-inner { display: flex; justify-content: space-between; gap: 28px; align-items: flex-start; font-family: var(--mono); font-size: 0.72rem; }
     .footer-inner p { max-width: 780px; margin: 0; color: var(--ink-soft); }
 
     @media (max-width: 900px) {
       .shell { width: min(100% - 28px, 1440px); }
-      .hero { grid-template-columns: 1fr; gap: 42px; min-height: auto; padding-top: 100px; }
+      .hero { grid-template-columns: 1fr; gap: 40px; min-height: auto; padding-top: 92px; }
       .headline { max-width: 560px; }
       .loader-grid { grid-template-columns: 1fr; }
-      .section { padding: 72px 0; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .section { padding: 66px 0; }
       .section-head { grid-template-columns: 90px minmax(0, 1fr); gap: 18px; }
     }
     @media (max-width: 640px) {
       .shell { width: min(100% - 20px, 1440px); }
       .topbar-copy, .glossary-jump { display: none; }
-      .topbar-actions { gap: 8px; }
-      h1 { font-size: clamp(3.8rem, 21vw, 6rem); }
+      h1 { font-size: clamp(3.6rem, 20vw, 6rem); }
       .section-head { display: block; }
       .section-number { display: block; margin-bottom: 16px; }
       .drop-zone, .price-panel { padding: 18px; }
       .glossary-grid { grid-template-columns: 1fr; }
       .glossary-item { grid-template-columns: 108px minmax(0, 1fr); }
       .footer-inner { flex-direction: column; }
+      .kv { grid-template-columns: 1fr; }
       .term-tip { position: fixed; inset: auto 10px 10px; width: auto; max-width: none; transform: translateY(4px); }
       .term:hover .term-tip, .term:focus .term-tip { transform: translateY(0); }
     }
@@ -424,8 +504,12 @@
     <div class="topbar">
       <div class="topbar-mark"><span class="status-dot" aria-hidden="true"></span><span class="topbar-copy">bug-loop / run ledger</span></div>
       <div class="topbar-actions">
-        <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html" aria-current="page">Runs</a></nav>
-        <a class="glossary-jump" href="#glossary">Glossary</a>
+        <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html" aria-current="page">Runs</a> <span aria-hidden="true">|</span> <a href="story.html">Story</a></nav>
+        <div class="view-switch" role="group" aria-label="Detail level">
+          <button class="view-button" id="view-present" type="button" aria-pressed="false">Present</button>
+          <button class="view-button" id="view-analyze" type="button" aria-pressed="true">Analyze</button>
+        </div>
+        <a class="glossary-jump analyze-only" href="#glossary">Glossary</a>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">Theme: auto</button>
       </div>
     </div>
@@ -433,205 +517,351 @@
       <div>
         <p class="eyebrow">Measured automation, no invented prices</p>
         <h1>Runs &amp; cost</h1>
-        <p class="hero-thesis">A verified fix only counts after the independent check passes. A dollar only counts when the trace reports it or you supply the model’s price.</p>
+        <p class="hero-thesis">A fix counts only after an independent check passes. A dollar counts only when the trace reports it or you supply the model&rsquo;s price. Everything else stays visibly unknown.</p>
       </div>
       <aside class="headline" aria-labelledby="headline-label">
-        <p class="mini-label" id="headline-label"><span class="term" tabindex="0" aria-describedby="tip-headline">Dollars per verified fix<span class="term-tip" id="tip-headline" role="tooltip">All known reported and user-priced costs across the loaded runs, divided by fixes whose verify event passed. Missing cost remains visibly partial or unavailable.</span></span></p>
-        <strong class="headline-value" id="headline-value">n/a</strong>
-        <p class="headline-detail" id="headline-detail">Demo trace has tokens but no reported dollar amount.</p>
+        <p class="mini-label" id="headline-label"><span class="term" tabindex="0" aria-describedby="tip-headline">Verified fixes in view<span class="term-tip" id="tip-headline" role="tooltip">A verified fix is a bug whose independent check (reproduction gone, scope respected, tests and typecheck passing) reported success. This counts them across the loaded runs.</span></span></p>
+        <strong class="headline-value" id="headline-value">&mdash;</strong>
+        <p class="headline-detail" id="headline-detail">Loading runs&hellip;</p>
       </aside>
     </div>
   </header>
 
   <main>
-    <aside class="shell tldr" aria-labelledby="tldr-title">
-      <p class="eyebrow" id="tldr-title">TL;DR</p>
-      <ul>
-        <li>This dashboard compares six real pipeline runs by time, retries, tokens, and dollars per independently verified fix.</li>
-        <li>Every published run found 4 incidents and produced 3 verified fixes.</li>
-        <li>The fastest was grok-low at 5 minutes 15 seconds; haiku-triage cost the least at about $0.08 per verified fix, with 1 retry.</li>
-        <li>Compare configurations by fixes that passed independent checks, and leave missing dollar data as n/a instead of guessing.</li>
-      </ul>
+    <!-- Evidence header: shown in BOTH views. Uses the .tldr visual treatment. -->
+    <aside class="shell tldr" id="evidence" aria-labelledby="evidence-title">
+      <p class="eyebrow" id="evidence-title">The evidence, stated conservatively</p>
+      <p class="evidence-claim" id="evidence-claim">&mdash;</p>
+      <ul class="evidence-grounds" id="evidence-grounds"></ul>
+      <p class="evidence-caveat" id="evidence-caveat"></p>
     </aside>
 
-    <section class="loader-section shell" aria-labelledby="load-title">
-      <h2 id="load-title" class="section-kicker">Load run traces</h2>
+    <p class="shell present-only" id="present-note" style="margin: 26px auto 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.72rem;"></p>
+
+    <section class="section shell" id="frontier" aria-labelledby="frontier-title">
+      <div class="section-head">
+        <span class="section-number">02 / THE SUMMARY GRAPH</span>
+        <div>
+          <h2 class="section-title" id="frontier-title">Quality-gated cost frontier</h2>
+          <p class="section-intro">One picture: <span class="term" tabindex="0" aria-describedby="tip-walltime">wall time<span class="term-tip" id="tip-walltime" role="tooltip">Wall time is the real elapsed clock time of the whole run, from first to last recorded moment.</span></span> across, dollars per verified fix down. Lower-left is better. Only runs with <span class="term" tabindex="0" aria-describedby="tip-complete">complete cost coverage<span class="term-tip" id="tip-complete" role="tooltip">Complete coverage means every AI worker call in the run reported a dollar amount (or you supplied a price for it). Without it, the plotted cost is only a floor.</span></span> and quality at or above the reference can sit on the frontier or win.</p>
+        </div>
+      </div>
+      <div class="chart-legend" id="frontier-legend">
+        <span><span class="swatch solid"></span>Complete coverage (frontier-eligible)</span>
+        <span><span class="swatch hollow"></span>Partial coverage &mdash; plotted cost is a floor (&ge;)</span>
+        <span><span class="swatch refring"></span>Reference config</span>
+        <span><span class="swatch muted"></span>Below quality floor (muted)</span>
+      </div>
+      <div class="chart-scroll" id="frontier-chart"></div>
+      <div class="analyze-only" id="frontier-data"></div>
+    </section>
+
+    <section class="section shell" id="scoreboard" aria-labelledby="scoreboard-title">
+      <div class="section-head">
+        <span class="section-number">03 / RUN REGISTER</span>
+        <div>
+          <h2 class="section-title" id="scoreboard-title">Scoreboard</h2>
+          <p class="section-intro">Each run is its <span class="term" tabindex="0" aria-describedby="tip-identity">configuration<span class="term-tip" id="tip-identity" role="tooltip">A run is identified by what it actually did &mdash; pipeline, triage model, fixer, effort, policy &mdash; not by its nickname. The nickname is only a label.</span></span>, not its nickname. Click a row for the full per-seam and per-call breakdown.</p>
+        </div>
+      </div>
+      <div class="board-wrap">
+        <table class="board" id="board">
+          <thead>
+            <tr>
+              <th scope="col">Configuration</th>
+              <th scope="col"><span class="term" tabindex="0" aria-describedby="tip-quality">Quality<span class="term-tip" id="tip-quality" role="tooltip">Verified fixes out of incidents, plus retries, incidents sent to a person, and any fallbacks. This is the signal that a cheaper or faster run must not sacrifice.</span></span></th>
+              <th scope="col"><span class="term" tabindex="0" aria-describedby="tip-costfix">Cost / verified fix<span class="term-tip" id="tip-costfix" role="tooltip">Known dollars divided by verified fixes. Shown exactly only when every call is priced; otherwise a floor (&ge;), or n/a with the reason.</span></span></th>
+              <th scope="col">Wall time</th>
+              <th scope="col">vs Reference</th>
+            </tr>
+          </thead>
+          <tbody id="board-body"><tr><td colspan="5">Loading runs&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section shell analyze-only" id="cost-seams" aria-labelledby="cost-seams-title">
+      <div class="section-head">
+        <span class="section-number">04 / SPEND BY BOUNDARY</span>
+        <div>
+          <h2 class="section-title" id="cost-seams-title">Where dollars go</h2>
+          <p class="section-intro">Known dollars split across the <span class="term" tabindex="0" aria-describedby="tip-seam">triage, test-writing, fix, and other seams<span class="term-tip" id="tip-seam" role="tooltip">A seam is a replaceable boundary in the pipeline. Grouping spend by seam shows which kind of work costs money, without pretending the trace priced work it never priced.</span></span>. Any run whose coverage is incomplete is watermarked, never presented as a full total.</p>
+        </div>
+      </div>
+      <div class="chart-scroll" id="cost-seams-chart"></div>
+      <div id="cost-seams-data"></div>
+    </section>
+
+    <section class="section shell analyze-only" id="time-seams" aria-labelledby="time-seams-title">
+      <div class="section-head">
+        <span class="section-number">05 / TIME BY BOUNDARY</span>
+        <div>
+          <h2 class="section-title" id="time-seams-title">Where wall-clock goes</h2>
+          <p class="section-intro">Recorded event durations grouped into triage, test-writing, fix, verify, and other. This is summed instrumented time; a run&rsquo;s wall time may also include uninstrumented gaps.</p>
+        </div>
+      </div>
+      <div class="chart-scroll" id="time-seams-chart"></div>
+      <div id="time-seams-data"></div>
+    </section>
+
+    <section class="section shell analyze-only" id="over-time" aria-labelledby="over-time-title" hidden>
+      <div class="section-head">
+        <span class="section-number">06 / RUN HISTORY</span>
+        <div>
+          <h2 class="section-title" id="over-time-title">Runs over time</h2>
+          <p class="section-intro">Shown once at least three runs share the same workload and resolved configuration &mdash; the only case where a trend line compares like with like.</p>
+        </div>
+      </div>
+      <label class="inline-message" for="time-metric" style="display:flex;gap:8px;align-items:center;margin-bottom:14px;font-weight:800;text-transform:uppercase;">Y axis
+        <select id="time-metric">
+          <option value="usdPerFix">Cost floor / verified fix</option>
+          <option value="duration">Wall time</option>
+          <option value="verifiedFixes">Verified fixes</option>
+        </select>
+      </label>
+      <div class="chart-scroll" id="over-time-chart"></div>
+      <div id="over-time-data"></div>
+    </section>
+
+    <section class="section shell analyze-only" id="loader" aria-labelledby="loader-title">
+      <div class="section-head">
+        <span class="section-number">07 / BRING YOUR OWN RUNS</span>
+        <div>
+          <h2 class="section-title" id="loader-title">Load traces &amp; prices</h2>
+          <p class="section-intro">The dashboard reads trace files locally. Nothing leaves this tab. Paste model prices only to turn token-only calls into clearly-labelled estimates.</p>
+        </div>
+      </div>
       <div class="loader-grid">
         <label class="drop-zone" id="drop-zone">
           <strong>Drop trace JSON files here</strong>
-          <span>or choose any number of files · each valid file becomes one run</span>
+          <span>or choose files &middot; each valid trace becomes one run &middot; v1 and v2 both accepted</span>
           <input id="trace-files" type="file" accept="application/json,.json" multiple>
         </label>
         <div class="price-panel">
-          <label for="price-table">Optional model prices in USD per million tokens (override)</label>
-          <textarea id="price-table" spellcheck="false" placeholder='Paste JSON to override defaults, e.g. {"gpt-5.6-luna":{"inPerM":1,"outPerM":6}}'></textarea>
+          <label for="price-table">Model prices (USD per million tokens) &mdash; optional override</label>
+          <textarea id="price-table" spellcheck="false" placeholder='{"grok-4.5":{"inPerM":2,"outPerM":6}}'></textarea>
           <div class="panel-actions">
             <button class="control-button" id="apply-prices" type="button">Apply prices</button>
-            <button class="control-button" id="reset-demo" type="button">Reset to demo</button>
-            <p class="inline-message" id="price-message" role="status" aria-live="polite">No price table applied.</p>
+            <button class="control-button" id="load-demo" type="button">Load v2 demo set</button>
+            <button class="control-button" id="reset-published" type="button">Reset to published</button>
           </div>
+          <p class="inline-message" id="price-message" role="status" aria-live="polite">Default prices applied.</p>
           <p class="inline-message" id="price-meta" hidden></p>
         </div>
       </div>
       <div class="error-list" id="file-errors" aria-live="polite" aria-label="File errors"></div>
     </section>
 
-    <section class="section shell" id="comparison" aria-labelledby="comparison-title">
+    <section class="section shell analyze-only" id="methodology" aria-labelledby="methodology-title">
       <div class="section-head">
-        <span class="section-number">02 / RUN REGISTER</span>
+        <span class="section-number">08 / METHODOLOGY</span>
         <div>
-          <h2 class="section-title" id="comparison-title">Runs compared</h2>
-          <p class="section-intro">Click any column heading to sort. Open a token total to see the recorded <span class="term" tabindex="0" aria-describedby="tip-harness">harness and model<span class="term-tip" id="tip-harness" role="tooltip">A harness is the tool surrounding an AI worker. A model is the named AI system it ran. Keeping both names prevents unlike costs from being blended invisibly.</span></span> breakdown.</p>
+          <h2 class="section-title" id="methodology-title">How to trust this page</h2>
         </div>
       </div>
-      <div class="table-wrap">
-        <table class="runs-table" id="runs-table">
-          <thead><tr id="runs-head"><th scope="col">Run label</th></tr></thead>
-          <tbody id="runs-body"><tr><td colspan="11">Loading built-in demo…</td></tr></tbody>
-        </table>
+      <div class="method">
+        <p class="honesty">This page never invents a price and never blends unlike runs into one dollar figure. When a run&rsquo;s cost coverage is incomplete, its cost is shown as a floor (&ge;) or as <em>n/a</em> with the reason &mdash; it is never rounded up to a total and never allowed to win a cost comparison.</p>
+        <details class="method-block">
+          <summary>Metric definitions</summary>
+          <div class="method-body"><dl id="metric-defs"></dl></div>
+        </details>
+        <details class="method-block">
+          <summary>Pricing provenance</summary>
+          <div class="method-body">
+            <p class="inline-message" id="method-pricing" style="margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:0.82rem;"></p>
+            <dl id="price-list"></dl>
+          </div>
+        </details>
+        <details class="method-block">
+          <summary>Offline &amp; data handling</summary>
+          <div class="method-body">
+            <ul>
+              <li>No network requests. This page and its sibling <code>runs-data.js</code> are the only files it reads.</li>
+              <li>Dropped trace files are parsed in-browser and never uploaded.</li>
+              <li>The only thing stored is your light/dark and Present/Analyze preference.</li>
+              <li>Published runs are schema v1 &mdash; recorded before call-level tracking. Missing v2 fields are shown as explicit <span class="badge unknown" style="display:inline-flex;">unknown (v1)</span> markers, never inferred.</li>
+            </ul>
+          </div>
+        </details>
       </div>
     </section>
 
-    <section class="section shell" id="cost-per-fix" aria-labelledby="cost-per-fix-title">
+    <section class="section shell glossary-section analyze-only" id="glossary" aria-labelledby="glossary-title">
       <div class="section-head">
-        <span class="section-number">03 / OUTCOME ECONOMICS</span>
-        <div>
-          <h2 class="section-title" id="cost-per-fix-title">Dollars per verified fix</h2>
-          <p class="section-intro">Known cost from every recorded agent attempt and planning step, divided by independently verified fixes. Estimated segments only appear after your matching model price is applied.</p>
-        </div>
-      </div>
-      <div class="chart-header"><div class="legend" id="cost-per-fix-legend"></div></div>
-      <div class="chart-scroll" id="cost-per-fix-chart"></div>
-      <div id="cost-per-fix-data"></div>
-    </section>
-
-    <section class="section shell" id="cost-seams" aria-labelledby="cost-seams-title">
-      <div class="section-head">
-        <span class="section-number">04 / SPEND BY BOUNDARY</span>
-        <div>
-          <h2 class="section-title" id="cost-seams-title">Where dollars go</h2>
-          <p class="section-intro">Each bar splits known cost across the <span class="term" tabindex="0" aria-describedby="tip-cost-seam">triage, fix, test-writing, and other seams<span class="term-tip" id="tip-cost-seam" role="tooltip">A seam is a replaceable boundary in the pipeline. Grouping spend by seam shows which kind of work consumes money without pretending the trace knows more detail than it records.</span></span>.</p>
-        </div>
-      </div>
-      <div class="chart-header"><div class="legend" id="cost-seams-legend"></div></div>
-      <div class="chart-scroll" id="cost-seams-chart"></div>
-      <div id="cost-seams-data"></div>
-    </section>
-
-    <section class="section shell" id="time-seams" aria-labelledby="time-seams-title">
-      <div class="section-head">
-        <span class="section-number">05 / TIME BY BOUNDARY</span>
-        <div>
-          <h2 class="section-title" id="time-seams-title">Where wall-clock goes</h2>
-          <p class="section-intro">Recorded event durations grouped into triage, fixing, verification, and everything else. This is summed event time; the run’s wall duration may also include uninstrumented gaps.</p>
-        </div>
-      </div>
-      <div class="chart-header"><div class="legend" id="time-seams-legend"></div></div>
-      <div class="chart-scroll" id="time-seams-chart"></div>
-      <div id="time-seams-data"></div>
-    </section>
-
-    <section class="section shell" id="retries" aria-labelledby="retries-title">
-      <div class="section-head">
-        <span class="section-number">06 / ITERATION LOAD</span>
-        <div>
-          <h2 class="section-title" id="retries-title">Attempts and retries</h2>
-          <p class="section-intro">A <span class="term" tabindex="0" aria-describedby="tip-retry">retry<span class="term-tip" id="tip-retry" role="tooltip">A retry is a fix event after the first fix event for the same failure fingerprint. It measures repeated fixing work, not verification or test-writing attempts.</span></span> is any fix attempt after the first for the same incident fingerprint.</p>
-        </div>
-      </div>
-      <div class="chart-header"><div class="legend" id="retries-legend"></div></div>
-      <div class="chart-scroll" id="retries-chart"></div>
-      <div id="retries-data"></div>
-    </section>
-
-    <section class="section shell" id="over-time" aria-labelledby="over-time-title">
-      <div class="section-head">
-        <span class="section-number">07 / RUN HISTORY</span>
-        <div>
-          <h2 class="section-title" id="over-time-title">Runs over time</h2>
-          <p class="section-intro">The history becomes useful as trace files accumulate. Missing dollar values remain gaps instead of zeroes.</p>
-        </div>
-      </div>
-      <div class="chart-header">
-        <div class="legend"><span class="legend-item"><span class="legend-swatch" style="--swatch:var(--triage)"></span>Selected metric</span></div>
-        <label class="metric-select" for="time-metric">Y axis
-          <select id="time-metric">
-            <option value="usdPerFix">USD per verified fix</option>
-            <option value="tokens">Total tokens</option>
-            <option value="duration">Wall duration</option>
-          </select>
-        </label>
-      </div>
-      <div class="chart-scroll" id="over-time-chart"></div>
-      <div id="over-time-data"></div>
-    </section>
-
-    <section class="section shell glossary-section" id="glossary" aria-labelledby="glossary-title">
-      <div class="section-head">
-        <span class="section-number">08 / PRESENTER GLOSSARY</span>
+        <span class="section-number">09 / PRESENTER GLOSSARY</span>
         <div>
           <h2 class="section-title" id="glossary-title">What every number means</h2>
-          <p class="section-intro">The page uses only trace fields, deterministic groupings, and optional prices you provide.</p>
+          <p class="section-intro">Every specialized word on this page in plain language. Nothing here needs prior knowledge of the pipeline.</p>
         </div>
       </div>
       <div class="glossary-grid">
-        <dl class="glossary-item"><dt>Agent event</dt><dd>A recorded triage, fix, or test-writing step where an AI worker may incur cost. Cost coverage is the share of these events carrying a cost sample.</dd></dl>
-        <dl class="glossary-item"><dt>Estimated USD</dt><dd>A dollar value calculated only for a token-only sample whose model appears in your price table. It is always labeled “estimated at your prices.”</dd></dl>
-        <dl class="glossary-item"><dt>Fingerprint</dt><dd>A stable ID for one failure. Fix events sharing it are treated as attempts on the same incident.</dd></dl>
-        <dl class="glossary-item"><dt>Harness</dt><dd>The surrounding tool that starts an AI worker and records its usage, such as Claude Agent SDK, Codex, or Grok.</dd></dl>
-        <dl class="glossary-item"><dt>Incident</dt><dd>One distinct bug. The dashboard uses the dedupe stage’s explicit incident count, or fingerprint count only when that explicit field is absent.</dd></dl>
-        <dl class="glossary-item"><dt>Model</dt><dd>The named AI system used by a cost sample. Prices match this exact string.</dd></dl>
-        <dl class="glossary-item"><dt>Needs human</dt><dd>An incident routed directly to a person plus an automated incident handed off after its allowed fix attempts fail.</dd></dl>
-        <dl class="glossary-item"><dt>Partial cost data</dt><dd>At least one agent event has no cost sample. Known dollars are shown, but the badge warns that they are not a complete run total.</dd></dl>
-        <dl class="glossary-item"><dt>Reported USD</dt><dd>A dollar amount present in the trace itself. The dashboard sums only samples that actually carry the <code>usd</code> field.</dd></dl>
-        <dl class="glossary-item"><dt>Retry</dt><dd>A fix attempt after the first for the same fingerprint. An un-fingerprinted attempt counts as a retry only when its explicit attempt number is above one.</dd></dl>
-        <dl class="glossary-item"><dt>Seam</dt><dd>A replaceable pipeline boundary. Spend uses triage, fix, test-writing, and other; time uses triage, fix, verification, and other.</dd></dl>
-        <dl class="glossary-item"><dt>Token</dt><dd>A unit of model input or output text. Input and output counts are kept separate for each harness and model.</dd></dl>
-        <dl class="glossary-item"><dt>Verified fix</dt><dd>A <code>verify</code>-stage event with the exact normalized outcome <code>verified</code>, <code>pass</code>, or <code>passed</code>. Current pipeline emitters use <code>verified</code>.</dd></dl>
-        <dl class="glossary-item"><dt>Wall duration</dt><dd>The non-negative difference between a run’s <code>finishedAt</code> and <code>startedAt</code> timestamps.</dd></dl>
-        <dl class="glossary-item"><dt>USD per verified fix</dt><dd>All known reported and user-priced cost in the selected run or loaded set, divided by its verified fix count. It is unavailable when either side is missing or zero.</dd></dl>
+        <dl class="glossary-item"><dt>Agent call</dt><dd>One invocation of an AI worker (triage, test-writer, or fixer). In schema v2 each is recorded with its own usage status; v1 traces predate this.</dd></dl>
+        <dl class="glossary-item"><dt>Complete cost coverage</dt><dd>Every agent call in the run has a known dollar figure &mdash; reported by the trace or priced from your table. Required before any &ldquo;cheapest&rdquo; claim.</dd></dl>
+        <dl class="glossary-item"><dt>Cost floor (&ge;)</dt><dd>The known dollars so far, shown when some calls were never priced. The true cost is at least this much; it is never presented as the total.</dd></dl>
+        <dl class="glossary-item"><dt>Cost per verified fix</dt><dd>Known dollars divided by verified fixes. Exact only under complete coverage; otherwise a floor, or n/a with a reason.</dd></dl>
+        <dl class="glossary-item"><dt>Estimated at your prices</dt><dd>A dollar value computed for a token-only call whose model matches a price you supplied. Always labelled; never mixed silently into reported totals.</dd></dl>
+        <dl class="glossary-item"><dt>Fallback</dt><dd>A recorded moment where an agent could not do the requested thing and a defined backup ran instead. A quality signal, shown in v2 detail.</dd></dl>
+        <dl class="glossary-item"><dt>Fingerprint</dt><dd>A stable ID for one failure. Fix events sharing it are attempts on the same incident.</dd></dl>
+        <dl class="glossary-item"><dt>Frontier</dt><dd>The lower-left edge of eligible runs: the ones no other eligible run beats on both time and cost.</dd></dl>
+        <dl class="glossary-item"><dt>Harness</dt><dd>The surrounding tool that starts an AI worker and reports (or fails to report) its usage &mdash; Claude Agent SDK, Codex, or Grok.</dd></dl>
+        <dl class="glossary-item"><dt>Incident</dt><dd>One distinct bug. Taken from the dedupe stage&rsquo;s explicit count.</dd></dl>
+        <dl class="glossary-item"><dt>Needs human</dt><dd>An incident routed straight to a person, plus any incident handed off after its allowed fix attempts failed.</dd></dl>
+        <dl class="glossary-item"><dt>Quality floor</dt><dd>The reference run&rsquo;s verified-fix count. A run below it is muted and cannot win a comparison.</dd></dl>
+        <dl class="glossary-item"><dt>Reference config</dt><dd>The run every other run is compared against &mdash; the baseline configuration when present.</dd></dl>
+        <dl class="glossary-item"><dt>Resolution source</dt><dd>Where a model/effort choice came from: a built-in default, an environment variable, or a command-line argument.</dd></dl>
+        <dl class="glossary-item"><dt>Retry</dt><dd>A fix attempt after the first for the same fingerprint.</dd></dl>
+        <dl class="glossary-item"><dt>Seam</dt><dd>A replaceable pipeline boundary. Spend and time are grouped by triage, test-writing, fix, verify, and other.</dd></dl>
+        <dl class="glossary-item"><dt>Usage status</dt><dd>Per call: reported (has dollars), tokens-only (tokens but no dollars), or unavailable (with a reason the harness gave).</dd></dl>
+        <dl class="glossary-item"><dt>Verified fix</dt><dd>A verify-stage event whose outcome is verified/pass/passed &mdash; the independent check succeeded.</dd></dl>
+        <dl class="glossary-item"><dt>Wall time</dt><dd>Elapsed clock time of the whole run, finishedAt minus startedAt.</dd></dl>
+        <dl class="glossary-item"><dt>Workload key</dt><dd>Benchmark id, seed, case count, and code revision. Comparisons only mean something within one workload key.</dd></dl>
       </div>
     </section>
   </main>
 
   <footer class="shell">
     <div class="footer-inner">
-      <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html" aria-current="page">Runs</a></nav>
-      <p>Offline by design. Trace files stay in this browser tab; this page makes no network requests and stores only the manual light/dark preference.</p>
+      <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html" aria-current="page">Runs</a> <span aria-hidden="true">|</span> <a href="story.html">Story</a></nav>
+      <p>Offline by design. Trace files stay in this browser tab; this page makes no network requests and stores only your light/dark and Present/Analyze preference.</p>
     </div>
   </footer>
 
-  <script id="demo-trace" type="application/json">
-{
-  "runId": "example-langgraph-run",
-  "startedAt": "2026-07-14T12:00:00.000Z",
-  "finishedAt": "2026-07-14T12:00:00.323Z",
-  "pipeline": "langgraph",
-  "config": {
-    "repo": "MichaelHabermas/bug-loop",
-    "labels": { "pipeline": "bug-loop", "mechanical": "auto-fix-candidate", "needsHuman": "needs-human" },
-    "logPath": "logs/leaky-service.jsonl",
-    "baseUrl": "http://127.0.0.1:3000",
-    "cursorPath": "pipelines/langgraph/.cursor.json",
-    "fixScope": ["apps/leaky-service/src"],
-    "worktreeRoot": ".worktrees",
-    "maxFixAttempts": 2,
-    "fixer": "codex",
-    "invariantWarnPrefixes": ["order total negative"],
-    "branchPrefix": "bugloop/fix-"
+  <!-- Built-in v2 demo set: three runs sharing one workload, showing complete vs partial coverage. -->
+  <script id="demo-runs" type="application/json">
+[
+  {
+    "schemaVersion": 2,
+    "runId": "demo-sonnet-grok-a",
+    "startedAt": "2026-07-15T09:00:00.000Z",
+    "finishedAt": "2026-07-15T09:05:12.000Z",
+    "label": "demo-sonnet-grok",
+    "resolved": {
+      "pipeline": "agent-sdk",
+      "triage": { "harness": "claude-agent-sdk", "requestedModel": "claude-sonnet-5", "effectiveModel": "claude-sonnet-5", "effort": null, "source": "default" },
+      "testWriter": { "harness": "claude-agent-sdk", "requestedModel": "claude-sonnet-5", "effectiveModel": "claude-sonnet-5", "effort": null, "source": "default" },
+      "fixer": { "harness": "grok", "requestedModel": "grok-4.5", "effectiveModel": "grok-4.5", "effort": "low", "source": "default" },
+      "regressionTests": "triage-decides",
+      "maxFixAttempts": 2,
+      "incidentConcurrency": 1,
+      "mode": { "fix": true, "live": true, "fromStart": false }
+    },
+    "workload": { "benchmarkId": "leaky-service", "seed": 7, "caseCount": 4, "codeRevision": "rev-a1" },
+    "events": [
+      { "seq": 1, "stage": "ingest", "startedAt": "2026-07-15T09:00:00.000Z", "durationMs": 12, "outcome": "76 events", "detail": { "events": 76 } },
+      { "seq": 2, "stage": "detect", "startedAt": "2026-07-15T09:00:00.100Z", "durationMs": 8, "outcome": "24 actionable", "detail": { "actionable": 24 } },
+      { "seq": 3, "stage": "dedupe", "startedAt": "2026-07-15T09:00:00.200Z", "durationMs": 3, "outcome": "4 new incidents", "detail": { "incidents": 4, "newIncidents": 4 } },
+      { "seq": 4, "stage": "reproduce", "startedAt": "2026-07-15T09:00:00.300Z", "durationMs": 130, "outcome": "3 reproduced", "detail": { "reproduced": 3 } },
+      { "seq": 5, "stage": "route", "startedAt": "2026-07-15T09:00:01.000Z", "durationMs": 42000, "outcome": "3 mechanical", "detail": { "mechanical": 3, "needsHuman": 1 }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 15600, "outputTokens": 4200, "usd": 0.11 } },
+      { "seq": 6, "stage": "ticket", "startedAt": "2026-07-15T09:00:43.000Z", "durationMs": 2, "outcome": "4 issues", "detail": { "issuesFiled": 4 } },
+      { "seq": 7, "stage": "testgen", "fingerprint": "aa11", "startedAt": "2026-07-15T09:00:45.000Z", "durationMs": 38000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 8200, "outputTokens": 1600, "usd": 0.048 } },
+      { "seq": 8, "stage": "fix", "fingerprint": "aa11", "startedAt": "2026-07-15T09:01:23.000Z", "durationMs": 26000, "outcome": "attempt 1", "detail": { "attempt": 1 }, "cost": { "harness": "grok", "model": "grok-4.5", "inputTokens": 40100, "outputTokens": 5200, "usd": 0.1114 } },
+      { "seq": 9, "stage": "verify", "fingerprint": "aa11", "startedAt": "2026-07-15T09:01:49.000Z", "durationMs": 1500, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 10, "stage": "pr", "fingerprint": "aa11", "startedAt": "2026-07-15T09:01:51.000Z", "durationMs": 600, "outcome": "completed", "detail": { "pullRequestNumber": 11 } },
+      { "seq": 11, "stage": "testgen", "fingerprint": "bb22", "startedAt": "2026-07-15T09:01:52.000Z", "durationMs": 33000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 7800, "outputTokens": 1500, "usd": 0.045 } },
+      { "seq": 12, "stage": "fix", "fingerprint": "bb22", "startedAt": "2026-07-15T09:02:25.000Z", "durationMs": 22000, "outcome": "attempt 1", "detail": { "attempt": 1 }, "cost": { "harness": "grok", "model": "grok-4.5", "inputTokens": 38000, "outputTokens": 4800, "usd": 0.1048 } },
+      { "seq": 13, "stage": "verify", "fingerprint": "bb22", "startedAt": "2026-07-15T09:02:47.000Z", "durationMs": 1500, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 14, "stage": "pr", "fingerprint": "bb22", "startedAt": "2026-07-15T09:02:49.000Z", "durationMs": 600, "outcome": "completed", "detail": { "pullRequestNumber": 12 } },
+      { "seq": 15, "stage": "testgen", "fingerprint": "cc33", "startedAt": "2026-07-15T09:02:50.000Z", "durationMs": 40000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 8600, "outputTokens": 1700, "usd": 0.0505 } },
+      { "seq": 16, "stage": "fix", "fingerprint": "cc33", "startedAt": "2026-07-15T09:03:30.000Z", "durationMs": 24000, "outcome": "attempt 1", "detail": { "attempt": 1 }, "cost": { "harness": "grok", "model": "grok-4.5", "inputTokens": 41000, "outputTokens": 5100, "usd": 0.1126 } },
+      { "seq": 17, "stage": "verify", "fingerprint": "cc33", "startedAt": "2026-07-15T09:03:54.000Z", "durationMs": 1600, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 18, "stage": "pr", "fingerprint": "cc33", "startedAt": "2026-07-15T09:03:56.000Z", "durationMs": 600, "outcome": "completed", "detail": { "pullRequestNumber": 13 } }
+    ],
+    "agentCalls": [
+      { "seq": 1, "stage": "triage", "correlationId": "demo-a:route", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 42000, "outcome": "3 mechanical", "usage": { "status": "reported", "inputTokens": 15600, "outputTokens": 4200, "usd": 0.11 } },
+      { "seq": 2, "stage": "testWriter", "fingerprint": "aa11", "correlationId": "demo-a:aa11", "attemptId": "demo-a:aa11:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 38000, "outcome": "test written", "usage": { "status": "reported", "inputTokens": 8200, "outputTokens": 1600, "usd": 0.048 } },
+      { "seq": 3, "stage": "fixer", "fingerprint": "aa11", "correlationId": "demo-a:aa11", "attemptId": "demo-a:aa11:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 26000, "outcome": "attempt 1", "usage": { "status": "reported", "inputTokens": 40100, "outputTokens": 5200, "usd": 0.1114 } },
+      { "seq": 4, "stage": "testWriter", "fingerprint": "bb22", "correlationId": "demo-a:bb22", "attemptId": "demo-a:bb22:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 33000, "outcome": "test written", "usage": { "status": "reported", "inputTokens": 7800, "outputTokens": 1500, "usd": 0.045 } },
+      { "seq": 5, "stage": "fixer", "fingerprint": "bb22", "correlationId": "demo-a:bb22", "attemptId": "demo-a:bb22:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 22000, "outcome": "attempt 1", "usage": { "status": "reported", "inputTokens": 38000, "outputTokens": 4800, "usd": 0.1048 } },
+      { "seq": 6, "stage": "testWriter", "fingerprint": "cc33", "correlationId": "demo-a:cc33", "attemptId": "demo-a:cc33:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 40000, "outcome": "test written", "usage": { "status": "reported", "inputTokens": 8600, "outputTokens": 1700, "usd": 0.0505 } },
+      { "seq": 7, "stage": "fixer", "fingerprint": "cc33", "correlationId": "demo-a:cc33", "attemptId": "demo-a:cc33:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 24000, "outcome": "attempt 1", "usage": { "status": "reported", "inputTokens": 41000, "outputTokens": 5100, "usd": 0.1126 } }
+    ]
   },
-  "events": [
-    { "seq": 1, "stage": "ingest", "startedAt": "2026-07-14T12:00:00.017Z", "durationMs": 17, "outcome": "4 events", "detail": { "events": 4 } },
-    { "seq": 2, "stage": "detect", "startedAt": "2026-07-14T12:00:00.051Z", "durationMs": 17, "outcome": "4 actionable", "detail": { "actionable": 4 } },
-    { "seq": 3, "stage": "dedupe", "startedAt": "2026-07-14T12:00:00.085Z", "durationMs": 17, "outcome": "4 new incidents", "detail": { "incidents": 4, "newIncidents": 4 } },
-    { "seq": 4, "stage": "reproduce", "startedAt": "2026-07-14T12:00:00.119Z", "durationMs": 17, "outcome": "3 reproduced", "detail": { "reproduced": 3 } },
-    { "seq": 5, "stage": "route", "startedAt": "2026-07-14T12:00:00.153Z", "durationMs": 17, "outcome": "3 mechanical", "detail": { "mechanical": 3, "needsHuman": 1 } },
-    { "seq": 6, "stage": "ticket", "startedAt": "2026-07-14T12:00:00.187Z", "durationMs": 17, "outcome": "4 issues", "detail": { "issuesFiled": 4 } },
-    { "seq": 7, "stage": "fix", "fingerprint": "2239a31d3dda8339", "startedAt": "2026-07-14T12:00:00.221Z", "durationMs": 17, "outcome": "attempt 1", "detail": { "attempt": 1, "filesChanged": ["apps/leaky-service/src/server.ts"] }, "cost": { "harness": "codex", "model": "gpt-5.5-codex", "inputTokens": 12345, "outputTokens": 678, "raw": "model: gpt-5.5-codex\ninput tokens: 12,345\noutput tokens: 678\ntokens used\n13,023" } },
-    { "seq": 8, "stage": "verify", "fingerprint": "2239a31d3dda8339", "startedAt": "2026-07-14T12:00:00.255Z", "durationMs": 17, "outcome": "verified", "detail": { "attempt": 1, "scopePasses": true, "reproPasses": true, "testsPass": true, "typecheckPasses": true } },
-    { "seq": 9, "stage": "pr", "fingerprint": "2239a31d3dda8339", "startedAt": "2026-07-14T12:00:00.289Z", "durationMs": 17, "outcome": "completed", "detail": { "issueNumber": 1, "pullRequestNumber": 5 } }
-  ]
-}
+  {
+    "schemaVersion": 2,
+    "runId": "demo-sonnet-grok-b",
+    "startedAt": "2026-07-15T10:00:00.000Z",
+    "finishedAt": "2026-07-15T10:06:20.000Z",
+    "label": "demo-sonnet-grok (rerun)",
+    "resolved": {
+      "pipeline": "agent-sdk",
+      "triage": { "harness": "claude-agent-sdk", "requestedModel": "claude-sonnet-5", "effectiveModel": "claude-sonnet-5", "effort": null, "source": "default" },
+      "testWriter": { "harness": "claude-agent-sdk", "requestedModel": "claude-sonnet-5", "effectiveModel": "claude-sonnet-5", "effort": null, "source": "default" },
+      "fixer": { "harness": "grok", "requestedModel": "grok-4.5", "effectiveModel": "grok-4.5", "effort": "low", "source": "default" },
+      "regressionTests": "triage-decides",
+      "maxFixAttempts": 2,
+      "incidentConcurrency": 1,
+      "mode": { "fix": true, "live": true, "fromStart": false }
+    },
+    "workload": { "benchmarkId": "leaky-service", "seed": 7, "caseCount": 4, "codeRevision": "rev-a1" },
+    "events": [
+      { "seq": 1, "stage": "dedupe", "startedAt": "2026-07-15T10:00:00.200Z", "durationMs": 3, "outcome": "4 new incidents", "detail": { "incidents": 4, "newIncidents": 4 } },
+      { "seq": 2, "stage": "route", "startedAt": "2026-07-15T10:00:01.000Z", "durationMs": 48000, "outcome": "3 mechanical", "detail": { "mechanical": 3, "needsHuman": 1 }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 16100, "outputTokens": 4400, "usd": 0.117 } },
+      { "seq": 3, "stage": "testgen", "fingerprint": "aa11", "startedAt": "2026-07-15T10:00:50.000Z", "durationMs": 41000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 8400, "outputTokens": 1650, "usd": 0.0495 } },
+      { "seq": 4, "stage": "fix", "fingerprint": "aa11", "startedAt": "2026-07-15T10:01:31.000Z", "durationMs": 31000, "outcome": "attempt 1", "detail": { "attempt": 1 }, "cost": { "harness": "grok", "model": "grok-4.5", "inputTokens": 42000, "outputTokens": 5400, "usd": 0.1164 } },
+      { "seq": 5, "stage": "verify", "fingerprint": "aa11", "startedAt": "2026-07-15T10:02:02.000Z", "durationMs": 1550, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 6, "stage": "testgen", "fingerprint": "bb22", "startedAt": "2026-07-15T10:02:05.000Z", "durationMs": 36000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 8000, "outputTokens": 1550, "usd": 0.0465 } },
+      { "seq": 7, "stage": "fix", "fingerprint": "bb22", "startedAt": "2026-07-15T10:02:41.000Z", "durationMs": 28000, "outcome": "attempt 1", "detail": { "attempt": 1 }, "cost": { "harness": "grok", "model": "grok-4.5", "inputTokens": 39500, "outputTokens": 5000, "usd": 0.109 } },
+      { "seq": 8, "stage": "verify", "fingerprint": "bb22", "startedAt": "2026-07-15T10:03:09.000Z", "durationMs": 1550, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 9, "stage": "testgen", "fingerprint": "cc33", "startedAt": "2026-07-15T10:03:12.000Z", "durationMs": 43000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 8900, "outputTokens": 1750, "usd": 0.0522 } },
+      { "seq": 10, "stage": "fix", "fingerprint": "cc33", "startedAt": "2026-07-15T10:03:55.000Z", "durationMs": 30000, "outcome": "attempt 1", "detail": { "attempt": 1 }, "cost": { "harness": "grok", "model": "grok-4.5", "inputTokens": 43000, "outputTokens": 5300, "usd": 0.1178 } },
+      { "seq": 11, "stage": "verify", "fingerprint": "cc33", "startedAt": "2026-07-15T10:04:25.000Z", "durationMs": 1650, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 12, "stage": "pr", "fingerprint": "cc33", "startedAt": "2026-07-15T10:04:27.000Z", "durationMs": 600, "outcome": "completed", "detail": { "pullRequestNumber": 21 } }
+    ],
+    "agentCalls": [
+      { "seq": 1, "stage": "triage", "correlationId": "demo-b:route", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 48000, "outcome": "3 mechanical", "usage": { "status": "reported", "inputTokens": 16100, "outputTokens": 4400, "usd": 0.117 } },
+      { "seq": 2, "stage": "testWriter", "fingerprint": "aa11", "correlationId": "demo-b:aa11", "attemptId": "demo-b:aa11:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 41000, "outcome": "test written", "usage": { "status": "reported", "inputTokens": 8400, "outputTokens": 1650, "usd": 0.0495 } },
+      { "seq": 3, "stage": "fixer", "fingerprint": "aa11", "correlationId": "demo-b:aa11", "attemptId": "demo-b:aa11:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 31000, "outcome": "attempt 1", "usage": { "status": "reported", "inputTokens": 42000, "outputTokens": 5400, "usd": 0.1164 } },
+      { "seq": 4, "stage": "testWriter", "fingerprint": "bb22", "correlationId": "demo-b:bb22", "attemptId": "demo-b:bb22:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 36000, "outcome": "test written", "usage": { "status": "reported", "inputTokens": 8000, "outputTokens": 1550, "usd": 0.0465 } },
+      { "seq": 5, "stage": "fixer", "fingerprint": "bb22", "correlationId": "demo-b:bb22", "attemptId": "demo-b:bb22:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 28000, "outcome": "attempt 1", "usage": { "status": "reported", "inputTokens": 39500, "outputTokens": 5000, "usd": 0.109 } },
+      { "seq": 6, "stage": "testWriter", "fingerprint": "cc33", "correlationId": "demo-b:cc33", "attemptId": "demo-b:cc33:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 43000, "outcome": "test written", "usage": { "status": "reported", "inputTokens": 8900, "outputTokens": 1750, "usd": 0.0522 } },
+      { "seq": 7, "stage": "fixer", "fingerprint": "cc33", "correlationId": "demo-b:cc33", "attemptId": "demo-b:cc33:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 30000, "outcome": "attempt 1", "usage": { "status": "reported", "inputTokens": 43000, "outputTokens": 5300, "usd": 0.1178 } }
+    ]
+  },
+  {
+    "schemaVersion": 2,
+    "runId": "demo-haiku-grok-partial",
+    "startedAt": "2026-07-15T11:00:00.000Z",
+    "finishedAt": "2026-07-15T11:04:40.000Z",
+    "label": "demo-haiku-grok",
+    "resolved": {
+      "pipeline": "agent-sdk",
+      "triage": { "harness": "claude-agent-sdk", "requestedModel": "claude-haiku-4-5", "effectiveModel": "claude-haiku-4-5", "effort": null, "source": "arg" },
+      "testWriter": { "harness": "claude-agent-sdk", "requestedModel": "claude-sonnet-5", "effectiveModel": "claude-sonnet-5", "effort": null, "source": "default" },
+      "fixer": { "harness": "grok", "requestedModel": "grok-4.5", "effectiveModel": "grok-4.5", "effort": "low", "source": "default" },
+      "regressionTests": "triage-decides",
+      "maxFixAttempts": 2,
+      "incidentConcurrency": 2,
+      "mode": { "fix": true, "live": true, "fromStart": false }
+    },
+    "workload": { "benchmarkId": "leaky-service", "seed": 7, "caseCount": 4, "codeRevision": "rev-a1" },
+    "events": [
+      { "seq": 1, "stage": "dedupe", "startedAt": "2026-07-15T11:00:00.200Z", "durationMs": 3, "outcome": "4 new incidents", "detail": { "incidents": 4, "newIncidents": 4 } },
+      { "seq": 2, "stage": "route", "startedAt": "2026-07-15T11:00:01.000Z", "durationMs": 30000, "outcome": "3 mechanical", "detail": { "mechanical": 3, "needsHuman": 1 }, "cost": { "harness": "claude-agent-sdk", "model": "claude-haiku-4-5", "inputTokens": 15600, "outputTokens": 7600, "usd": 0.053 } },
+      { "seq": 3, "stage": "testgen", "fingerprint": "aa11", "startedAt": "2026-07-15T11:00:35.000Z", "durationMs": 30000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 8100, "outputTokens": 1600 } },
+      { "seq": 4, "stage": "fix", "fingerprint": "aa11", "startedAt": "2026-07-15T11:01:05.000Z", "durationMs": 60000, "outcome": "attempt 1", "detail": { "attempt": 1 } },
+      { "seq": 5, "stage": "verify", "fingerprint": "aa11", "startedAt": "2026-07-15T11:02:05.000Z", "durationMs": 1900, "outcome": "failed", "detail": { "attempt": 1 } },
+      { "seq": 6, "stage": "fix", "fingerprint": "aa11", "startedAt": "2026-07-15T11:02:07.000Z", "durationMs": 18000, "outcome": "attempt 2", "detail": { "attempt": 2 } },
+      { "seq": 7, "stage": "verify", "fingerprint": "aa11", "startedAt": "2026-07-15T11:02:25.000Z", "durationMs": 1000, "outcome": "verified", "detail": { "attempt": 2 } },
+      { "seq": 8, "stage": "testgen", "fingerprint": "bb22", "startedAt": "2026-07-15T11:02:27.000Z", "durationMs": 33000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 7900, "outputTokens": 1500 } },
+      { "seq": 9, "stage": "fix", "fingerprint": "bb22", "startedAt": "2026-07-15T11:03:00.000Z", "durationMs": 25000, "outcome": "attempt 1", "detail": { "attempt": 1 } },
+      { "seq": 10, "stage": "verify", "fingerprint": "bb22", "startedAt": "2026-07-15T11:03:25.000Z", "durationMs": 1500, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 11, "stage": "testgen", "fingerprint": "cc33", "startedAt": "2026-07-15T11:03:27.000Z", "durationMs": 35000, "outcome": "test written", "detail": { "fixtureSource": "manifest" }, "cost": { "harness": "claude-agent-sdk", "model": "claude-sonnet-5", "inputTokens": 8300, "outputTokens": 1650 } },
+      { "seq": 12, "stage": "fix", "fingerprint": "cc33", "startedAt": "2026-07-15T11:04:02.000Z", "durationMs": 26000, "outcome": "attempt 1", "detail": { "attempt": 1 } },
+      { "seq": 13, "stage": "verify", "fingerprint": "cc33", "startedAt": "2026-07-15T11:04:28.000Z", "durationMs": 1600, "outcome": "verified", "detail": { "attempt": 1 } },
+      { "seq": 14, "stage": "pr", "fingerprint": "cc33", "startedAt": "2026-07-15T11:04:30.000Z", "durationMs": 600, "outcome": "completed", "detail": { "pullRequestNumber": 31 } }
+    ],
+    "agentCalls": [
+      { "seq": 1, "stage": "triage", "correlationId": "demo-c:route", "harness": "claude-agent-sdk", "effectiveModel": "claude-haiku-4-5", "effort": null, "durationMs": 30000, "outcome": "3 mechanical", "usage": { "status": "reported", "inputTokens": 15600, "outputTokens": 7600, "usd": 0.053 } },
+      { "seq": 2, "stage": "testWriter", "fingerprint": "aa11", "correlationId": "demo-c:aa11", "attemptId": "demo-c:aa11:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 30000, "outcome": "test written", "usage": { "status": "tokens-only", "inputTokens": 8100, "outputTokens": 1600 } },
+      { "seq": 3, "stage": "fixer", "fingerprint": "aa11", "correlationId": "demo-c:aa11", "attemptId": "demo-c:aa11:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 60000, "outcome": "attempt 1", "usage": { "status": "unavailable", "reason": "grok CLI reported no usage" }, "fallback": { "type": "retry-after-verify-fail", "reason": "first attempt did not pass the regression test" } },
+      { "seq": 4, "stage": "fixer", "fingerprint": "aa11", "correlationId": "demo-c:aa11", "attemptId": "demo-c:aa11:fix:2", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 18000, "outcome": "attempt 2", "usage": { "status": "unavailable", "reason": "grok CLI reported no usage" } },
+      { "seq": 5, "stage": "testWriter", "fingerprint": "bb22", "correlationId": "demo-c:bb22", "attemptId": "demo-c:bb22:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 33000, "outcome": "test written", "usage": { "status": "tokens-only", "inputTokens": 7900, "outputTokens": 1500 } },
+      { "seq": 6, "stage": "fixer", "fingerprint": "bb22", "correlationId": "demo-c:bb22", "attemptId": "demo-c:bb22:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 25000, "outcome": "attempt 1", "usage": { "status": "unavailable", "reason": "grok CLI reported no usage" } },
+      { "seq": 7, "stage": "testWriter", "fingerprint": "cc33", "correlationId": "demo-c:cc33", "attemptId": "demo-c:cc33:testgen:1", "harness": "claude-agent-sdk", "effectiveModel": "claude-sonnet-5", "effort": null, "durationMs": 35000, "outcome": "test written", "usage": { "status": "tokens-only", "inputTokens": 8300, "outputTokens": 1650 } },
+      { "seq": 8, "stage": "fixer", "fingerprint": "cc33", "correlationId": "demo-c:cc33", "attemptId": "demo-c:cc33:fix:1", "harness": "grok", "effectiveModel": "grok-4.5", "effort": "low", "durationMs": 26000, "outcome": "attempt 1", "usage": { "status": "unavailable", "reason": "grok CLI reported no usage" } }
+    ]
+  }
+]
   </script>
 
   <!-- Sibling data file from `bun run publish:traces`. Optional: page works when absent (file:// safe). -->
@@ -643,790 +873,948 @@
 
       const $ = (selector) => document.querySelector(selector);
       const SVG_NS = "http://www.w3.org/2000/svg";
-      const VERIFIED_OUTCOMES = new Set(["verified", "pass", "passed"]);
-      const AGENT_STAGES = new Set(["route", "triage", "fix", "testgen"]);
-      const COST_SEAMS = ["triage", "fix", "testgen", "other"];
-      const TIME_SEAMS = ["triage", "fix", "verify", "other"];
-      const seamColors = { triage: "var(--triage)", fix: "var(--fix)", testgen: "var(--testgen)", verify: "var(--verify)", other: "var(--other)" };
-      // Alias → canonical price-table key (and reverse lookups via price table keys).
+      const VERIFIED = new Set(["verified", "pass", "passed"]);
+      const AGENT_STAGES = new Set(["route", "triage", "testgen", "fix"]);
+      const TIME_SEAMS = ["triage", "testgen", "fix", "verify", "other"];
+      const COST_SEAMS = ["triage", "testgen", "fix", "other"];
+      const SEAM_LABEL = { triage: "Triage", testgen: "Test-writing", fix: "Fix", verify: "Verify", other: "Other" };
+      const seamColor = (seam) => `var(--${seam})`;
       const MODEL_ALIASES = {
-        sonnet: "claude-sonnet-5",
-        haiku: "claude-haiku-4-5",
-        opus: "claude-opus-4-8",
-        "claude-sonnet-5": "claude-sonnet-5",
-        "claude-haiku-4-5": "claude-haiku-4-5",
-        "claude-opus-4-8": "claude-opus-4-8",
+        sonnet: "claude-sonnet-5", haiku: "claude-haiku-4-5", opus: "claude-opus-4-8",
+        "claude-sonnet-5": "claude-sonnet-5", "claude-haiku-4-5": "claude-haiku-4-5", "claude-opus-4-8": "claude-opus-4-8",
       };
-      const columns = [
-        { key: "label", label: "Run label" },
-        { key: "pipeline", label: "Pipeline" },
-        { key: "startedAt", label: "Date" },
-        { key: "incidents", label: "Incidents" },
-        { key: "verifiedFixes", label: "Verified fixes" },
-        { key: "retries", label: "Retries" },
-        { key: "needsHuman", label: "Needs human" },
-        { key: "totalTokens", label: "Tokens" },
-        { key: "reportedUsdSort", label: "Reported USD" },
-        { key: "estimatedUsdSort", label: "Estimated USD" },
-        { key: "usdPerFixSort", label: "USD / verified fix" },
-      ];
+
       let runs = [];
       let fileErrors = [];
       let priceTable = null;
       let defaultPriceTable = null;
-      let sortState = { key: "startedAt", direction: "desc" };
+      let openRunId = null;
 
-      const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-      const finite = (value) => typeof value === "number" && Number.isFinite(value);
-      const nonNegative = (value) => finite(value) && value >= 0;
-      const normalizeOutcome = (value) => value.trim().toLowerCase();
-      const numberOrZero = (value) => finite(value) ? value : 0;
+      const isRecord = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+      const finite = (v) => typeof v === "number" && Number.isFinite(v);
+      const nonNeg = (v) => finite(v) && v >= 0;
+      const norm = (v) => v.trim().toLowerCase();
 
+      /* ---------- validation (accepts v1 and v2) ---------- */
       function validateTrace(value) {
         if (!isRecord(value)) throw new Error("trace root must be an object");
-        for (const key of ["runId", "startedAt", "finishedAt", "pipeline"]) {
-          if (typeof value[key] !== "string") throw new Error(`${key} must be a string`);
+        for (const k of ["runId", "startedAt", "finishedAt"]) {
+          if (typeof value[k] !== "string") throw new Error(`${k} must be a string`);
         }
         if (!Number.isFinite(Date.parse(value.startedAt)) || !Number.isFinite(Date.parse(value.finishedAt))) throw new Error("startedAt and finishedAt must be valid dates");
-        if (!new Set(["langgraph", "agent-sdk"]).has(value.pipeline)) throw new Error("pipeline must be langgraph or agent-sdk");
-        if (!isRecord(value.config)) throw new Error("config must be an object");
         if (!Array.isArray(value.events)) throw new Error("events must be an array");
-        value.events.forEach((event, index) => {
-          const path = `events[${index}]`;
-          if (!isRecord(event)) throw new Error(`${path} must be an object`);
-          if (!Number.isInteger(event.seq)) throw new Error(`${path}.seq must be an integer`);
-          for (const key of ["stage", "startedAt", "outcome"]) if (typeof event[key] !== "string") throw new Error(`${path}.${key} must be a string`);
-          if (!Number.isFinite(Date.parse(event.startedAt))) throw new Error(`${path}.startedAt must be a valid date`);
-          if (!nonNegative(event.durationMs)) throw new Error(`${path}.durationMs must be a non-negative number`);
-          if (event.fingerprint !== undefined && typeof event.fingerprint !== "string") throw new Error(`${path}.fingerprint must be a string`);
-          if (event.detail !== undefined && !isRecord(event.detail)) throw new Error(`${path}.detail must be an object`);
+        const version = value.schemaVersion === 2 ? 2 : 1;
+        const pipeline = version === 2 ? value.resolved?.pipeline : value.pipeline;
+        if (!new Set(["langgraph", "agent-sdk"]).has(pipeline)) throw new Error("pipeline must be langgraph or agent-sdk");
+        value.events.forEach((event, i) => {
+          const p = `events[${i}]`;
+          if (!isRecord(event)) throw new Error(`${p} must be an object`);
+          if (!Number.isInteger(event.seq)) throw new Error(`${p}.seq must be an integer`);
+          for (const k of ["stage", "startedAt", "outcome"]) if (typeof event[k] !== "string") throw new Error(`${p}.${k} must be a string`);
+          if (!Number.isFinite(Date.parse(event.startedAt))) throw new Error(`${p}.startedAt must be a valid date`);
+          if (!nonNeg(event.durationMs)) throw new Error(`${p}.durationMs must be a non-negative number`);
           if (event.cost !== undefined) {
-            if (!isRecord(event.cost)) throw new Error(`${path}.cost must be an object`);
-            if (!new Set(["claude-agent-sdk", "codex", "grok"]).has(event.cost.harness)) throw new Error(`${path}.cost.harness is invalid`);
-            if (event.cost.model !== undefined && typeof event.cost.model !== "string") throw new Error(`${path}.cost.model must be a string`);
-            for (const key of ["inputTokens", "outputTokens", "usd"]) {
-              if (event.cost[key] !== undefined && !nonNegative(event.cost[key])) throw new Error(`${path}.cost.${key} must be a non-negative number`);
-            }
+            if (!isRecord(event.cost)) throw new Error(`${p}.cost must be an object`);
+            if (!new Set(["claude-agent-sdk", "codex", "grok"]).has(event.cost.harness)) throw new Error(`${p}.cost.harness is invalid`);
           }
         });
+        if (version === 2 && !Array.isArray(value.agentCalls)) throw new Error("v2 trace must have an agentCalls array");
         return value;
       }
 
-      function labelFromFilename(name) {
-        const base = name.split(/[\\/]/).pop().replace(/\.json$/i, "");
-        const trimmed = base.startsWith("sweep-") ? base.slice(6) : base;
-        return trimmed || base || "unnamed-run";
+      function schemaVersion(trace) { return trace.schemaVersion === 2 ? 2 : 1; }
+      function pipelineOf(trace) { return schemaVersion(trace) === 2 ? trace.resolved.pipeline : trace.pipeline; }
+
+      /* ---------- deterministic keys (mirror publish-traces.ts) ---------- */
+      function workloadKey(trace) {
+        const w = trace.workload;
+        if (!isRecord(w)) return "unknown-v1|null|null|unknown-v1";
+        return [w.benchmarkId, String(w.seed), String(w.caseCount), w.codeRevision].join("|");
+      }
+      function resolvedConfigKey(trace) {
+        const r = trace.resolved;
+        if (!isRecord(r)) return `${pipelineOf(trace)}|unknown-v1`;
+        const agent = (a) => a ? [a.harness, a.effectiveModel ?? "unknown", a.effort ?? "none"].join(":") : "unknown-v1";
+        return [r.pipeline, agent(r.triage), agent(r.testWriter), agent(r.fixer), r.regressionTests, String(r.maxFixAttempts), String(r.incidentConcurrency)].join("|");
+      }
+      function knownResolved(trace) {
+        const r = trace.resolved;
+        return schemaVersion(trace) === 2 && isRecord(r) && r.triage && r.triage.harness !== "unknown-v1";
       }
 
-      function costSeam(stage) {
-        if (stage === "route" || stage === "triage") return "triage";
-        if (stage === "fix") return "fix";
-        if (stage === "testgen") return "testgen";
-        return "other";
+      /* ---------- prices ---------- */
+      function lookupPrice(model) {
+        if (!priceTable || !model) return null;
+        if (priceTable[model]) return priceTable[model];
+        const alias = MODEL_ALIASES[model];
+        if (alias && priceTable[alias]) return priceTable[alias];
+        const noDate = model.replace(/-\d{8}$/, "");
+        if (noDate !== model && priceTable[noDate]) return priceTable[noDate];
+        if (noDate !== model && MODEL_ALIASES[noDate] && priceTable[MODEL_ALIASES[noDate]]) return priceTable[MODEL_ALIASES[noDate]];
+        return null;
+      }
+      function estimateUsd(model, inTok, outTok) {
+        const price = lookupPrice(model);
+        if (!price) return null;
+        if (!finite(inTok) && !finite(outTok)) return null;
+        return ((finite(inTok) ? inTok : 0) * price.inPerM + (finite(outTok) ? outTok : 0) * price.outPerM) / 1e6;
       }
 
+      /* ---------- seam mapping ---------- */
       function timeSeam(stage) {
         if (stage === "route" || stage === "triage") return "triage";
+        if (stage === "testgen") return "testgen";
         if (stage === "fix") return "fix";
         if (stage === "verify" || stage.startsWith("verify-")) return "verify";
         return "other";
       }
-
-      /** Resolve model price, handling aliases and Anthropic dated snapshot ids (…-YYYYMMDD). */
-      function lookupPrice(model) {
-        if (!priceTable || !model) return null;
-        if (priceTable[model]) return priceTable[model];
-        const aliasTarget = MODEL_ALIASES[model];
-        if (aliasTarget && priceTable[aliasTarget]) return priceTable[aliasTarget];
-        // Strip trailing -YYYYMMDD snapshot suffix (e.g. claude-haiku-4-5-20251001).
-        const withoutDate = model.replace(/-\d{8}$/, "");
-        if (withoutDate !== model) {
-          if (priceTable[withoutDate]) return priceTable[withoutDate];
-          const datedAlias = MODEL_ALIASES[withoutDate];
-          if (datedAlias && priceTable[datedAlias]) return priceTable[datedAlias];
-        }
-        // Accept price keys that are aliases of the model name (e.g. table has only "haiku").
-        for (const [alias, canonical] of Object.entries(MODEL_ALIASES)) {
-          if (canonical === model && priceTable[alias]) return priceTable[alias];
-          if (canonical === withoutDate && priceTable[alias]) return priceTable[alias];
-        }
-        return null;
+      function costSeamOfStage(stage) {
+        if (stage === "route" || stage === "triage") return "triage";
+        if (stage === "testWriter" || stage === "testgen") return "testgen";
+        if (stage === "fix" || stage === "fixer") return "fix";
+        return "other";
       }
 
-      function estimatedCost(cost) {
-        if (cost.usd !== undefined || !priceTable || !cost.model) return null;
-        const price = lookupPrice(cost.model);
-        if (!price) return null;
-        const hasTokens = finite(cost.inputTokens) || finite(cost.outputTokens);
-        if (!hasTokens) return null;
-        return (numberOrZero(cost.inputTokens) * price.inPerM + numberOrZero(cost.outputTokens) * price.outPerM) / 1_000_000;
-      }
-
+      /* ---------- metrics ---------- */
       function metricsFor(run) {
-        const { trace } = run;
+        const trace = run.trace;
+        const version = schemaVersion(trace);
         const events = trace.events;
-        const verifiedFixes = events.filter((event) => event.stage === "verify" && VERIFIED_OUTCOMES.has(normalizeOutcome(event.outcome))).length;
-        const fixEvents = events.filter((event) => event.stage === "fix");
+        const agentCalls = Array.isArray(trace.agentCalls) ? trace.agentCalls : [];
+
+        const verifiedFixes = events.filter((e) => e.stage === "verify" && VERIFIED.has(norm(e.outcome))).length;
+        const verifyFailures = events.filter((e) => e.stage === "verify" && norm(e.outcome) === "failed").length;
+        const fixEvents = events.filter((e) => e.stage === "fix");
         const attemptGroups = new Map();
-        let explicitUnfingerprintedRetries = 0;
-        fixEvents.forEach((event) => {
-          if (event.fingerprint) attemptGroups.set(event.fingerprint, (attemptGroups.get(event.fingerprint) || 0) + 1);
-          else if (finite(event.detail?.attempt) && event.detail.attempt > 1) explicitUnfingerprintedRetries += 1;
-        });
-        const retries = [...attemptGroups.values()].reduce((sum, count) => sum + Math.max(0, count - 1), explicitUnfingerprintedRetries);
+        fixEvents.forEach((e) => { if (e.fingerprint) attemptGroups.set(e.fingerprint, (attemptGroups.get(e.fingerprint) || 0) + 1); });
+        const retries = [...attemptGroups.values()].reduce((s, c) => s + Math.max(0, c - 1), 0);
 
-        const explicitIncidentCounts = events
-          .filter((event) => event.stage === "dedupe")
-          .map((event) => finite(event.detail?.incidents) ? event.detail.incidents : finite(event.detail?.newIncidents) ? event.detail.newIncidents : null)
-          .filter((value) => value !== null);
-        const fingerprints = new Set(events.map((event) => event.fingerprint).filter(Boolean));
-        const incidents = explicitIncidentCounts.length > 0 ? Math.max(...explicitIncidentCounts) : fingerprints.size > 0 ? fingerprints.size : null;
+        const incidentCounts = events.filter((e) => e.stage === "dedupe").map((e) => finite(e.detail?.incidents) ? e.detail.incidents : (finite(e.detail?.newIncidents) ? e.detail.newIncidents : null)).filter((v) => v !== null);
+        const fingerprints = new Set(events.map((e) => e.fingerprint).filter(Boolean));
+        const incidents = incidentCounts.length > 0 ? Math.max(...incidentCounts) : (fingerprints.size > 0 ? fingerprints.size : null);
 
-        const directNeedsHuman = events
-          .filter((event) => event.stage === "route" || event.stage === "triage")
-          .reduce((sum, event) => sum + (nonNegative(event.detail?.needsHuman) ? event.detail.needsHuman : 0), 0);
-        const handoffKeys = new Set();
-        events.forEach((event, index) => {
-          const handoffStage = event.stage === "give-up" || event.stage === "human" || event.stage === "needs-human";
-          if (handoffStage && normalizeOutcome(event.outcome) === "needs human") handoffKeys.add(event.fingerprint || `event-${index}`);
-        });
-        const needsHuman = directNeedsHuman + handoffKeys.size;
+        const directNeedsHuman = events.filter((e) => e.stage === "route" || e.stage === "triage").reduce((s, e) => s + (nonNeg(e.detail?.needsHuman) ? e.detail.needsHuman : 0), 0);
+        const handoffs = new Set();
+        events.forEach((e, i) => { if ((e.stage === "give-up" || e.stage === "human" || e.stage === "needs-human") && norm(e.outcome) === "needs human") handoffs.add(e.fingerprint || `e${i}`); });
+        const needsHuman = directNeedsHuman + handoffs.size;
 
-        const started = Date.parse(trace.startedAt);
-        const finished = Date.parse(trace.finishedAt);
-        const durationMs = Math.max(0, finished - started);
-        const tokenGroups = new Map();
-        let inputTokens = 0;
-        let outputTokens = 0;
-        let hasTokens = false;
-        let reportedUsd = 0;
-        let estimatedUsd = 0;
-        let hasReported = false;
-        let hasEstimated = false;
-        const costBySeam = Object.fromEntries(COST_SEAMS.map((seam) => [seam, { reported: 0, estimated: 0 }]));
-        const timeBySeam = Object.fromEntries(TIME_SEAMS.map((seam) => [seam, 0]));
+        const durationMs = Math.max(0, Date.parse(trace.finishedAt) - Date.parse(trace.startedAt));
+        const fallbacks = agentCalls.filter((c) => c.fallback).length;
 
-        events.forEach((event) => {
-          timeBySeam[timeSeam(event.stage)] += event.durationMs;
-          if (!event.cost) return;
-          const cost = event.cost;
-          const groupKey = `${cost.harness} / ${cost.model || "model n/a"}`;
-          if (!tokenGroups.has(groupKey)) tokenGroups.set(groupKey, { harness: cost.harness, model: cost.model || null, input: 0, output: 0, hasInput: false, hasOutput: false });
-          const group = tokenGroups.get(groupKey);
-          if (finite(cost.inputTokens)) { group.input += cost.inputTokens; group.hasInput = true; inputTokens += cost.inputTokens; hasTokens = true; }
-          if (finite(cost.outputTokens)) { group.output += cost.outputTokens; group.hasOutput = true; outputTokens += cost.outputTokens; hasTokens = true; }
-          const seam = costSeam(event.stage);
-          if (finite(cost.usd)) {
-            reportedUsd += cost.usd;
-            costBySeam[seam].reported += cost.usd;
-            hasReported = true;
-          } else {
-            const estimate = estimatedCost(cost);
-            if (estimate !== null) {
-              estimatedUsd += estimate;
-              costBySeam[seam].estimated += estimate;
-              hasEstimated = true;
-            }
-          }
-        });
+        // Time seams from events (authoritative for time in both versions).
+        const timeBySeam = Object.fromEntries(TIME_SEAMS.map((s) => [s, 0]));
+        events.forEach((e) => { timeBySeam[timeSeam(e.stage)] += e.durationMs; });
+        const summedTime = TIME_SEAMS.reduce((s, k) => s + timeBySeam[k], 0);
+        let dominantSeam = "other", dominantMs = -1;
+        TIME_SEAMS.forEach((s) => { if (timeBySeam[s] > dominantMs) { dominantMs = timeBySeam[s]; dominantSeam = s; } });
+        const dominantPct = summedTime > 0 ? Math.round((dominantMs / summedTime) * 100) : 0;
 
-        const agentEvents = events.filter((event) => AGENT_STAGES.has(event.stage));
-        const costEvents = agentEvents.filter((event) => event.cost !== undefined).length;
-        const partialCost = agentEvents.length > 0 && costEvents < agentEvents.length;
+        // Cost + coverage.
+        const costBySeam = Object.fromEntries(COST_SEAMS.map((s) => [s, { reported: 0, estimated: 0, hasUnpriced: false }]));
+        let reportedUsd = 0, estimatedUsd = 0, hasReported = false, hasEstimated = false;
+        const agentUnits = []; // {stage, seam, status, usd, estUsd, reason, model, tokens...}
+
+        if (version === 2) {
+          agentCalls.forEach((c) => {
+            const seam = costSeamOfStage(c.stage);
+            const u = c.usage || {};
+            let usd = null, est = null, status = u.status;
+            if (u.status === "reported") { usd = u.usd; reportedUsd += u.usd; hasReported = true; costBySeam[seam].reported += u.usd; }
+            else if (u.status === "tokens-only") {
+              est = estimateUsd(c.effectiveModel, u.inputTokens, u.outputTokens);
+              if (est !== null) { estimatedUsd += est; hasEstimated = true; costBySeam[seam].estimated += est; }
+              else costBySeam[seam].hasUnpriced = true;
+            } else { costBySeam[seam].hasUnpriced = true; }
+            agentUnits.push({ stage: c.stage, seam, status, usd, est, reason: u.reason, model: c.effectiveModel, effort: c.effort, harness: c.harness, durationMs: c.durationMs, outcome: c.outcome, inputTokens: u.inputTokens, outputTokens: u.outputTokens, correlationId: c.correlationId, attemptId: c.attemptId, fingerprint: c.fingerprint, fallback: c.fallback });
+          });
+        } else {
+          // v1: use event.cost. Coverage across agent-stage events is unknown at call level.
+          events.forEach((e) => {
+            if (!AGENT_STAGES.has(e.stage)) return;
+            const seam = costSeamOfStage(e.stage);
+            const c = e.cost;
+            if (c && finite(c.usd)) { reportedUsd += c.usd; hasReported = true; costBySeam[seam].reported += c.usd; agentUnits.push({ stage: e.stage, seam, status: "reported", usd: c.usd, model: c.model, harness: c.harness, durationMs: e.durationMs, outcome: e.outcome, inputTokens: c.inputTokens, outputTokens: c.outputTokens }); }
+            else if (c && (finite(c.inputTokens) || finite(c.outputTokens))) { const est = estimateUsd(c.model, c.inputTokens, c.outputTokens); if (est !== null) { estimatedUsd += est; hasEstimated = true; costBySeam[seam].estimated += est; } else costBySeam[seam].hasUnpriced = true; agentUnits.push({ stage: e.stage, seam, status: "tokens-only", est, model: c.model, harness: c.harness, durationMs: e.durationMs, outcome: e.outcome, inputTokens: c.inputTokens, outputTokens: c.outputTokens }); }
+            else { costBySeam[seam].hasUnpriced = true; agentUnits.push({ stage: e.stage, seam, status: "unavailable", reason: "schema v1 — call-level usage not recorded", harness: c?.harness, durationMs: e.durationMs, outcome: e.outcome }); }
+          });
+        }
+
         const knownUsd = reportedUsd + estimatedUsd;
-        const hasKnownUsd = hasReported || hasEstimated;
-        const usdPerFix = verifiedFixes > 0 && hasKnownUsd ? knownUsd / verifiedFixes : null;
+        const pricedCount = agentUnits.filter((u) => u.status === "reported" || (u.status === "tokens-only" && u.est !== null)).length;
+        const reportedCount = agentUnits.filter((u) => u.status === "reported").length;
+        const totalUnits = agentUnits.length;
+
+        // Coverage state.
+        let coverage; // 'complete-reported' | 'complete-estimated' | 'partial' | 'none'
+        if (version === 1) coverage = knownUsd > 0 ? "partial" : "none"; // v1 completeness is never provable
+        else if (totalUnits === 0) coverage = "none";
+        else if (reportedCount === totalUnits) coverage = "complete-reported";
+        else if (pricedCount === totalUnits) coverage = "complete-estimated";
+        else coverage = knownUsd > 0 ? "partial" : "none";
+
+        const complete = coverage === "complete-reported" || coverage === "complete-estimated";
+        const costPerFix = verifiedFixes > 0 && knownUsd > 0 ? knownUsd / verifiedFixes : null;
 
         return {
-          ...run,
-          pipeline: trace.pipeline,
-          startedAt: trace.startedAt,
-          incidents,
-          verifiedFixes,
-          fixAttempts: fixEvents.length,
-          retries,
-          needsHuman,
-          durationMs,
-          inputTokens,
-          outputTokens,
-          totalTokens: hasTokens ? inputTokens + outputTokens : null,
-          tokenGroups: [...tokenGroups.entries()].map(([label, values]) => ({ label, ...values })),
-          reportedUsd: hasReported ? reportedUsd : null,
-          estimatedUsd: hasEstimated ? estimatedUsd : null,
-          reportedUsdSort: hasReported ? reportedUsd : null,
-          estimatedUsdSort: hasEstimated ? estimatedUsd : null,
-          usdPerFix,
-          usdPerFixSort: usdPerFix,
-          costBySeam,
-          timeBySeam,
-          agentEventCount: agentEvents.length,
-          costEventCount: costEvents,
-          partialCost,
+          ...run, version, pipeline: pipelineOf(trace),
+          startedAt: trace.startedAt, incidents, verifiedFixes, verifyFailures, fixAttempts: fixEvents.length, retries, needsHuman, fallbacks,
+          durationMs, timeBySeam, summedTime, dominantSeam, dominantPct,
+          costBySeam, reportedUsd: hasReported ? reportedUsd : null, estimatedUsd: hasEstimated ? estimatedUsd : null, knownUsd, costPerFix,
+          coverage, complete, pricedCount, reportedCount, totalUnits, agentUnits,
+          workloadKey: workloadKey(trace), resolvedConfigKey: resolvedConfigKey(trace), knownConfig: knownResolved(trace),
         };
       }
 
-      function formatInteger(value) { return value === null || value === undefined ? "n/a" : Math.round(value).toLocaleString(); }
-      function formatMoney(value) { return value === null || value === undefined ? "n/a" : `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`; }
-      function formatDuration(ms) {
+      /* ---------- reference + eligibility ---------- */
+      function pickReference(metrics) {
+        const baseline = metrics.find((m) => /baseline/i.test(m.label));
+        if (baseline) return baseline;
+        return [...metrics].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))[0] || null;
+      }
+
+      /* ---------- formatting ---------- */
+      function fmtDuration(ms) {
         if (ms === null || ms === undefined) return "n/a";
-        if (ms < 1000) return `${Math.round(ms)} ms`;
-        if (ms < 60000) return `${(ms / 1000).toFixed(ms < 10000 ? 2 : 1)} s`;
-        const minutes = Math.floor(ms / 60000);
-        return `${minutes}m ${Math.round((ms % 60000) / 1000)}s`;
+        if (ms < 1000) return `${Math.round(ms)}ms`;
+        if (ms < 60000) return `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)}s`;
+        const m = Math.floor(ms / 60000);
+        return `${m}m${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")}s`;
       }
-      function formatDate(value) {
-        return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(new Date(value));
-      }
-      function shortDate(value) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
-      function textElement(tag, className, content) { const element = document.createElement(tag); if (className) element.className = className; element.textContent = content; return element; }
-      function svgElement(tag, attributes = {}, content) {
-        const element = document.createElementNS(SVG_NS, tag);
-        Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
-        if (content !== undefined) element.textContent = content;
-        return element;
-      }
+      function fmtMoney(v) { return (v === null || v === undefined) ? "n/a" : `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`; }
+      function fmtInt(v) { return (v === null || v === undefined) ? "n/a" : Math.round(v).toLocaleString(); }
+      function fmtDate(v) { return new Intl.DateTimeFormat(undefined, { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(v)); }
+      function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; }
+      function svg(tag, attrs = {}, text) { const n = document.createElementNS(SVG_NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v)); if (text !== undefined) n.textContent = text; return n; }
+      function badge(container, text, cls) { container.append(el("span", `badge ${cls}`, text)); }
 
-      function sortedMetrics() {
-        const values = runs.map(metricsFor);
-        const multiplier = sortState.direction === "asc" ? 1 : -1;
-        return values.sort((a, b) => {
-          let left = a[sortState.key];
-          let right = b[sortState.key];
-          if (sortState.key === "startedAt") { left = Date.parse(left); right = Date.parse(right); }
-          if (left === null || left === undefined) return right === null || right === undefined ? a.label.localeCompare(b.label) : 1;
-          if (right === null || right === undefined) return -1;
-          if (typeof left === "string") return left.localeCompare(right) * multiplier;
-          return (left - right) * multiplier;
-        });
-      }
-
-      function appendBadge(container, label, className) { const badge = textElement("span", `badge ${className}`, label); container.append(badge); }
-
-      function renderTable(metrics) {
-        const head = $("#runs-head");
-        const body = $("#runs-body");
-        head.replaceChildren();
-        body.replaceChildren();
-        columns.forEach((column) => {
-          const th = document.createElement("th");
-          const button = document.createElement("button");
-          button.type = "button";
-          const active = sortState.key === column.key;
-          button.textContent = `${column.label}${active ? sortState.direction === "asc" ? " ↑" : " ↓" : ""}`;
-          button.setAttribute("aria-label", `Sort by ${column.label}${active ? `, currently ${sortState.direction}ending` : ""}`);
-          button.addEventListener("click", () => {
-            sortState = { key: column.key, direction: sortState.key === column.key && sortState.direction === "asc" ? "desc" : "asc" };
-            renderAll();
-          });
-          th.append(button);
-          head.append(th);
-        });
-        if (metrics.length === 0) {
-          const row = document.createElement("tr");
-          const cell = textElement("td", "empty-row", "No valid runs loaded.");
-          cell.colSpan = columns.length;
-          row.append(cell);
-          body.append(row);
-          return;
+      /* ---------- config identity ---------- */
+      function configPrimary(m) {
+        const t = m.trace;
+        if (m.knownConfig) {
+          const r = t.resolved;
+          const triage = modelLabel(r.triage.effectiveModel) + " triage";
+          const fixer = harnessLabel(r.fixer.harness) + " fixer" + (r.fixer.effort ? ` (${r.fixer.effort} effort)` : "");
+          return `${triage} · ${fixer} · ${r.pipeline}`;
         }
-        metrics.forEach((metric) => {
-          const row = document.createElement("tr");
-          const labelCell = document.createElement("td");
-          labelCell.append(textElement("span", "cell-main", metric.label));
-          const badges = document.createElement("span");
-          badges.className = "label-badges";
-          if (metric.isDemo) appendBadge(badges, "built-in demo", "estimated");
-          if (metric.isPublished) appendBadge(badges, "published", "reported");
-          if (metric.partialCost) appendBadge(badges, `partial cost data · ${metric.costEventCount}/${metric.agentEventCount}`, "partial");
-          labelCell.append(badges);
-          row.append(labelCell);
-          const plain = (value) => { const cell = document.createElement("td"); cell.textContent = value; row.append(cell); };
-          plain(metric.pipeline);
-          plain(formatDate(metric.startedAt));
-          plain(formatInteger(metric.incidents));
-          plain(formatInteger(metric.verifiedFixes));
-          plain(formatInteger(metric.retries));
-          plain(formatInteger(metric.needsHuman));
+        return `${m.pipeline} pipeline · models not recorded`;
+      }
+      function modelLabel(model) {
+        if (!model) return "unknown";
+        if (/sonnet/i.test(model)) return "Sonnet 5";
+        if (/haiku/i.test(model)) return "Haiku 4.5";
+        if (/opus/i.test(model)) return "Opus 4.8";
+        if (/grok/i.test(model)) return "Grok 4.5";
+        if (/gpt-5\.6/i.test(model)) return model.replace(/^gpt-5\.6-?/i, "GPT-5.6 ") || model;
+        return model;
+      }
+      function harnessLabel(h) { return h === "grok" ? "Grok" : h === "codex" ? "Codex" : h === "claude-agent-sdk" ? "Claude SDK" : h; }
 
-          const tokenCell = document.createElement("td");
-          tokenCell.append(textElement("span", "cell-main", formatInteger(metric.totalTokens)));
-          tokenCell.append(textElement("span", "cell-sub", metric.totalTokens === null ? "input n/a · output n/a" : `input ${formatInteger(metric.inputTokens)} · output ${formatInteger(metric.outputTokens)}`));
-          if (metric.tokenGroups.length > 0) {
-            const details = document.createElement("details");
-            details.className = "cell-detail";
-            details.append(textElement("summary", "", "By harness + model"));
-            const list = document.createElement("ul");
-            metric.tokenGroups.forEach((group) => list.append(textElement("li", "", `${group.label}: ${group.hasInput ? formatInteger(group.input) : "n/a"} in · ${group.hasOutput ? formatInteger(group.output) : "n/a"} out`)));
-            details.append(list);
-            tokenCell.append(details);
-          }
-          row.append(tokenCell);
+      /* ---------- coverage sentence ---------- */
+      function coverageSentence(m) {
+        if (m.version === 1) return "Recorded before call-level tracking — cost coverage unknown (schema v1). Reported dollars are a floor only.";
+        if (m.totalUnits === 0) return "No agent calls recorded.";
+        const priced = m.pricedCount, total = m.totalUnits;
+        if (m.coverage === "complete-reported") return `Every one of ${total} agent calls reported its own dollars — complete coverage.`;
+        if (m.coverage === "complete-estimated") return `All ${total} agent calls priced (${m.reportedCount} reported, ${total - m.reportedCount} estimated at your prices) — complete only with estimates.`;
+        // partial / none: name what is priced and the reason for the rest.
+        const pricedStages = [...new Set(m.agentUnits.filter((u) => u.status === "reported" || (u.status === "tokens-only" && u.est !== null)).map((u) => stageWord(u.stage)))];
+        const reasons = [...new Set(m.agentUnits.filter((u) => u.status === "unavailable").map((u) => u.reason).filter(Boolean))];
+        const pricedPhrase = pricedStages.length ? pricedStages.join(" and ") + " only" : "none priced";
+        const reasonPhrase = reasons.length ? ` — ${reasons.join("; ")}` : "";
+        return `Costs known for ${priced} of ${total} agent calls — ${pricedPhrase}${reasonPhrase}.`;
+      }
+      function stageWord(stage) { return (stage === "route" || stage === "triage") ? "triage" : (stage === "testgen" || stage === "testWriter") ? "test-writing" : (stage === "fix" || stage === "fixer") ? "fixer" : stage; }
 
-          const reportedCell = document.createElement("td");
-          reportedCell.append(textElement("span", "cell-main", formatMoney(metric.reportedUsd)));
-          reportedCell.append(textElement("span", "cell-sub", "reported by trace"));
-          row.append(reportedCell);
-          const estimatedCell = document.createElement("td");
-          estimatedCell.append(textElement("span", "cell-main", formatMoney(metric.estimatedUsd)));
-          estimatedCell.append(textElement("span", "cell-sub", "estimated at your prices"));
-          row.append(estimatedCell);
-          const perFixCell = document.createElement("td");
-          perFixCell.append(textElement("span", "cell-main", formatMoney(metric.usdPerFix)));
-          const parts = [];
-          if (metric.reportedUsd !== null) parts.push(`${formatMoney(metric.reportedUsd / Math.max(1, metric.verifiedFixes))} reported`);
-          if (metric.estimatedUsd !== null) parts.push(`${formatMoney(metric.estimatedUsd / Math.max(1, metric.verifiedFixes))} estimated at your prices`);
-          perFixCell.append(textElement("span", "cell-sub", parts.join(" + ") || "dollars n/a"));
-          row.append(perFixCell);
-          body.append(row);
-        });
+      /* ---------- cost-per-fix cell ---------- */
+      function costCell(m) {
+        const cell = el("td");
+        if (m.costPerFix === null) {
+          cell.append(el("span", "metric-main cost-na", "n/a"));
+          cell.append(el("span", "metric-sub", m.version === 1 && m.knownUsd === 0 ? "no agent call reported a price (schema v1)" : (m.verifiedFixes === 0 ? "no verified fix to divide by" : "nothing priced yet")));
+          return cell;
+        }
+        const main = el("span", "metric-main");
+        if (m.complete && m.coverage === "complete-reported") { main.classList.add("cost-exact"); main.textContent = fmtMoney(m.costPerFix); }
+        else if (m.complete) { main.classList.add("cost-exact"); main.textContent = `${fmtMoney(m.costPerFix)}*`; }
+        else { main.classList.add("cost-lb"); main.textContent = `≥ ${fmtMoney(m.costPerFix)}`; }
+        cell.append(main);
+        const sub = el("span", "metric-sub");
+        if (m.coverage === "complete-reported") sub.textContent = "reported · complete coverage";
+        else if (m.coverage === "complete-estimated") sub.textContent = "* includes estimates at your prices";
+        else sub.textContent = "floor — some calls unpriced";
+        cell.append(sub);
+        return cell;
       }
 
+      /* ---------- headline + evidence ---------- */
       function renderHeadline(metrics) {
-        const verified = metrics.reduce((sum, metric) => sum + metric.verifiedFixes, 0);
-        const reported = metrics.reduce((sum, metric) => sum + (metric.reportedUsd || 0), 0);
-        const estimated = metrics.reduce((sum, metric) => sum + (metric.estimatedUsd || 0), 0);
-        const hasReported = metrics.some((metric) => metric.reportedUsd !== null);
-        const hasEstimated = metrics.some((metric) => metric.estimatedUsd !== null);
-        const known = reported + estimated;
-        const value = verified > 0 && (hasReported || hasEstimated) ? known / verified : null;
-        $("#headline-value").textContent = formatMoney(value);
-        const detail = [];
-        detail.push(`${verified.toLocaleString()} verified ${verified === 1 ? "fix" : "fixes"}`);
-        detail.push(hasReported ? `${formatMoney(reported)} reported` : "reported dollars n/a");
-        detail.push(hasEstimated ? `${formatMoney(estimated)} estimated at your prices` : "estimated dollars n/a");
-        if (metrics.some((metric) => metric.partialCost)) detail.push("partial cost data present");
-        $("#headline-detail").textContent = detail.join(" · ");
+        const verified = metrics.reduce((s, m) => s + m.verifiedFixes, 0);
+        const incidents = metrics.reduce((s, m) => s + (m.incidents || 0), 0);
+        $("#headline-value").textContent = `${verified} / ${incidents}`;
+        const runsWord = metrics.length === 1 ? "run" : "runs";
+        const complete = metrics.filter((m) => m.complete).length;
+        $("#headline-detail").textContent = `${metrics.length} ${runsWord} · ${verified} verified across ${incidents} incidents · ${complete} with complete cost coverage`;
       }
 
-      function legend(containerSelector, items, includeEstimate = false) {
-        const container = $(containerSelector);
-        container.replaceChildren();
-        items.forEach((item) => {
-          const wrapper = document.createElement("span");
-          wrapper.className = "legend-item";
-          const swatch = document.createElement("span");
-          swatch.className = "legend-swatch";
-          swatch.style.setProperty("--swatch", item.color);
-          wrapper.append(swatch, document.createTextNode(item.label));
-          container.append(wrapper);
-        });
-        if (includeEstimate) {
-          const wrapper = document.createElement("span");
-          wrapper.className = "legend-item";
-          const swatch = document.createElement("span");
-          swatch.className = "legend-swatch estimated";
-          swatch.style.setProperty("--swatch", "var(--estimated)");
-          wrapper.append(swatch, document.createTextNode("Estimated at your prices (dashed / lighter)"));
-          container.append(wrapper);
+      function renderEvidence(metrics, reference) {
+        const claim = $("#evidence-claim");
+        const grounds = $("#evidence-grounds");
+        const caveat = $("#evidence-caveat");
+        grounds.replaceChildren();
+        if (metrics.length === 0 || !reference) { claim.textContent = "No runs loaded."; caveat.textContent = ""; return; }
+
+        const floor = reference.verifiedFixes;
+        const sameWorkload = metrics.filter((m) => m.workloadKey === reference.workloadKey);
+        const qualityPreserving = sameWorkload.filter((m) => m.verifiedFixes >= floor);
+        const eligible = qualityPreserving.filter((m) => m.complete);
+
+        const addGround = (t) => grounds.append(el("li", "", t));
+
+        if (eligible.length > 0) {
+          const cheapest = eligible.reduce((a, b) => (b.costPerFix < a.costPerFix ? b : a));
+          const estNote = cheapest.coverage === "complete-estimated" ? " at your prices" : "";
+          claim.innerHTML = `Cheapest verified fix: <strong>${escapeHtml(cheapest.label)}</strong> at ${fmtMoney(cheapest.costPerFix)} per verified fix${estNote}.`;
+          addGround(`Quality at or above the reference: ${cheapest.verifiedFixes} of ${cheapest.incidents} incidents verified (floor is ${floor}).`);
+          addGround(`Complete cost coverage: every agent call in this run is priced.`);
+          addGround(`Wall time ${fmtDuration(cheapest.durationMs)}; dominant seam ${SEAM_LABEL[cheapest.dominantSeam].toLowerCase()} at ${cheapest.dominantPct}%.`);
+        } else {
+          claim.innerHTML = `<strong>No cost winner yet</strong> — all ${sameWorkload.length} runs have partial or unknown cost coverage.`;
+          const fastest = qualityPreserving.length ? qualityPreserving.reduce((a, b) => (b.durationMs < a.durationMs ? b : a)) : null;
+          addGround(`Quality floor: ${floor} of ${reference.incidents} incidents verified (reference: ${escapeHtml(reference.label)}). A run below this cannot win.`);
+          if (fastest) addGround(`Fastest quality-preserving run: ${escapeHtml(fastest.label)} at ${fmtDuration(fastest.durationMs)} (dominant seam: ${SEAM_LABEL[fastest.dominantSeam].toLowerCase()}, ${fastest.dominantPct}%).`);
+          const anyReported = metrics.filter((m) => m.knownUsd > 0);
+          if (anyReported.length) addGround(`Known dollars exist but are floors only — no aggregate cost-per-fix is claimed across unpriced calls.`);
         }
+        const anyV1 = metrics.some((m) => m.version === 1);
+        const anyUnknownWorkload = metrics.some((m) => m.workloadKey.startsWith("unknown-v1"));
+        const bits = [];
+        if (anyUnknownWorkload) bits.push("Workload identity not recorded for some runs (schema v1) — comparisons assume the same benchmark.");
+        if (anyV1) bits.push("Schema-v1 runs predate call-level cost tracking; their cost coverage is shown as unknown, never inferred.");
+        caveat.textContent = bits.join(" ");
       }
 
-      function createChartSvg(width, height, title, description, id) {
-        const svg = svgElement("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-labelledby": `${id}-title ${id}-desc` });
-        svg.style.width = `${width}px`;
-        svg.append(svgElement("title", { id: `${id}-title` }, title), svgElement("desc", { id: `${id}-desc` }, description));
-        return svg;
-      }
+      function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
-      function addHorizontalAxis(svg, left, right, y, max, formatter) {
-        svg.append(svgElement("line", { x1: left, x2: right, y1: y, y2: y, class: "chart-axis" }));
-        for (let index = 0; index <= 4; index += 1) {
-          const x = left + ((right - left) * index / 4);
-          svg.append(svgElement("line", { x1: x, x2: x, y1: 38, y2: y, class: "chart-gridline" }));
-          svg.append(svgElement("text", { x, y: y + 18, class: "chart-text", "text-anchor": "middle" }, formatter(max * index / 4)));
+      /* ---------- frontier chart ---------- */
+      function renderFrontier(metrics, reference) {
+        const container = $("#frontier-chart");
+        container.replaceChildren();
+        if (metrics.length === 0 || !reference) { container.append(emptyChart("Load a run to draw the frontier.")); return; }
+        const floor = reference.verifiedFixes;
+        const width = Math.max(920, 620);
+        const height = 440;
+        const left = 96, right = width - 40, top = 40, bottom = height - 90;
+
+        const withCost = metrics.filter((m) => m.costPerFix !== null);
+        const maxWall = Math.max(...metrics.map((m) => m.durationMs), 1);
+        const maxCost = Math.max(...withCost.map((m) => m.costPerFix), 0.02);
+        const xFor = (ms) => left + (right - left) * (ms / maxWall);
+        const yFor = (usd) => bottom - (bottom - top) * (usd / maxCost);
+
+        const s = svg("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-labelledby": "frontier-t frontier-d" });
+        s.style.width = width + "px";
+        s.append(svg("title", { id: "frontier-t" }, "Quality-gated cost frontier"));
+        s.append(svg("desc", { id: "frontier-d" }, "Scatter of wall time against dollars per verified fix. Lower-left is better. Complete-coverage runs are solid; partial runs are hollow lower bounds; the reference is ringed."));
+        // axes
+        s.append(svg("line", { x1: left, x2: left, y1: top, y2: bottom, class: "chart-axis" }));
+        s.append(svg("line", { x1: left, x2: right, y1: bottom, y2: bottom, class: "chart-axis" }));
+        for (let i = 0; i <= 4; i++) {
+          const x = left + (right - left) * i / 4;
+          s.append(svg("line", { x1: x, x2: x, y1: top, y2: bottom, class: "chart-gridline" }));
+          s.append(svg("text", { x, y: bottom + 18, class: "chart-text", "text-anchor": "middle" }, fmtDuration(maxWall * i / 4)));
+          const y = bottom - (bottom - top) * i / 4;
+          s.append(svg("line", { x1: left, x2: right, y1: y, y2: y, class: "chart-gridline" }));
+          s.append(svg("text", { x: left - 8, y: y + 4, class: "chart-text", "text-anchor": "end" }, fmtMoney(maxCost * i / 4)));
         }
-      }
+        s.append(svg("text", { x: (left + right) / 2, y: height - 44, class: "chart-text", "text-anchor": "middle" }, "Wall time →"));
+        s.append(svg("text", { x: 20, y: (top + bottom) / 2, class: "chart-text", transform: `rotate(-90 20 ${(top + bottom) / 2})`, "text-anchor": "middle" }, "USD / verified fix →"));
+        s.append(svg("text", { x: left + 6, y: bottom - 6, class: "chart-note" }, "better ↙"));
 
-      function renderFallback(containerSelector, caption, headers, rows) {
-        const container = $(containerSelector);
-        container.replaceChildren();
-        const details = document.createElement("details");
-        details.className = "chart-data";
-        details.append(textElement("summary", "", "Accessible data table"));
-        const wrap = document.createElement("div");
-        wrap.className = "table-wrap";
-        const table = document.createElement("table");
-        table.append(textElement("caption", "", caption));
-        const thead = document.createElement("thead");
-        const headRow = document.createElement("tr");
-        headers.forEach((header) => headRow.append(textElement("th", "", header)));
-        thead.append(headRow);
-        const tbody = document.createElement("tbody");
-        rows.forEach((values) => { const row = document.createElement("tr"); values.forEach((value) => row.append(textElement("td", "", value))); tbody.append(row); });
-        table.append(thead, tbody);
-        wrap.append(table);
-        details.append(wrap);
-        container.append(details);
-      }
-
-      function renderCostPerFix(metrics) {
-        legend("#cost-per-fix-legend", [{ label: "Reported by trace", color: "var(--reported)" }, { label: "Estimated at your prices", color: "var(--estimated)" }]);
-        const container = $("#cost-per-fix-chart");
-        container.replaceChildren();
-        const width = Math.max(920, 270 + metrics.length * 40);
-        const rowHeight = 66;
-        const height = Math.max(280, 90 + metrics.length * rowHeight);
-        const left = 190;
-        const right = width - 130;
-        const values = metrics.map((metric) => metric.usdPerFix || 0);
-        const max = Math.max(...values, 0.01);
-        const svg = createChartSvg(width, height, "Dollars per verified fix", "Horizontal stacked bars compare reported and user-priced dollars per verified fix for each run.", "dpf");
-        addHorizontalAxis(svg, left, right, height - 42, max, formatMoney);
-        metrics.forEach((metric, index) => {
-          const y = 52 + index * rowHeight;
-          svg.append(svgElement("text", { x: left - 12, y: y + 15, class: "chart-label", "text-anchor": "end" }, metric.label));
-          if (metric.usdPerFix === null) {
-            svg.append(svgElement("text", { x: left + 8, y: y + 15, class: "chart-value" }, "n/a dollars"));
-            return;
+        // frontier line among eligible (complete + quality-ok), lower-left staircase
+        const eligible = metrics.filter((m) => m.complete && m.verifiedFixes >= floor && m.costPerFix !== null);
+        if (eligible.length > 0) {
+          const pts = [...eligible].sort((a, b) => a.durationMs - b.durationMs);
+          const staircase = [];
+          let bestCost = Infinity;
+          pts.forEach((m) => { if (m.costPerFix <= bestCost) { staircase.push(m); bestCost = m.costPerFix; } });
+          if (staircase.length > 1) {
+            const d = staircase.map((m, i) => `${i === 0 ? "M" : "L"} ${xFor(m.durationMs).toFixed(1)} ${yFor(m.costPerFix).toFixed(1)}`).join(" ");
+            s.append(svg("path", { d, class: "frontier-line" }));
           }
-          const reported = (metric.reportedUsd || 0) / metric.verifiedFixes;
-          const estimated = (metric.estimatedUsd || 0) / metric.verifiedFixes;
-          const reportedWidth = (right - left) * reported / max;
-          const estimatedWidth = (right - left) * estimated / max;
-          if (reportedWidth > 0) svg.append(svgElement("rect", { x: left, y, width: reportedWidth, height: 28, fill: "var(--reported)" }));
-          if (estimatedWidth > 0) svg.append(svgElement("rect", { x: left + reportedWidth, y, width: estimatedWidth, height: 28, fill: "var(--estimated)", "fill-opacity": 0.55, stroke: "var(--estimated)", "stroke-dasharray": "4 3" }));
-          svg.append(svgElement("text", { x: Math.min(right + 8, left + reportedWidth + estimatedWidth + 8), y: y + 19, class: "chart-value" }, formatMoney(metric.usdPerFix)));
-        });
-        svg.append(svgElement("text", { x: (left + right) / 2, y: height - 8, class: "chart-text", "text-anchor": "middle" }, "USD per verified fix"));
-        container.append(svg);
-        renderFallback("#cost-per-fix-data", "Dollars per verified fix", ["Run", "Reported per fix", "Estimated at your prices per fix", "Combined per fix"], metrics.map((metric) => [metric.label, metric.reportedUsd === null || metric.verifiedFixes === 0 ? "n/a" : formatMoney(metric.reportedUsd / metric.verifiedFixes), metric.estimatedUsd === null || metric.verifiedFixes === 0 ? "n/a" : formatMoney(metric.estimatedUsd / metric.verifiedFixes), formatMoney(metric.usdPerFix)]));
-      }
+        } else {
+          s.append(svg("text", { x: (left + right) / 2, y: top + 18, class: "chart-note", "text-anchor": "middle" }, "No run qualifies for the cost frontier yet (all partial or unknown coverage)."));
+        }
 
-      function renderStackedHorizontal(metrics, options) {
-        const container = $(options.chartSelector);
-        container.replaceChildren();
-        const width = Math.max(940, 280 + metrics.length * 35);
-        const rowHeight = 66;
-        const height = Math.max(280, 90 + metrics.length * rowHeight);
-        const left = 190;
-        const right = width - 140;
-        const totals = metrics.map((metric) => options.seams.reduce((sum, seam) => sum + options.value(metric, seam).reported + options.value(metric, seam).estimated, 0));
-        const max = Math.max(...totals, options.minimumMax);
-        const svg = createChartSvg(width, height, options.title, options.description, options.id);
-        addHorizontalAxis(svg, left, right, height - 42, max, options.formatter);
-        metrics.forEach((metric, index) => {
-          const y = 52 + index * rowHeight;
-          svg.append(svgElement("text", { x: left - 12, y: y + 15, class: "chart-label", "text-anchor": "end" }, metric.label));
-          let x = left;
-          options.seams.forEach((seam) => {
-            const values = options.value(metric, seam);
-            for (const kind of ["reported", "estimated"]) {
-              const value = values[kind];
-              if (value <= 0) continue;
-              const segmentWidth = (right - left) * value / max;
-              const attrs = { x, y, width: segmentWidth, height: 28, fill: seamColors[seam] };
-              if (kind === "estimated") Object.assign(attrs, { "fill-opacity": 0.5, stroke: "var(--ink)", "stroke-dasharray": "4 3" });
-              svg.append(svgElement("rect", attrs));
-              if (segmentWidth >= 54) svg.append(svgElement("text", { x: x + segmentWidth / 2, y: y + 19, class: "chart-value", "text-anchor": "middle" }, options.segmentFormatter(value)));
-              x += segmentWidth;
-            }
+        // points
+        const noCost = [];
+        metrics.forEach((m) => {
+          const belowFloor = m.verifiedFixes < floor;
+          if (m.costPerFix === null) { noCost.push(m); return; }
+          const x = xFor(m.durationMs), y = yFor(m.costPerFix);
+          const g = svg("g", belowFloor ? { class: "point-muted" } : {});
+          if (m.complete) {
+            g.append(svg("circle", { cx: x, cy: y, r: 7, fill: seamColor(m.dominantSeam), class: "point-solid" }));
+          } else {
+            g.append(svg("circle", { cx: x, cy: y, r: 7, stroke: "var(--human)", class: "point-hollow" }));
+            g.append(svg("text", { x: x + 10, y: y - 8, class: "chart-note" }, "≥"));
+          }
+          if (m === reference) g.append(svg("circle", { cx: x, cy: y, r: 12, class: "point-ref" }));
+          g.append(svg("text", { x: x + 11, y: y + 4, class: "chart-value" }, m.label));
+          s.append(g);
+        });
+        // no-cost lane
+        if (noCost.length) {
+          const laneY = bottom + 42;
+          s.append(svg("text", { x: left, y: laneY, class: "chart-note" }, "cost not yet priced (positioned by wall time only):"));
+          noCost.forEach((m) => {
+            const x = xFor(m.durationMs);
+            s.append(svg("circle", { cx: x, cy: laneY + 14, r: 5, fill: "none", stroke: "var(--ink-faint)", "stroke-dasharray": "2 2" }));
+            s.append(svg("text", { x: x + 9, y: laneY + 18, class: "chart-text" }, m.label));
           });
-          const total = totals[index];
-          svg.append(svgElement("text", { x: total === 0 ? left + 8 : Math.min(right + 8, x + 8), y: y + 19, class: "chart-value" }, total === 0 ? options.emptyLabel : options.formatter(total)));
-        });
-        svg.append(svgElement("text", { x: (left + right) / 2, y: height - 8, class: "chart-text", "text-anchor": "middle" }, options.axisLabel));
-        container.append(svg);
+        }
+        container.append(s);
+
+        renderFallback("#frontier-data", "Cost frontier data", ["Run", "Wall time", "Cost / verified fix", "Coverage", "Quality (verified/incidents)", "Frontier-eligible"],
+          metrics.map((m) => [m.label, fmtDuration(m.durationMs), m.costPerFix === null ? "n/a" : (m.complete ? fmtMoney(m.costPerFix) : "≥ " + fmtMoney(m.costPerFix)), coverageWord(m), `${m.verifiedFixes}/${m.incidents ?? "?"}`, (m.complete && m.verifiedFixes >= floor) ? "yes" : "no"]));
+      }
+      function coverageWord(m) { return m.coverage === "complete-reported" ? "complete" : m.coverage === "complete-estimated" ? "complete (est.)" : m.coverage === "partial" ? "partial" : "none"; }
+
+      function emptyChart(msg) {
+        const s = svg("svg", { viewBox: "0 0 920 240", width: 920, height: 240, role: "img", "aria-label": msg });
+        s.style.width = "920px";
+        s.append(svg("text", { x: 460, y: 130, class: "chart-empty", "text-anchor": "middle" }, msg));
+        return s;
       }
 
-      function renderCostSeams(metrics) {
-        legend("#cost-seams-legend", COST_SEAMS.map((seam) => ({ label: seam === "testgen" ? "Test writing" : seam[0].toUpperCase() + seam.slice(1), color: seamColors[seam] })), true);
-        renderStackedHorizontal(metrics, {
-          chartSelector: "#cost-seams-chart", seams: COST_SEAMS, id: "cost-seam", title: "Known dollars by seam", description: "Horizontal bars split each run's reported and user-priced dollars into triage, fix, test-writing, and other stages.", minimumMax: 0.01,
-          value: (metric, seam) => metric.costBySeam[seam], formatter: formatMoney, segmentFormatter: formatMoney, emptyLabel: "n/a dollars", axisLabel: "Known USD across all events",
+      /* ---------- scoreboard ---------- */
+      function renderBoard(metrics, reference, selectedOnly) {
+        const body = $("#board-body");
+        body.replaceChildren();
+        if (metrics.length === 0) { const r = el("tr"); const c = el("td", "", "No valid runs loaded."); c.colSpan = 5; r.append(c); body.append(r); return; }
+
+        // group by workloadKey + resolvedConfigKey
+        const groups = new Map();
+        metrics.forEach((m) => { const k = `${m.workloadKey}||${m.resolvedConfigKey}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); });
+
+        groups.forEach((members) => {
+          if (members.length >= 2 && !selectedOnly) {
+            const gr = el("tr", "group-row");
+            const gc = el("td"); gc.colSpan = 5;
+            const title = el("div", "group-title", `${members.length} runs · ${members[0].pipeline} · ${configShort(members[0])}`);
+            const walls = members.map((m) => m.durationMs).sort((a, b) => a - b);
+            const median = walls.length % 2 ? walls[(walls.length - 1) / 2] : (walls[walls.length / 2 - 1] + walls[walls.length / 2]) / 2;
+            const spread = walls[walls.length - 1] - walls[0];
+            const verifiedRate = members.reduce((s, m) => s + m.verifiedFixes, 0) + "/" + members.reduce((s, m) => s + (m.incidents || 0), 0);
+            gc.append(title, el("div", "group-agg", `verified ${verifiedRate} · median wall ${fmtDuration(median)} ± ${fmtDuration(spread / 2)} spread`));
+            gr.append(gc); body.append(gr);
+          }
+          members.forEach((m) => body.append(...runRow(m, reference)));
         });
-        renderFallback("#cost-seams-data", "Known dollars by seam", ["Run", ...COST_SEAMS.flatMap((seam) => [`${seam} reported`, `${seam} estimated at your prices`])], metrics.map((metric) => [metric.label, ...COST_SEAMS.flatMap((seam) => [metric.costBySeam[seam].reported > 0 ? formatMoney(metric.costBySeam[seam].reported) : "n/a", metric.costBySeam[seam].estimated > 0 ? formatMoney(metric.costBySeam[seam].estimated) : "n/a"])]));
+      }
+      function configShort(m) { return m.knownConfig ? `${modelLabel(m.trace.resolved.triage.effectiveModel)} triage / ${harnessLabel(m.trace.resolved.fixer.harness)} fixer` : "models not recorded (v1)"; }
+
+      function runRow(m, reference) {
+        const rows = [];
+        const tr = el("tr", "run-row" + (m === openRunId ? "" : "") + (m.verifiedFixes < reference.verifiedFixes ? " muted" : ""));
+        tr.dataset.runId = m.runId;
+        const isOpen = openRunId === m.runId;
+        if (isOpen) tr.classList.add("is-open");
+        tr.tabIndex = 0;
+        tr.setAttribute("role", "button");
+        tr.setAttribute("aria-expanded", String(isOpen));
+        tr.setAttribute("aria-label", `${m.label} details`);
+
+        // Configuration
+        const cfg = el("td");
+        cfg.append(el("span", "cfg-primary", configPrimary(m)));
+        const badges = el("div", "cfg-badges");
+        badge(badges, m.label, "nickname");
+        if (m === reference) badge(badges, "reference", "reference");
+        if (m.isDemo) badge(badges, "demo v2", "demo");
+        if (m.version === 1) badge(badges, "unknown (v1)", "unknown");
+        cfg.append(badges);
+        tr.append(cfg);
+
+        // Quality
+        const q = el("td");
+        q.append(el("span", "metric-main", `${m.verifiedFixes} / ${m.incidents ?? "?"} verified`));
+        const qsub = el("span", "metric-sub");
+        const qbits = [`${m.retries} ${m.retries === 1 ? "retry" : "retries"}`, `${m.needsHuman} to human`];
+        if (m.version === 2) qbits.push(`${m.fallbacks} ${m.fallbacks === 1 ? "fallback" : "fallbacks"}`);
+        qsub.textContent = qbits.join(" · ");
+        q.append(qsub);
+        tr.append(q);
+
+        // Cost / verified fix
+        tr.append(costCell(m));
+
+        // Wall time + dominant seam
+        const w = el("td");
+        w.append(el("span", "metric-main", fmtDuration(m.durationMs)));
+        w.append(el("span", "metric-sub", `${SEAM_LABEL[m.dominantSeam].toLowerCase()} ${m.dominantPct}%`));
+        tr.append(w);
+
+        // vs Reference
+        const vs = el("td");
+        if (m === reference) { vs.append(el("span", "metric-main delta-flat", "reference")); }
+        else {
+          const dWall = m.durationMs - reference.durationMs;
+          const wallSpan = el("span", "metric-main " + (dWall < 0 ? "delta-down" : dWall > 0 ? "delta-up" : "delta-flat"));
+          wallSpan.textContent = `${dWall <= 0 ? "" : "+"}${fmtDuration(Math.abs(dWall))} time`;
+          vs.append(wallSpan);
+          const dq = m.verifiedFixes - reference.verifiedFixes;
+          const parts = [`${dq === 0 ? "same" : (dq > 0 ? "+" + dq : dq)} verified`];
+          if (m.costPerFix !== null && reference.costPerFix !== null && m.complete && reference.complete) {
+            const dc = m.costPerFix - reference.costPerFix;
+            parts.push(`${dc <= 0 ? "" : "+"}${fmtMoney(Math.abs(dc))}/fix`);
+          } else parts.push("cost n/a");
+          vs.append(el("span", "metric-sub", parts.join(" · ")));
+        }
+        tr.append(vs);
+
+        tr.addEventListener("click", () => toggleRow(m.runId));
+        tr.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleRow(m.runId); } });
+        rows.push(tr);
+
+        if (isOpen) rows.push(detailRow(m, reference));
+        return rows;
+      }
+
+      function toggleRow(runId) { openRunId = openRunId === runId ? null : runId; renderAll(); }
+
+      /* ---------- detail panel ---------- */
+      function detailRow(m, reference) {
+        const tr = el("tr", "detail-row");
+        const cell = el("td", "detail-cell"); cell.colSpan = 5;
+        const inner = el("div", "detail-inner");
+        const grid = el("div", "detail-grid");
+
+        // Block: per-seam time
+        const timeBlock = el("div", "detail-block");
+        timeBlock.append(el("h4", "", "Time by seam"));
+        const maxSeam = Math.max(...TIME_SEAMS.map((s) => m.timeBySeam[s]), 1);
+        TIME_SEAMS.forEach((seam) => {
+          const ms = m.timeBySeam[seam];
+          const row = el("div", "seam-bar");
+          row.append(el("span", "seam-name", SEAM_LABEL[seam]));
+          const track = el("div", "track"); const fill = el("span"); fill.style.width = `${(ms / maxSeam) * 100}%`; fill.style.background = seamColor(seam); track.append(fill); row.append(track);
+          row.append(el("span", "seam-val", `${fmtDuration(ms)} · ${m.summedTime ? Math.round((ms / m.summedTime) * 100) : 0}%`));
+          timeBlock.append(row);
+        });
+        grid.append(timeBlock);
+
+        // Block: per-seam cost with truth chips
+        const costBlock = el("div", "detail-block");
+        costBlock.append(el("h4", "", "Cost by seam (truth-state)"));
+        COST_SEAMS.forEach((seam) => {
+          const c = m.costBySeam[seam];
+          const row = el("div", "cost-seam-row");
+          row.append(el("span", "seam-name", SEAM_LABEL[seam]));
+          if (c.reported > 0) badge(row, `${fmtMoney(c.reported)} reported`, "reported");
+          if (c.estimated > 0) badge(row, `${fmtMoney(c.estimated)} estimated`, "estimated");
+          if (c.hasUnpriced) badge(row, m.version === 1 ? "unpriced (v1)" : "unpriced", "unknown");
+          if (c.reported === 0 && c.estimated === 0 && !c.hasUnpriced) row.append(el("span", "metric-sub", "no agent work"));
+          costBlock.append(row);
+        });
+        costBlock.append(el("p", "coverage-line", coverageSentence(m)));
+        grid.append(costBlock);
+
+        // Block: agent-call table
+        const callBlock = el("div", "detail-block");
+        callBlock.append(el("h4", "", "Agent calls"));
+        if (m.version === 2 && m.agentUnits.length) {
+          const wrap = el("div", "mini-scroll");
+          const table = el("table", "mini-table");
+          const thead = el("thead"); const hr = el("tr");
+          ["Stage", "Harness / model", "Effort", "Duration", "Usage", "Correlation / attempt"].forEach((h) => hr.append(el("th", "", h)));
+          thead.append(hr); table.append(thead);
+          const tb = el("tbody");
+          m.agentUnits.forEach((u) => {
+            const r = el("tr");
+            r.append(el("td", "", stageWord(u.stage)));
+            r.append(el("td", "", `${harnessLabel(u.harness)} / ${modelLabel(u.model)}`));
+            r.append(el("td", "", u.effort || "—"));
+            r.append(el("td", "", fmtDuration(u.durationMs)));
+            const usage = el("td");
+            if (u.status === "reported") usage.textContent = `reported ${fmtMoney(u.usd)}`;
+            else if (u.status === "tokens-only") usage.textContent = u.est !== null ? `tokens-only → est ${fmtMoney(u.est)}` : `tokens-only (no price)`;
+            else usage.textContent = `unavailable — ${u.reason || "no reason"}`;
+            if (u.fallback) usage.append(el("div", "metric-sub", `fallback: ${u.fallback.type} (${u.fallback.reason})`));
+            r.append(usage);
+            r.append(el("td", "", `${u.correlationId || "—"}${u.attemptId ? " / " + u.attemptId : ""}`));
+            tb.append(r);
+          });
+          table.append(tb); wrap.append(table); callBlock.append(wrap);
+        } else {
+          callBlock.append(el("p", "coverage-line", "No call-level records — schema v1 trace, recorded before per-call tracking. Cost is read from stage events only, and coverage cannot be proven complete."));
+        }
+        grid.append(callBlock);
+
+        // Block: policy / provenance
+        const polBlock = el("div", "detail-block");
+        polBlock.append(el("h4", "", "Policy & provenance"));
+        const kv = el("dl", "kv");
+        const addKv = (k, v) => { kv.append(el("dt", "", k)); kv.append(el("dd", "", v)); };
+        const t = m.trace;
+        if (m.knownConfig) {
+          const r = t.resolved;
+          addKv("Regression policy", r.regressionTests);
+          addKv("Fixer resolution", `${harnessLabel(r.fixer.harness)} · source: ${r.fixer.source}`);
+          addKv("Triage resolution", `${modelLabel(r.triage.effectiveModel)} · source: ${r.triage.source}`);
+          addKv("Max fix attempts", String(r.maxFixAttempts));
+          addKv("Incident concurrency", String(r.incidentConcurrency));
+          const fixtures = [...new Set(t.events.map((e) => e.detail?.fixtureSource).filter(Boolean))];
+          addKv("Fixture source", fixtures.length ? fixtures.join(", ") : "not recorded");
+          addKv("Workload", `${t.workload.benchmarkId} · seed ${t.workload.seed} · ${t.workload.caseCount} cases · ${t.workload.codeRevision}`);
+        } else {
+          const cfg = t.config || {};
+          addKv("Regression policy", typeof cfg.regressionTests === "string" ? cfg.regressionTests : "unknown (v1)");
+          addKv("Fixer resolution", "unknown (v1) — not recorded");
+          addKv("Triage resolution", "unknown (v1) — not recorded");
+          addKv("Max fix attempts", finite(cfg.maxFixAttempts) ? String(cfg.maxFixAttempts) : "unknown (v1)");
+          addKv("Incident concurrency", "unknown (v1)");
+          addKv("Fixture source", "unknown (v1)");
+          addKv("Workload", "unknown (v1) — recorded before workload identity");
+        }
+        polBlock.append(kv);
+        grid.append(polBlock);
+
+        // Block: stage timeline
+        const tlBlock = el("div", "detail-block");
+        tlBlock.append(el("h4", "", "Stage timeline"));
+        const list = el("div", "timeline-list");
+        t.events.forEach((e) => {
+          const row = el("div");
+          row.append(el("span", "", `#${String(e.seq).padStart(2, "0")}`));
+          const mid = el("span", "tl-stage", e.stage + (e.fingerprint ? ` · ${e.fingerprint}` : ""));
+          row.append(mid);
+          row.append(el("span", "tl-dur", `${fmtDuration(e.durationMs)} · ${e.outcome}`));
+          list.append(row);
+        });
+        tlBlock.append(list);
+        grid.append(tlBlock);
+
+        inner.append(grid);
+        cell.append(inner); tr.append(cell);
+        return tr;
+      }
+
+      /* ---------- seam charts (analyze) ---------- */
+      function renderCostSeams(metrics) {
+        const container = $("#cost-seams-chart");
+        container.replaceChildren();
+        if (!metrics.length) { container.append(emptyChart("No runs loaded.")); return; }
+        const rowH = 74, width = Math.max(920, 620), left = 200, right = width - 150, height = 70 + metrics.length * rowH;
+        const totals = metrics.map((m) => COST_SEAMS.reduce((s, seam) => s + m.costBySeam[seam].reported + m.costBySeam[seam].estimated, 0));
+        const max = Math.max(...totals, 0.02);
+        const s = svg("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-labelledby": "cs-t cs-d" });
+        s.style.width = width + "px";
+        s.append(svg("title", { id: "cs-t" }, "Known dollars by seam"));
+        s.append(svg("desc", { id: "cs-d" }, "Stacked bars of reported and estimated dollars per seam. Incomplete-coverage runs are watermarked as partial."));
+        metrics.forEach((m, i) => {
+          const y = 40 + i * rowH;
+          s.append(svg("text", { x: left - 12, y: y + 15, class: "chart-label", "text-anchor": "end" }, m.label));
+          let x = left;
+          COST_SEAMS.forEach((seam) => {
+            const c = m.costBySeam[seam];
+            [["reported", c.reported], ["estimated", c.estimated]].forEach(([kind, val]) => {
+              if (val <= 0) return;
+              const w = (right - left) * val / max;
+              const attrs = { x, y, width: w, height: 26, fill: seamColor(seam) };
+              if (kind === "estimated") Object.assign(attrs, { "fill-opacity": 0.5, stroke: "var(--ink)", "stroke-dasharray": "4 3" });
+              s.append(svg("rect", attrs));
+              x += w;
+            });
+          });
+          const total = totals[i];
+          s.append(svg("text", { x: total === 0 ? left + 6 : x + 8, y: y + 18, class: "chart-value" }, total === 0 ? "no priced spend" : (m.complete ? fmtMoney(total) : "≥ " + fmtMoney(total))));
+          if (!m.complete) s.append(svg("text", { x: left, y: y + 44, class: "chart-note" }, `partial — ${m.pricedCount} of ${m.totalUnits || "?"} calls priced${m.version === 1 ? " (v1: unknown)" : ""}`));
+        });
+        // seam legend row
+        const legendY = height - 14;
+        let lx = left;
+        COST_SEAMS.forEach((seam) => { s.append(svg("rect", { x: lx, y: legendY - 10, width: 12, height: 12, fill: seamColor(seam) })); s.append(svg("text", { x: lx + 16, y: legendY, class: "chart-text" }, SEAM_LABEL[seam])); lx += 130; });
+        container.append(s);
+        renderFallback("#cost-seams-data", "Known dollars by seam", ["Run", ...COST_SEAMS.flatMap((s2) => [`${SEAM_LABEL[s2]} reported`, `${SEAM_LABEL[s2]} est.`]), "Coverage"],
+          metrics.map((m) => [m.label, ...COST_SEAMS.flatMap((seam) => [m.costBySeam[seam].reported > 0 ? fmtMoney(m.costBySeam[seam].reported) : "n/a", m.costBySeam[seam].estimated > 0 ? fmtMoney(m.costBySeam[seam].estimated) : "n/a"]), coverageWord(m)]));
       }
 
       function renderTimeSeams(metrics) {
-        legend("#time-seams-legend", TIME_SEAMS.map((seam) => ({ label: seam[0].toUpperCase() + seam.slice(1), color: seamColors[seam] })));
-        renderStackedHorizontal(metrics, {
-          chartSelector: "#time-seams-chart", seams: TIME_SEAMS, id: "time-seam", title: "Recorded event time by seam", description: "Horizontal bars split summed TraceEvent duration into triage, fix, verification, and other stages.", minimumMax: 1,
-          value: (metric, seam) => ({ reported: metric.timeBySeam[seam], estimated: 0 }), formatter: formatDuration, segmentFormatter: formatDuration, emptyLabel: "0 ms", axisLabel: "Summed TraceEvent duration",
-        });
-        renderFallback("#time-seams-data", "Recorded event time by seam", ["Run", ...TIME_SEAMS, "Wall duration"], metrics.map((metric) => [metric.label, ...TIME_SEAMS.map((seam) => formatDuration(metric.timeBySeam[seam])), formatDuration(metric.durationMs)]));
-      }
-
-      function renderRetries(metrics) {
-        legend("#retries-legend", [{ label: "Fix attempts", color: "var(--triage)" }, { label: "Retries within attempts", color: "var(--fix)" }]);
-        const container = $("#retries-chart");
+        const container = $("#time-seams-chart");
         container.replaceChildren();
-        const width = Math.max(920, 270 + metrics.length * 40);
-        const rowHeight = 72;
-        const height = Math.max(290, 90 + metrics.length * rowHeight);
-        const left = 190;
-        const right = width - 110;
-        const max = Math.max(...metrics.flatMap((metric) => [metric.fixAttempts, metric.retries]), 1);
-        const svg = createChartSvg(width, height, "Fix attempts and retries per run", "Two bars per run compare all fix attempts with attempts after the first for the same failure.", "retry-chart");
-        addHorizontalAxis(svg, left, right, height - 42, max, (value) => String(Math.round(value)));
-        metrics.forEach((metric, index) => {
-          const y = 46 + index * rowHeight;
-          svg.append(svgElement("text", { x: left - 12, y: y + 24, class: "chart-label", "text-anchor": "end" }, metric.label));
-          const attemptWidth = (right - left) * metric.fixAttempts / max;
-          const retryWidth = (right - left) * metric.retries / max;
-          svg.append(svgElement("rect", { x: left, y, width: attemptWidth, height: 18, fill: "var(--triage)" }));
-          svg.append(svgElement("rect", { x: left, y: y + 24, width: retryWidth, height: 18, fill: "var(--fix)" }));
-          svg.append(svgElement("text", { x: left + attemptWidth + 7, y: y + 14, class: "chart-value" }, String(metric.fixAttempts)));
-          svg.append(svgElement("text", { x: left + retryWidth + 7, y: y + 38, class: "chart-value" }, String(metric.retries)));
+        if (!metrics.length) { container.append(emptyChart("No runs loaded.")); return; }
+        const rowH = 58, width = Math.max(920, 620), left = 200, right = width - 130, height = 70 + metrics.length * rowH;
+        const max = Math.max(...metrics.map((m) => m.summedTime), 1);
+        const s = svg("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-labelledby": "ts-t ts-d" });
+        s.style.width = width + "px";
+        s.append(svg("title", { id: "ts-t" }, "Recorded time by seam"));
+        s.append(svg("desc", { id: "ts-d" }, "Stacked bars of summed event duration per seam: triage, test-writing, fix, verify, other."));
+        metrics.forEach((m, i) => {
+          const y = 40 + i * rowH;
+          s.append(svg("text", { x: left - 12, y: y + 15, class: "chart-label", "text-anchor": "end" }, m.label));
+          let x = left;
+          TIME_SEAMS.forEach((seam) => {
+            const val = m.timeBySeam[seam];
+            if (val <= 0) return;
+            const w = (right - left) * val / max;
+            s.append(svg("rect", { x, y, width: w, height: 26, fill: seamColor(seam) }));
+            x += w;
+          });
+          s.append(svg("text", { x: x + 8, y: y + 18, class: "chart-value" }, fmtDuration(m.summedTime)));
         });
-        svg.append(svgElement("text", { x: (left + right) / 2, y: height - 8, class: "chart-text", "text-anchor": "middle" }, "Count of fix events"));
-        container.append(svg);
-        renderFallback("#retries-data", "Fix attempts and retries", ["Run", "Fix attempts", "Retries"], metrics.map((metric) => [metric.label, String(metric.fixAttempts), String(metric.retries)]));
+        const legendY = height - 14;
+        let lx = left;
+        TIME_SEAMS.forEach((seam) => { s.append(svg("rect", { x: lx, y: legendY - 10, width: 12, height: 12, fill: seamColor(seam) })); s.append(svg("text", { x: lx + 16, y: legendY, class: "chart-text" }, SEAM_LABEL[seam])); lx += 118; });
+        container.append(s);
+        renderFallback("#time-seams-data", "Recorded time by seam", ["Run", ...TIME_SEAMS.map((s2) => SEAM_LABEL[s2]), "Wall time"],
+          metrics.map((m) => [m.label, ...TIME_SEAMS.map((seam) => fmtDuration(m.timeBySeam[seam])), fmtDuration(m.durationMs)]));
       }
 
-      function timeMetric(metric, key) {
-        if (key === "usdPerFix") return metric.usdPerFix;
-        if (key === "tokens") return metric.totalTokens;
-        return metric.durationMs;
-      }
-
-      function timeMetricFormat(value, key) {
-        if (key === "usdPerFix") return formatMoney(value);
-        if (key === "tokens") return formatInteger(value);
-        return formatDuration(value);
-      }
-
+      /* ---------- runs over time (conditional) ---------- */
       function renderOverTime(metrics) {
+        const section = $("#over-time");
+        const groups = new Map();
+        metrics.forEach((m) => { const k = `${m.workloadKey}||${m.resolvedConfigKey}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); });
+        const eligibleGroup = [...groups.values()].find((g) => g.length >= 3);
+        if (!eligibleGroup) { section.hidden = true; return; }
+        section.hidden = false;
         const key = $("#time-metric").value;
-        const chronological = [...metrics].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
-        const points = chronological.map((metric) => ({ metric, value: timeMetric(metric, key) }));
-        const valid = points.filter((point) => point.value !== null);
-        const width = Math.max(920, 220 + chronological.length * 170);
-        const height = 410;
-        const left = 92;
-        const right = width - 44;
-        const top = 44;
-        const bottom = height - 80;
-        const max = Math.max(...valid.map((point) => point.value), key === "usdPerFix" ? 0.01 : 1);
-        const svg = createChartSvg(width, height, "Runs over time", `Line chart of ${$("#time-metric").selectedOptions[0].textContent} by run start date. Missing values are gaps.`, "history-chart");
-        svg.append(svgElement("line", { x1: left, x2: left, y1: top, y2: bottom, class: "chart-axis" }), svgElement("line", { x1: left, x2: right, y1: bottom, y2: bottom, class: "chart-axis" }));
-        for (let index = 0; index <= 4; index += 1) {
-          const y = bottom - (bottom - top) * index / 4;
-          svg.append(svgElement("line", { x1: left, x2: right, y1: y, y2: y, class: "chart-gridline" }));
-          svg.append(svgElement("text", { x: left - 10, y: y + 4, class: "chart-text", "text-anchor": "end" }, timeMetricFormat(max * index / 4, key)));
-        }
-        const xFor = (index) => chronological.length <= 1 ? (left + right) / 2 : left + (right - left) * index / (chronological.length - 1);
-        let segment = [];
-        const flush = () => {
-          if (segment.length > 0) svg.append(svgElement("path", { d: segment.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "), class: "line-path" }));
-          segment = [];
-        };
-        points.forEach((point, index) => {
-          const x = xFor(index);
-          svg.append(svgElement("text", { x, y: bottom + 25, class: "chart-text", "text-anchor": "middle" }, shortDate(point.metric.startedAt)));
-          svg.append(svgElement("text", { x, y: bottom + 42, class: "chart-text", "text-anchor": "middle" }, point.metric.label));
-          if (point.value === null) { flush(); svg.append(svgElement("text", { x, y: bottom - 10, class: "chart-value", "text-anchor": "middle" }, "n/a")); return; }
-          const y = bottom - (bottom - top) * point.value / max;
-          segment.push({ x, y });
-          svg.append(svgElement("circle", { cx: x, cy: y, r: 5, class: "line-point" }));
-          svg.append(svgElement("text", { x, y: Math.max(top + 10, y - 12), class: "chart-value", "text-anchor": "middle" }, timeMetricFormat(point.value, key)));
+        const points = [...eligibleGroup].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+        const container = $("#over-time-chart");
+        container.replaceChildren();
+        const width = Math.max(920, 220 + points.length * 150), height = 380, left = 96, right = width - 44, top = 40, bottom = height - 74;
+        const valOf = (m) => key === "usdPerFix" ? m.costPerFix : key === "duration" ? m.durationMs : m.verifiedFixes;
+        const fmtOf = (v) => key === "usdPerFix" ? fmtMoney(v) : key === "duration" ? fmtDuration(v) : fmtInt(v);
+        const vals = points.map(valOf).filter((v) => v !== null && v !== undefined);
+        const max = Math.max(...vals, key === "usdPerFix" ? 0.02 : 1);
+        const s = svg("svg", { viewBox: `0 0 ${width} ${height}`, width, height, role: "img", "aria-label": "Runs over time" });
+        s.style.width = width + "px";
+        s.append(svg("line", { x1: left, x2: left, y1: top, y2: bottom, class: "chart-axis" }), svg("line", { x1: left, x2: right, y1: bottom, y2: bottom, class: "chart-axis" }));
+        for (let i = 0; i <= 4; i++) { const y = bottom - (bottom - top) * i / 4; s.append(svg("line", { x1: left, x2: right, y1: y, y2: y, class: "chart-gridline" })); s.append(svg("text", { x: left - 8, y: y + 4, class: "chart-text", "text-anchor": "end" }, fmtOf(max * i / 4))); }
+        const xFor = (i) => points.length <= 1 ? (left + right) / 2 : left + (right - left) * i / (points.length - 1);
+        let seg = [];
+        const flush = () => { if (seg.length) s.append(svg("path", { d: seg.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" "), class: "frontier-line" })); seg = []; };
+        points.forEach((m, i) => {
+          const x = xFor(i);
+          s.append(svg("text", { x, y: bottom + 20, class: "chart-text", "text-anchor": "middle" }, fmtDate(m.startedAt)));
+          const v = valOf(m);
+          if (v === null || v === undefined) { flush(); s.append(svg("text", { x, y: bottom - 10, class: "chart-value", "text-anchor": "middle" }, "n/a")); return; }
+          const y = bottom - (bottom - top) * v / max;
+          seg.push({ x, y });
+          s.append(svg("circle", { cx: x, cy: y, r: 5, fill: "var(--paper-raised)", stroke: "var(--ok)", "stroke-width": 3 }));
+          s.append(svg("text", { x, y: Math.max(top + 10, y - 12), class: "chart-value", "text-anchor": "middle" }, fmtOf(v)));
         });
         flush();
-        svg.append(svgElement("text", { x: 18, y: (top + bottom) / 2, class: "chart-text", transform: `rotate(-90 18 ${(top + bottom) / 2})`, "text-anchor": "middle" }, $("#time-metric").selectedOptions[0].textContent));
-        containerOrEmpty($("#over-time-chart"), svg, chronological.length);
-        renderFallback("#over-time-data", `Runs over time: ${$("#time-metric").selectedOptions[0].textContent}`, ["Run", "Started", $("#time-metric").selectedOptions[0].textContent], chronological.map((metric) => [metric.label, formatDate(metric.startedAt), timeMetricFormat(timeMetric(metric, key), key)]));
+        container.append(s);
+        renderFallback("#over-time-data", "Runs over time", ["Run", "Started", $("#time-metric").selectedOptions[0].textContent], points.map((m) => [m.label, fmtDate(m.startedAt), fmtOf(valOf(m))]));
       }
 
-      function containerOrEmpty(container, svg, count) {
+      /* ---------- accessible fallback tables ---------- */
+      function renderFallback(sel, caption, headers, rows) {
+        const container = $(sel);
         container.replaceChildren();
-        if (count === 0) {
-          const emptySvg = createChartSvg(920, 280, "No run data", "Load a valid trace to draw this chart.", "empty-chart");
-          emptySvg.append(svgElement("text", { x: 460, y: 140, class: "chart-empty", "text-anchor": "middle" }, "Load a valid trace to draw this view."));
-          container.append(emptySvg);
-        } else container.append(svg);
+        const details = el("details", "chart-data");
+        details.append(el("summary", "", "Accessible data table"));
+        const wrap = el("div", "board-wrap");
+        const table = el("table");
+        table.append(el("caption", "", caption));
+        const thead = el("thead"); const hr = el("tr"); headers.forEach((h) => hr.append(el("th", "", h))); thead.append(hr);
+        const tb = el("tbody"); rows.forEach((vals) => { const r = el("tr"); vals.forEach((v) => r.append(el("td", "", v))); tb.append(r); });
+        table.append(thead, tb); wrap.append(table); details.append(wrap); container.append(details);
       }
 
-      function renderErrors() {
-        const container = $("#file-errors");
-        container.replaceChildren();
-        fileErrors.forEach((error) => container.append(textElement("span", "error-chip", `${error.name}: ${error.message}`)));
+      /* ---------- present-note + selection ---------- */
+      function selectForPresent(metrics, reference) {
+        const others = metrics.filter((m) => m !== reference);
+        others.sort((a, b) => (b.verifiedFixes - a.verifiedFixes) || (a.durationMs - b.durationMs));
+        const chosen = [reference, ...others].slice(0, 4);
+        return chosen;
       }
 
+      /* ---------- orchestration ---------- */
       function renderAll() {
-        const metrics = sortedMetrics();
+        const metrics = runs.map(metricsFor);
+        const reference = pickReference(metrics);
+        const present = document.documentElement.dataset.view === "present";
+        const shown = present && reference ? selectForPresent(metrics, reference) : metrics;
+
         renderHeadline(metrics);
-        renderTable(metrics);
-        renderCostPerFix(metrics);
-        renderCostSeams(metrics);
-        renderTimeSeams(metrics);
-        renderRetries(metrics);
+        renderEvidence(metrics, reference);
+        if (present && reference) $("#present-note").textContent = `Showing ${shown.length} of ${metrics.length} configurations · reference plus the strongest by quality then speed. Switch to Analyze for every run, every seam, and the methodology.`;
+        renderFrontier(shown, reference);
+        renderBoard(shown, reference, present);
+        renderCostSeams(shown);
+        renderTimeSeams(shown);
         renderOverTime(metrics);
         renderErrors();
       }
 
+      function renderErrors() {
+        const c = $("#file-errors");
+        c.replaceChildren();
+        fileErrors.forEach((e) => c.append(el("span", "error-chip", `${e.name}: ${e.message}`)));
+      }
+
+      /* ---------- data loading ---------- */
+      function loadPublished() {
+        const bundled = window.BUGLOOP_RUNS;
+        if (!Array.isArray(bundled) || bundled.length === 0) return false;
+        const loaded = []; const errors = [];
+        bundled.forEach((entry, i) => {
+          try {
+            if (!isRecord(entry)) throw new Error("entry must be an object");
+            const trace = validateTrace(entry.trace);
+            const label = (typeof entry.label === "string" && entry.label.trim()) ? entry.label.trim() : (typeof trace.label === "string" && trace.label.trim() ? trace.label.trim() : `published-${i + 1}`);
+            loaded.push({ label, trace, runId: trace.runId, isDemo: false });
+          } catch (err) { errors.push({ name: `BUGLOOP_RUNS[${i}]`, message: err instanceof Error ? err.message : String(err) }); }
+        });
+        if (!loaded.length) return false;
+        runs = loaded; fileErrors = errors; openRunId = null; renderAll(); return true;
+      }
+
+      function loadDemo() {
+        try {
+          const parsed = JSON.parse($("#demo-runs").textContent);
+          runs = parsed.map((trace, i) => ({ label: trace.label || `demo-${i + 1}`, trace: validateTrace(trace), runId: trace.runId, isDemo: true }));
+          fileErrors = []; openRunId = null; renderAll();
+          $("#price-message").textContent = "Loaded built-in v2 demo set (3 runs).";
+          $("#price-message").classList.remove("error");
+        } catch (err) { $("#price-message").textContent = `Demo error: ${err instanceof Error ? err.message : String(err)}`; $("#price-message").classList.add("error"); }
+      }
+
       async function loadFiles(fileList) {
         const files = [...fileList];
-        if (files.length === 0) return;
+        if (!files.length) return;
         const results = await Promise.all(files.map(async (file) => {
           try {
             const value = JSON.parse(await file.text());
             const trace = validateTrace(value);
-            const label = (typeof value.label === "string" && value.label.trim()) ? value.label.trim() : labelFromFilename(file.name);
-            return { run: { label, trace, isDemo: false, isPublished: false } };
-          } catch (error) {
-            return { error: { name: file.name, message: error instanceof Error ? error.message : String(error) } };
-          }
+            const label = (typeof value.label === "string" && value.label.trim()) ? value.label.trim() : file.name.replace(/\.json$/i, "").replace(/^sweep-/, "");
+            return { run: { label, trace, runId: trace.runId || file.name, isDemo: false } };
+          } catch (err) { return { error: { name: file.name, message: err instanceof Error ? err.message : String(err) } }; }
         }));
-        const validRuns = results.filter((result) => result.run).map((result) => result.run);
-        if (validRuns.length > 0) runs = [...runs.filter((run) => !run.isDemo), ...validRuns];
-        fileErrors = [...fileErrors, ...results.filter((result) => result.error).map((result) => result.error)];
+        const valid = results.filter((r) => r.run).map((r) => r.run);
+        if (valid.length) runs = [...runs.filter((r) => !r.isDemo), ...valid];
+        fileErrors = [...fileErrors, ...results.filter((r) => r.error).map((r) => r.error)];
         $("#trace-files").value = "";
         renderAll();
       }
 
+      /* ---------- prices UI ---------- */
       function renderPriceMeta() {
+        const meta = isRecord(window.BUGLOOP_PRICES_META) ? window.BUGLOOP_PRICES_META : null;
         const metaEl = $("#price-meta");
-        const meta = typeof window.BUGLOOP_PRICES_META === "object" && window.BUGLOOP_PRICES_META !== null
-          ? window.BUGLOOP_PRICES_META
-          : null;
-        if (!meta) {
-          metaEl.hidden = true;
-          metaEl.textContent = "";
-          return;
-        }
+        const methodEl = $("#method-pricing");
+        if (!meta) { metaEl.hidden = true; if (methodEl) methodEl.textContent = "No pricing metadata bundled."; return; }
         const parts = [];
-        if (typeof meta.asOf === "string") parts.push(`Price table as of ${meta.asOf}`);
-        if (Array.isArray(meta.sources) && meta.sources.length > 0) {
-          parts.push(`Sources: ${meta.sources.join("; ")}`);
-        }
+        if (typeof meta.asOf === "string") parts.push(`Prices as of ${meta.asOf}`);
+        if (Array.isArray(meta.sources)) parts.push(`Sources: ${meta.sources.join("; ")}`);
         if (typeof meta.note === "string" && meta.note.trim()) parts.push(meta.note.trim());
-        if (isRecord(meta.notes)) {
-          const notes = Object.entries(meta.notes)
-            .filter(([, text]) => typeof text === "string")
-            .map(([model, text]) => `${model}: ${text}`);
-          if (notes.length > 0) parts.push(notes.join(" "));
+        metaEl.textContent = parts.join(" · "); metaEl.hidden = !parts.length;
+        if (methodEl) methodEl.textContent = parts.join(" · ");
+        // price list
+        const list = $("#price-list");
+        if (list && isRecord(defaultPriceTable)) {
+          list.replaceChildren();
+          Object.entries(defaultPriceTable).forEach(([model, p]) => { list.append(el("dt", "", model)); list.append(el("dd", "", `${p.inPerM} in / ${p.outPerM} out (USD per Mtok)`)); });
         }
-        metaEl.textContent = parts.join(" · ");
-        metaEl.hidden = parts.length === 0;
       }
-
-      function applyDefaultPrices(messageSuffix = "") {
-        const message = $("#price-message");
-        if (defaultPriceTable) {
-          priceTable = defaultPriceTable;
-          const count = Object.keys(defaultPriceTable).length;
-          message.textContent = `Default price table applied (${count} model ${count === 1 ? "entry" : "entries"}). Estimates use published list prices.${messageSuffix}`;
-          message.classList.remove("error");
-        } else {
-          priceTable = null;
-          message.textContent = "No price table applied.";
-          message.classList.remove("error");
-        }
+      function applyDefaultPrices() {
+        priceTable = defaultPriceTable;
+        const msg = $("#price-message");
+        if (defaultPriceTable) { const n = Object.keys(defaultPriceTable).length; msg.textContent = `Default prices applied (${n} models). Token-only calls become labelled estimates.`; }
+        else { msg.textContent = "No default prices bundled — estimates unavailable until you paste a price table."; }
+        msg.classList.remove("error");
         renderPriceMeta();
       }
-
       function applyPrices() {
         const input = $("#price-table").value.trim();
-        const message = $("#price-message");
-        if (!input) {
-          // Empty override → restore published defaults when present.
-          applyDefaultPrices(" (override cleared)");
-          renderAll();
-          return;
-        }
+        const msg = $("#price-message");
+        if (!input) { applyDefaultPrices(); renderAll(); return; }
         try {
           const value = JSON.parse(input);
           if (!isRecord(value)) throw new Error("price table must be a JSON object");
-          for (const [model, price] of Object.entries(value)) {
-            if (!isRecord(price) || !nonNegative(price.inPerM) || !nonNegative(price.outPerM)) throw new Error(`${model} must have non-negative inPerM and outPerM numbers`);
-          }
-          // Paste-in override wins over defaults.
-          priceTable = value;
-          message.textContent = `${Object.keys(value).length} model ${Object.keys(value).length === 1 ? "price" : "prices"} applied (override). Estimates are labeled throughout.`;
-          message.classList.remove("error");
-          renderAll();
-        } catch (error) {
-          priceTable = defaultPriceTable;
-          message.textContent = `Price table ignored: ${error instanceof Error ? error.message : String(error)}`;
-          message.classList.add("error");
-          renderAll();
-        }
+          for (const [model, price] of Object.entries(value)) { if (!isRecord(price) || !nonNeg(price.inPerM) || !nonNeg(price.outPerM)) throw new Error(`${model} needs non-negative inPerM and outPerM`); }
+          priceTable = value; msg.textContent = `${Object.keys(value).length} model prices applied (override). Estimates stay labelled.`; msg.classList.remove("error"); renderAll();
+        } catch (err) { priceTable = defaultPriceTable; msg.textContent = `Price table ignored: ${err instanceof Error ? err.message : String(err)}`; msg.classList.add("error"); renderAll(); }
       }
 
-      function loadPublishedRuns() {
-        const bundled = window.BUGLOOP_RUNS;
-        if (!Array.isArray(bundled) || bundled.length === 0) return false;
-        const loaded = [];
-        const errors = [];
-        bundled.forEach((entry, index) => {
-          try {
-            if (!isRecord(entry)) throw new Error("entry must be an object");
-            const trace = validateTrace(entry.trace);
-            const label = typeof entry.label === "string" && entry.label.trim()
-              ? entry.label.trim()
-              : (typeof trace.label === "string" && trace.label.trim() ? trace.label.trim() : `published-${index + 1}`);
-            loaded.push({ label, trace, isDemo: false, isPublished: true });
-          } catch (error) {
-            errors.push({
-              name: `BUGLOOP_RUNS[${index}]`,
-              message: error instanceof Error ? error.message : String(error),
-            });
-          }
-        });
-        if (loaded.length === 0) return false;
-        runs = loaded;
-        fileErrors = errors;
-        renderAll();
-        return true;
+      /* ---------- metric defs ---------- */
+      function renderMetricDefs() {
+        const dl = $("#metric-defs");
+        const defs = [
+          ["Verified fix", "A verify-stage event whose outcome is verified/pass/passed."],
+          ["Cost / verified fix", "Known dollars over verified fixes. Exact only under complete coverage; else a floor (≥) or n/a."],
+          ["Complete coverage", "Every agent call priced — reported by the trace, or estimated from a price you supplied."],
+          ["Retry", "A fix event after the first for the same failure fingerprint."],
+          ["Needs human", "Incidents routed to a person plus incidents handed off after attempts failed."],
+          ["Dominant seam", "The seam holding the largest share of summed instrumented time."],
+          ["Reference", "The run others are compared against — baseline when present, else earliest."],
+        ];
+        dl.replaceChildren();
+        defs.forEach(([k, v]) => { dl.append(el("dt", "", k)); dl.append(el("dd", "", v)); });
       }
 
-      function loadDemo() {
-        const demo = validateTrace(JSON.parse($("#demo-trace").textContent));
-        runs = [{ label: "example-run", trace: demo, isDemo: true, isPublished: false }];
-        fileErrors = [];
+      /* ---------- view + theme ---------- */
+      function setView(view) {
+        document.documentElement.dataset.view = view;
+        try { localStorage.setItem("bug-loop-view", view); } catch {}
+        $("#view-present").setAttribute("aria-pressed", String(view === "present"));
+        $("#view-analyze").setAttribute("aria-pressed", String(view !== "present"));
         renderAll();
       }
-
-      const dropZone = $("#drop-zone");
-      ["dragenter", "dragover"].forEach((type) => dropZone.addEventListener(type, (event) => { event.preventDefault(); dropZone.classList.add("is-over"); }));
-      ["dragleave", "drop"].forEach((type) => dropZone.addEventListener(type, (event) => { event.preventDefault(); dropZone.classList.remove("is-over"); }));
-      dropZone.addEventListener("drop", (event) => loadFiles(event.dataTransfer?.files || []));
-      $("#trace-files").addEventListener("change", (event) => loadFiles(event.target.files || []));
-      $("#apply-prices").addEventListener("click", applyPrices);
-      $("#reset-demo").addEventListener("click", loadDemo);
-      $("#time-metric").addEventListener("change", () => renderOverTime(sortedMetrics()));
 
       const themeToggle = $("#theme-toggle");
       const systemDark = matchMedia("(prefers-color-scheme: dark)");
-      function effectiveTheme() { return document.documentElement.dataset.theme || (systemDark.matches ? "dark" : "light"); }
-      function renderThemeButton() { themeToggle.textContent = `Theme: ${effectiveTheme()}`; themeToggle.setAttribute("aria-pressed", String(effectiveTheme() === "dark")); }
-      themeToggle.addEventListener("click", () => {
-        const next = effectiveTheme() === "dark" ? "light" : "dark";
-        document.documentElement.dataset.theme = next;
-        try { localStorage.setItem("bug-loop-theme", next); } catch {}
-        renderThemeButton();
-      });
+      const effectiveTheme = () => document.documentElement.dataset.theme || (systemDark.matches ? "dark" : "light");
+      const renderThemeButton = () => { themeToggle.textContent = `Theme: ${effectiveTheme()}`; themeToggle.setAttribute("aria-pressed", String(effectiveTheme() === "dark")); };
+      themeToggle.addEventListener("click", () => { const next = effectiveTheme() === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = next; try { localStorage.setItem("bug-loop-theme", next); } catch {} renderThemeButton(); });
       systemDark.addEventListener?.("change", renderThemeButton);
 
-      // Feature-detect published data (script may 404 / be absent under file://).
-      if (isRecord(window.BUGLOOP_PRICES)) {
-        defaultPriceTable = window.BUGLOOP_PRICES;
-      }
+      // wire up
+      const dropZone = $("#drop-zone");
+      ["dragenter", "dragover"].forEach((t) => dropZone.addEventListener(t, (e) => { e.preventDefault(); dropZone.classList.add("is-over"); }));
+      ["dragleave", "drop"].forEach((t) => dropZone.addEventListener(t, (e) => { e.preventDefault(); dropZone.classList.remove("is-over"); }));
+      dropZone.addEventListener("drop", (e) => loadFiles(e.dataTransfer?.files || []));
+      $("#trace-files").addEventListener("change", (e) => loadFiles(e.target.files || []));
+      $("#apply-prices").addEventListener("click", applyPrices);
+      $("#load-demo").addEventListener("click", loadDemo);
+      $("#reset-published").addEventListener("click", () => { if (!loadPublished()) loadDemo(); });
+      $("#time-metric").addEventListener("change", () => renderOverTime(runs.map(metricsFor)));
+      $("#view-present").addEventListener("click", () => setView("present"));
+      $("#view-analyze").addEventListener("click", () => setView("analyze"));
+
+      if (isRecord(window.BUGLOOP_PRICES)) defaultPriceTable = window.BUGLOOP_PRICES;
       applyDefaultPrices();
+      renderMetricDefs();
       renderThemeButton();
-      if (!loadPublishedRuns()) loadDemo();
+      const initialView = document.documentElement.dataset.view === "present" ? "present" : "analyze";
+      $("#view-present").setAttribute("aria-pressed", String(initialView === "present"));
+      $("#view-analyze").setAttribute("aria-pressed", String(initialView !== "present"));
+      if (!loadPublished()) loadDemo();
     })();
   </script>
-<script>
-  // Optional launcher back-link: a page that links here may pass ?hub=<relative path>;
-  // the link is remembered for the session and only relative targets are accepted.
-  (function () {
-    var hub = new URLSearchParams(window.location.search).get("hub");
-    try {
-      if (hub) sessionStorage.setItem("bugloop-hub-link", hub);
-      else hub = sessionStorage.getItem("bugloop-hub-link");
-    } catch (e) { return; }
-    if (!hub || hub.indexOf(":") !== -1 || hub.indexOf("//") === 0 || hub.indexOf("\\") !== -1) return;
-    var nav = document.querySelector('nav[aria-label="Dashboard pages"]');
-    if (!nav) return;
-    var sep = document.createElement("span");
-    sep.setAttribute("aria-hidden", "true");
-    sep.textContent = " | ";
-    nav.insertBefore(sep, nav.firstChild);
-    var link = document.createElement("a");
-    link.href = hub;
-    link.textContent = "Hub";
-    nav.insertBefore(link, nav.firstChild);
-  })();
-</script>
+  <script>
+    // Optional launcher back-link: a page that links here may pass ?hub=<relative path>;
+    // the link is remembered for the session and only relative targets are accepted.
+    (function () {
+      var hub = new URLSearchParams(window.location.search).get("hub");
+      try {
+        if (hub) sessionStorage.setItem("bugloop-hub-link", hub);
+        else hub = sessionStorage.getItem("bugloop-hub-link");
+      } catch (e) { return; }
+      if (!hub || hub.indexOf(":") !== -1 || hub.indexOf("//") === 0 || hub.indexOf("\\") !== -1) return;
+      var nav = document.querySelector('nav[aria-label="Dashboard pages"]');
+      if (!nav) return;
+      var sep = document.createElement("span");
+      sep.setAttribute("aria-hidden", "true");
+      sep.textContent = " | ";
+      nav.insertBefore(sep, nav.firstChild);
+      var link = document.createElement("a");
+      link.href = hub;
+      link.textContent = "Hub";
+      nav.insertBefore(link, nav.firstChild);
+    })();
+  </script>
 </body>
 </html>

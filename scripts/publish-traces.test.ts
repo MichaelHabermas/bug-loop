@@ -94,6 +94,8 @@ function minimalV2Trace(): Record<string, unknown> {
     agentCalls: [{
       seq: 1,
       stage: "fixer",
+      correlationId: "run-v2:fingerprint",
+      attemptId: "run-v2:fingerprint:fix:1",
       harness: "grok",
       effectiveModel: null,
       effort: "low",
@@ -155,6 +157,10 @@ describe("parseRunTrace", () => {
     expect(trace.schemaVersion).toBe(2);
     expect(trace.workload.benchmarkId).toBe("leaky-service-seeded-v1");
     expect(trace.agentCalls).toHaveLength(1);
+    expect(trace.agentCalls[0]).toMatchObject({
+      correlationId: "run-v2:fingerprint",
+      attemptId: "run-v2:fingerprint:fix:1",
+    });
   });
 
   test("rejects malformed v2 usage and fallback metadata", () => {

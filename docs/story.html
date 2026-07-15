@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>bug-loop | The Build Story</title>
+  <script>
+    try {
+      const savedTheme = localStorage.getItem("bug-loop-theme");
+      if (savedTheme === "light" || savedTheme === "dark") document.documentElement.dataset.theme = savedTheme;
+    } catch {}
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f2efe6;
+      --paper-raised: #fbf8ef;
+      --ink: #171816;
+      --ink-soft: #4f514c;
+      --ink-faint: #797b73;
+      --rule: #b9b6aa;
+      --rule-strong: #6d6d67;
+      --code: #0b6e82;
+      --code-soft: #d7ebec;
+      --agent: #d44a2f;
+      --agent-soft: #f6d9ce;
+      --human: #9a3f73;
+      --human-soft: #eed9e5;
+      --signal: #ff5a36;
+      --focus: #126cce;
+      --grid: rgba(23, 24, 22, 0.052);
+      --serif: "Iowan Old Style", "Baskerville", "Palatino Linotype", Georgia, serif;
+      --sans: "Avenir Next", Avenir, "Century Gothic", "Trebuchet MS", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --paper: #101310; --paper-raised: #181c18; --ink: #edf0e8; --ink-soft: #bdc2b8; --ink-faint: #858b82;
+        --rule: #3c433d; --rule-strong: #70786f; --code: #55bfd0; --code-soft: #16383d;
+        --agent: #ff6c4d; --agent-soft: #4c251d; --human: #ee8fc3; --human-soft: #452538;
+        --signal: #ff7558; --focus: #71b7ff; --grid: rgba(237, 240, 232, 0.045);
+      }
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --paper: #101310; --paper-raised: #181c18; --ink: #edf0e8; --ink-soft: #bdc2b8; --ink-faint: #858b82;
+      --rule: #3c433d; --rule-strong: #70786f; --code: #55bfd0; --code-soft: #16383d;
+      --agent: #ff6c4d; --agent-soft: #4c251d; --human: #ee8fc3; --human-soft: #452538;
+      --signal: #ff7558; --focus: #71b7ff; --grid: rgba(237, 240, 232, 0.045);
+    }
+    :root[data-theme="light"] { color-scheme: light; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; min-width: 320px; overflow-x: hidden;
+      color: var(--ink); background-color: var(--paper);
+      background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 24px 24px;
+      font-family: var(--sans); font-size: 16px; line-height: 1.55;
+    }
+    button { font: inherit; }
+    button:focus-visible, a:focus-visible, .term:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+    a:hover { color: var(--agent); }
+    code { font-family: var(--mono); font-size: 0.9em; }
+
+    .shell { width: min(1180px, calc(100% - 48px)); margin: 0 auto; }
+    .topbar {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+      min-height: 56px; padding: 8px 0; border-bottom: 1px solid var(--rule-strong);
+      font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .topbar-mark, .topbar-actions { display: flex; align-items: center; gap: 12px; }
+    .topbar nav a[aria-current="page"] { color: var(--agent); text-decoration: none; }
+    .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 16%, transparent); }
+    .theme-toggle, .glossary-jump {
+      border: 1px solid var(--rule-strong); border-radius: 0; color: var(--ink); background: var(--paper-raised);
+      cursor: pointer; padding: 9px 11px; line-height: 1;
+      font-family: var(--mono); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; text-decoration: none;
+    }
+    .theme-toggle:hover, .glossary-jump:hover { border-color: var(--ink); color: var(--paper); background: var(--ink); }
+
+    .hero {
+      position: relative; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.6fr);
+      gap: 6vw; align-items: end; min-height: 440px; padding: 74px 0 54px; border-bottom: 4px solid var(--ink);
+    }
+    .hero::after {
+      content: "01 / HOW IT WAS MADE"; position: absolute; right: 0; top: 32px;
+      color: var(--ink-faint); font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.15em;
+    }
+    .eyebrow, .mini-label { margin: 0; font-family: var(--mono); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; }
+    .eyebrow { color: var(--agent); }
+    h1 { max-width: 900px; margin: 18px 0 24px; font-family: var(--serif); font-size: clamp(3.8rem, 9vw, 8.4rem); font-weight: 400; letter-spacing: -0.07em; line-height: 0.82; }
+    .hero-thesis { max-width: 760px; margin: 0; font-family: var(--serif); font-size: clamp(1.35rem, 2.7vw, 2.4rem); font-style: italic; line-height: 1.15; }
+    .hero-aside { padding: 22px 0 4px 22px; border-left: 1px solid var(--rule-strong); }
+    .hero-aside p { margin: 0; color: var(--ink-soft); font-family: var(--mono); font-size: 0.74rem; line-height: 1.6; }
+
+    .tldr { margin: 26px auto 0; padding: clamp(20px, 2.5vw, 28px); border: 1px solid var(--rule-strong); border-left: 7px solid var(--agent); background: color-mix(in srgb, var(--paper-raised) 86%, transparent); }
+    .tldr .eyebrow { margin-bottom: 10px; }
+    .tldr ul { display: grid; gap: 6px; margin: 0; padding-left: 1.2rem; }
+    .tldr li { padding-left: 4px; }
+    .tldr li::marker { color: var(--agent); }
+
+    .term { position: relative; display: inline-block; border-bottom: 1px dotted currentColor; cursor: help; }
+    .term-tip {
+      position: absolute; z-index: 30; left: 50%; bottom: calc(100% + 9px); width: max-content; max-width: min(320px, calc(100vw - 32px));
+      padding: 10px 12px; border: 1px solid var(--rule-strong); color: var(--ink); background: var(--paper-raised);
+      box-shadow: 5px 5px 0 color-mix(in srgb, var(--ink) 18%, transparent);
+      font-family: var(--sans); font-size: 0.78rem; font-weight: 500; letter-spacing: 0; line-height: 1.35; text-align: left; text-transform: none; white-space: normal;
+      opacity: 0; pointer-events: none; transform: translate(-50%, 4px); visibility: hidden;
+      transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+    }
+    .term:hover .term-tip, .term:focus .term-tip { opacity: 1; transform: translate(-50%, 0); visibility: visible; }
+
+    .section-head { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 32px; align-items: start; margin: 96px 0 20px; }
+    .section-number { color: var(--ink-faint); font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; }
+    .section-title { margin: 0; font-family: var(--serif); font-size: clamp(2.3rem, 5.4vw, 4.6rem); font-weight: 400; letter-spacing: -0.048em; line-height: 0.95; }
+    .section-intro { max-width: 700px; margin: 16px 0 0; color: var(--ink-soft); font-size: 1.02rem; }
+
+    /* Timeline */
+    .timeline { position: relative; margin: 46px 0 0; padding-left: 46px; }
+    .timeline::before { content: ""; position: absolute; left: 13px; top: 8px; bottom: 8px; width: 2px; background: var(--rule-strong); }
+    .milestone { position: relative; margin-bottom: 30px; }
+    .milestone::before {
+      content: ""; position: absolute; left: -40px; top: 26px; width: 16px; height: 16px;
+      background: var(--paper); border: 3px solid var(--agent); border-radius: 50%;
+    }
+    .milestone.turn::before { background: var(--agent); }
+    .milestone-card {
+      padding: 26px 28px; border: 1px solid var(--rule-strong); background: color-mix(in srgb, var(--paper-raised) 88%, transparent);
+      box-shadow: 6px 6px 0 color-mix(in srgb, var(--ink) 6%, transparent);
+    }
+    .milestone-date { display: inline-block; margin-bottom: 8px; color: var(--agent); font-family: var(--mono); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+    .milestone-card h3 { margin: 0 0 12px; font-family: var(--serif); font-size: clamp(1.7rem, 3.4vw, 2.5rem); font-weight: 400; letter-spacing: -0.03em; line-height: 1.02; }
+    .milestone-card p { margin: 0 0 12px; color: var(--ink-soft); font-size: 1.01rem; line-height: 1.6; }
+    .milestone-card p:last-child { margin-bottom: 0; }
+    .milestone-card strong { color: var(--ink); }
+    .lessons { display: grid; gap: 10px; margin: 4px 0 12px; padding: 0; list-style: none; }
+    .lessons li { position: relative; padding: 12px 14px 12px 16px; border-left: 4px solid var(--human); background: color-mix(in srgb, var(--human-soft) 40%, transparent); font-size: 0.95rem; line-height: 1.5; }
+    .lessons li strong { color: var(--human); }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .pill { display: inline-flex; align-items: center; padding: 6px 10px; border: 1px solid var(--rule-strong); color: var(--ink-soft); font-family: var(--mono); font-size: 0.64rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+    .pill.good { color: var(--code); border-color: var(--code); background: var(--code-soft); }
+    .pill.declined { color: var(--human); border-color: var(--human); background: var(--human-soft); }
+    .doctrine {
+      margin: 16px 0 6px; padding: 16px 18px; border: 1px solid var(--agent); border-left: 6px solid var(--agent);
+      background: color-mix(in srgb, var(--agent-soft) 40%, transparent);
+      font-family: var(--serif); font-size: 1.12rem; font-style: italic; line-height: 1.4;
+    }
+    .doctrine strong { font-style: normal; font-weight: 700; }
+
+    .glossary-section { margin-top: 96px; }
+    .glossary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--rule-strong); border-left: 1px solid var(--rule-strong); background: color-mix(in srgb, var(--paper-raised) 82%, transparent); margin-top: 40px; }
+    .glossary-item { display: grid; grid-template-columns: minmax(130px, 0.4fr) minmax(0, 1fr); gap: 16px; margin: 0; padding: 13px 16px; border-right: 1px solid var(--rule-strong); border-bottom: 1px solid var(--rule-strong); }
+    .glossary-item dt { font-family: var(--mono); font-size: 0.72rem; font-weight: 800; line-height: 1.35; }
+    .glossary-item dd { margin: 0; color: var(--ink-soft); font-size: 0.78rem; line-height: 1.4; }
+
+    footer { padding: 40px 0 48px; margin-top: 90px; border-top: 4px solid var(--ink); }
+    .footer-inner { display: flex; justify-content: space-between; gap: 28px; align-items: flex-start; font-family: var(--mono); font-size: 0.72rem; }
+    .footer-inner p { max-width: 720px; margin: 0; color: var(--ink-soft); line-height: 1.6; }
+    .footer-inner nav { white-space: nowrap; }
+
+    @media (max-width: 820px) {
+      .hero { grid-template-columns: 1fr; gap: 36px; min-height: auto; padding-top: 92px; }
+      .hero-aside { max-width: 520px; }
+      .section-head { grid-template-columns: 90px minmax(0, 1fr); gap: 18px; margin-top: 68px; }
+      .glossary-grid { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 24px, 1180px); }
+      .topbar-copy, .glossary-jump { display: none; }
+      h1 { font-size: clamp(3.4rem, 19vw, 6rem); }
+      .section-head { display: block; }
+      .section-number { display: block; margin-bottom: 14px; }
+      .timeline { padding-left: 34px; }
+      .timeline::before { left: 9px; }
+      .milestone::before { left: -32px; }
+      .milestone-card { padding: 20px 18px; }
+      .glossary-item { grid-template-columns: 108px minmax(0, 1fr); }
+      .term-tip { position: fixed; inset: auto 10px 10px; width: auto; max-width: none; transform: translateY(4px); }
+      .term:hover .term-tip, .term:focus .term-tip { transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <div class="topbar">
+      <div class="topbar-mark"><span class="status-dot" aria-hidden="true"></span><span class="topbar-copy">bug-loop / build story</span></div>
+      <div class="topbar-actions">
+        <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html">Runs</a> <span aria-hidden="true">|</span> <a href="story.html" aria-current="page">Story</a></nav>
+        <a class="glossary-jump" href="#glossary">Glossary</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme">Theme: auto</button>
+      </div>
+    </div>
+    <div class="hero">
+      <div>
+        <p class="eyebrow">The making of an automation</p>
+        <h1>The build story</h1>
+        <p class="hero-thesis">How it was made, not just what it is. <span class="term" tabindex="0" aria-describedby="tip-obs">Observability<span class="term-tip" id="tip-obs" role="tooltip">Observability is the ability to see what a system actually did and why. Here it also applies to the narrative: the story of the build must be readable by any reasonable person, not just its authors.</span></span> means nothing unless it is easily comprehensible to any reasonable person &mdash; and that rule holds for the story too.</p>
+      </div>
+      <aside class="hero-aside" aria-label="Span">
+        <p class="mini-label">Span</p>
+        <p>Jul 13 &rarr; Jul 15, 2026<br>~2 days of orchestrated agent time<br>one person directing three model families</p>
+      </aside>
+    </div>
+  </header>
+
+  <main>
+    <aside class="shell tldr" aria-labelledby="tldr-title">
+      <p class="eyebrow" id="tldr-title">TL;DR</p>
+      <ul>
+        <li>A missed interview answer became a runnable bug-fixing pipeline, built end to end in about two days.</li>
+        <li>Every hard lesson came from a real run that failed safely &mdash; the system refused to ship anything it could not prove.</li>
+        <li>Two adversarial design reviews produced one doctrine: agents propose, deterministic policy decides, deterministic verification ships.</li>
+        <li>By the end the doctrine was code: fewer AI calls per run, stronger trust guarantees, lower cost.</li>
+      </ul>
+    </aside>
+
+    <div class="shell">
+      <div class="section-head">
+        <span class="section-number">02 / SEVEN MILESTONES</span>
+        <div>
+          <h2 class="section-title">From a flubbed answer to a working institution</h2>
+          <p class="section-intro">Each step below is dated and self-contained. Specialized words are underlined &mdash; hover or focus them for a plain-language definition, and every one is also collected in the glossary.</p>
+        </div>
+      </div>
+
+      <ol class="timeline" aria-label="Build milestones">
+        <li class="milestone turn">
+          <article class="milestone-card">
+            <span class="milestone-date">Jul 13 &mdash; Milestone 1</span>
+            <h3>The flub</h3>
+            <p>An interview asked a simple question: <em>&ldquo;How would you set up your agent pipeline?&rdquo;</em> There was no good answer &mdash; only hand-waving. The decision that came out of that silence: build one for real. Runnable, not rehearsed.</p>
+          </article>
+        </li>
+
+        <li class="milestone">
+          <article class="milestone-card">
+            <span class="milestone-date">Jul 13, same day &mdash; Milestone 2</span>
+            <h3>Days 1&ndash;3 of the plan, shipped in one evening</h3>
+            <p>First a deliberately buggy service. Then a <span class="term" tabindex="0" aria-describedby="tip-langgraph">LangGraph<span class="term-tip" id="tip-langgraph" role="tooltip">LangGraph is a framework that represents work as connected steps, making saved progress and branching choices explicit.</span></span> pipeline: read logs, detect real failures, <span class="term" tabindex="0" aria-describedby="tip-dedupe">dedupe<span class="term-tip" id="tip-dedupe" role="tooltip">To dedupe is to recognize repeated reports of the same failure so one issue is reused instead of opening duplicates.</span></span>, <span class="term" tabindex="0" aria-describedby="tip-repro">reproduce<span class="term-tip" id="tip-repro" role="tooltip">To reproduce a bug is to make it fail on demand before editing code, proving a later fix solved the real problem.</span></span>, file GitHub issues, then run the fix&rlarr;verify loop. Three live-run failures taught the real lessons:</p>
+            <ul class="lessons">
+              <li><strong>Dead service.</strong> Run against a service that was not answering, and the pipeline correctly refused to fix anything it could not reproduce.</li>
+              <li><strong>Missing installs.</strong> <span class="term" tabindex="0" aria-describedby="tip-worktree">Worktrees<span class="term-tip" id="tip-worktree" role="tooltip">A worktree is a separate working copy of the Git project, used so an attempted fix cannot disturb the main project folder.</span></span> without their own dependencies made verification reject three <em>correct</em> fixes rather than ship them unverified. Trust over throughput, by design.</li>
+              <li><strong>Stale branches.</strong> Left-over branches were handled by <span class="term" tabindex="0" aria-describedby="tip-idempotent">idempotent<span class="term-tip" id="tip-idempotent" role="tooltip">An idempotent operation gives the same result whether it runs once or many times, so a retry cannot create a duplicate or a mess.</span></span> retries.</li>
+            </ul>
+            <p>Result: the pipeline itself opened pull requests <strong>#5&ndash;#7</strong>, each with before/after evidence &mdash; and it correctly declined issue <strong>#4</strong>, a product-policy ambiguity no automation should decide.</p>
+            <div class="pill-row"><span class="pill good">PR #5</span><span class="pill good">PR #6</span><span class="pill good">PR #7</span><span class="pill declined">Issue #4 declined</span></div>
+          </article>
+        </li>
+
+        <li class="milestone">
+          <article class="milestone-card">
+            <span class="milestone-date">Jul 14 &mdash; Milestone 3</span>
+            <h3>Three harnesses, one pipeline</h3>
+            <p>The pipeline was rebuilt without the framework: plain <span class="term" tabindex="0" aria-describedby="tip-ts">TypeScript<span class="term-tip" id="tip-ts" role="tooltip">TypeScript is JavaScript with checked data shapes, so pipeline steps agree on the information they exchange.</span></span> orchestration, a <span class="term" tabindex="0" aria-describedby="tip-sdk">Claude Agent SDK<span class="term-tip" id="tip-sdk" role="tooltip">The Claude Agent SDK lets a step give evidence to Claude with read-only tools and require a structured decision back.</span></span> planner &mdash; read-only tools only &mdash; writing route decisions and fix briefs, and Grok executing fixes through the same <span class="term" tabindex="0" aria-describedby="tip-fixer">Fixer interface<span class="term-tip" id="tip-fixer" role="tooltip">The Fixer interface is the agreed input and output for a fixing tool, so Grok or Codex can be swapped without changing the pipeline.</span></span> Codex used.</p>
+            <p>The <span class="term" tabindex="0" aria-describedby="tip-seam">seams<span class="term-tip" id="tip-seam" role="tooltip">A seam is a deliberate boundary where one implementation can be replaced by another without disturbing the surrounding system.</span></span> proved swappable because the <span class="term" tabindex="0" aria-describedby="tip-contract">contracts<span class="term-tip" id="tip-contract" role="tooltip">A contract is an agreed data shape and rule between steps, which lets either implementation swap in without changing the result.</span></span> &mdash; not the framework &mdash; are the boundary.</p>
+          </article>
+        </li>
+
+        <li class="milestone turn">
+          <article class="milestone-card">
+            <span class="milestone-date">Jul 14 &mdash; Milestone 4</span>
+            <h3>The regression-test institution</h3>
+            <p>Every fix now ships with a <span class="term" tabindex="0" aria-describedby="tip-redgreen">red&rarr;green regression test<span class="term-tip" id="tip-redgreen" role="tooltip">A regression test guards against a bug returning. Red&rarr;green means it fails on the buggy code and passes after the fix &mdash; direct evidence the behavior improved.</span></span> written by a <em>separate</em> agent that can touch only tests. This is enforced mechanically: the test must fail on the buggy code and pass after the fix, or the fix does not advance.</p>
+            <p><span class="term" tabindex="0" aria-describedby="tip-needshuman">Needs-human<span class="term-tip" id="tip-needshuman" role="tooltip">A needs-human incident is one the automation deliberately hands to a person instead of acting on it.</span></span> incidents get a <code>test.todo</code> instead &mdash; a placeholder that never enshrines behavior no human has ratified.</p>
+          </article>
+        </li>
+
+        <li class="milestone">
+          <article class="milestone-card">
+            <span class="milestone-date">Jul 14 &mdash; Milestone 5</span>
+            <h3>Instrument everything</h3>
+            <p>A reusable kit was extracted &mdash; <code>@bug-loop/core</code>: bring a config and a <span class="term" tabindex="0" aria-describedby="tip-adapter">reproduction adapter<span class="term-tip" id="tip-adapter" role="tooltip">A reproduction adapter is a small translator that lets each app describe how to trigger its bug while the pipeline calls one shared interface.</span></span> plus logs, and it runs. Every run is now <span class="term" tabindex="0" aria-describedby="tip-trace">traced<span class="term-tip" id="tip-trace" role="tooltip">A trace is the ordered record of what each step did and why: stage durations, agent calls, tokens, and dollars where the tools report them.</span></span>: stage durations, agent calls, tokens, and dollars where harnesses report them &mdash; never estimated silently. Two dashboards were built.</p>
+            <p>Then the sweeps: <strong>10 configurations across two pipelines</strong>. The findings were blunt:</p>
+            <ul class="lessons">
+              <li><strong>The framework costs nothing.</strong> LangGraph-plus-Grok at 5m18s was within seconds of plain-TypeScript-plus-Grok at 5m15s. The models are the bill, not the plumbing.</li>
+              <li><strong>Cheaper is not cheaper.</strong> Haiku burned 5.4&times; the tokens to save three cents, and retried more.</li>
+              <li><strong>Verification is nearly free.</strong> The entire trust layer &mdash; the independent check &mdash; costs 4&ndash;6 <em>seconds</em>, while the agents cost minutes.</li>
+            </ul>
+          </article>
+        </li>
+
+        <li class="milestone turn">
+          <article class="milestone-card">
+            <span class="milestone-date">Jul 14 &mdash; Milestone 6</span>
+            <h3>Two adversarial design reviews</h3>
+            <p>Claude and GPT-5.6 reviewed the work as equals. <strong>Round 1</strong> redesigned the dashboard around <span class="term" tabindex="0" aria-describedby="tip-truth">truth-states<span class="term-tip" id="tip-truth" role="tooltip">A truth-state records how much is actually known about a number &mdash; reported, estimated, or unavailable &mdash; so nothing is presented as more certain than it is.</span></span> and a quality-gated <span class="term" tabindex="0" aria-describedby="tip-frontier">cost frontier<span class="term-tip" id="tip-frontier" role="tooltip">A cost frontier plots runs by time and dollars so the best trade-offs sit at the lower-left. Only runs with complete cost data and adequate quality may sit on it.</span></span>. <strong>Round 2</strong> tore down the pipeline&rsquo;s efficiency and found four real problems: a <span class="term" tabindex="0" aria-describedby="tip-calcify">calcified<span class="term-tip" id="tip-calcify" role="tooltip">Calcification is when an auto-generated test freezes debatable behavior as if it were an intended contract, making future change harder for no ratified reason.</span></span> auto-generated test pinning debatable behavior as contract, a scope-check hole, a mislabeled trace, and a confounded experiment.</p>
+            <p>Corrections ran in <em>both</em> directions &mdash; each model fixed things the other raised. The doctrine that came out of it:</p>
+            <p class="doctrine"><strong>Agents propose, deterministic policy decides, deterministic verification ships.</strong></p>
+          </article>
+        </li>
+
+        <li class="milestone turn">
+          <article class="milestone-card">
+            <span class="milestone-date">Jul 15 &mdash; Milestone 7</span>
+            <h3>The doctrine became code</h3>
+            <p>Routing authority moved out of the agents and into an application-owned <span class="term" tabindex="0" aria-describedby="tip-tristate">tri-state policy<span class="term-tip" id="tip-tristate" role="tooltip">A tri-state policy returns one of three answers &mdash; deny, authorized, or unknown &mdash; so the application, not an agent, decides what is allowed and never guesses.</span></span>: deny, authorized, or unknown. Regression tests now come from deterministic <span class="term" tabindex="0" aria-describedby="tip-manifest">manifests<span class="term-tip" id="tip-manifest" role="tooltip">A manifest is a fixed, human-authored list describing known bug shapes, so tests for them are generated by rule rather than by an agent.</span></span> for known bug shapes; agents write tests only for genuinely unknown ones.</p>
+            <p>Calcification is now guarded structurally: a positive behavioral pin requires a cited, human-ratified contract before it can exist. Incident workers were made <span class="term" tabindex="0" aria-describedby="tip-immutable">immutable<span class="term-tip" id="tip-immutable" role="tooltip">An immutable worker cannot change shared state, so many can run in parallel without interfering with one another.</span></span> and parallel-ready.</p>
+            <p>The tally: <strong>ten agent calls per run became three.</strong> The trust guarantees got <em>stronger</em> while the cost went down.</p>
+          </article>
+        </li>
+      </ol>
+    </div>
+
+    <section class="shell glossary-section" id="glossary" aria-labelledby="glossary-title">
+      <div class="section-head" style="margin-top: 40px;">
+        <span class="section-number">03 / PLAIN LANGUAGE</span>
+        <div>
+          <h2 class="section-title" id="glossary-title">Every term, defined</h2>
+          <p class="section-intro">The story above uses these words. None of them require prior knowledge of the pipeline.</p>
+        </div>
+      </div>
+      <div class="glossary-grid">
+        <dl class="glossary-item"><dt>Adapter</dt><dd>A small translator between one app and the shared pipeline, so each app can trigger its bugs in its own way.</dd></dl>
+        <dl class="glossary-item"><dt>Calcification</dt><dd>When an auto-generated test freezes debatable behavior as if it were an intended contract, blocking change for no ratified reason.</dd></dl>
+        <dl class="glossary-item"><dt>Contract</dt><dd>An agreed data shape and rule between steps, so either implementation can swap in without changing the result.</dd></dl>
+        <dl class="glossary-item"><dt>Cost frontier</dt><dd>Runs plotted by time and dollars; the best trade-offs sit lower-left. Only complete, quality-passing runs may sit on it.</dd></dl>
+        <dl class="glossary-item"><dt>Dedupe</dt><dd>Recognizing repeated reports of the same failure so one issue is reused instead of opening duplicates.</dd></dl>
+        <dl class="glossary-item"><dt>Fixer interface</dt><dd>The agreed input and output for a fixing tool, so Grok or Codex can be swapped without changing the pipeline.</dd></dl>
+        <dl class="glossary-item"><dt>Idempotent</dt><dd>An operation that gives the same result whether it runs once or many times, so a retry cannot create a mess.</dd></dl>
+        <dl class="glossary-item"><dt>Immutable worker</dt><dd>A worker that cannot change shared state, so many can run in parallel without interfering.</dd></dl>
+        <dl class="glossary-item"><dt>LangGraph</dt><dd>A framework that represents work as connected steps, making saved progress and branching choices explicit.</dd></dl>
+        <dl class="glossary-item"><dt>Manifest</dt><dd>A fixed, human-authored list of known bug shapes, so tests for them are generated by rule rather than by an agent.</dd></dl>
+        <dl class="glossary-item"><dt>Needs-human</dt><dd>An incident the automation deliberately hands to a person instead of acting on it.</dd></dl>
+        <dl class="glossary-item"><dt>Observability</dt><dd>The ability to see what a system actually did and why &mdash; and to have that be comprehensible to any reasonable person.</dd></dl>
+        <dl class="glossary-item"><dt>red&rarr;green</dt><dd>A test that fails on the buggy code and passes after the fix &mdash; direct evidence the behavior improved.</dd></dl>
+        <dl class="glossary-item"><dt>Reproduce</dt><dd>Making a bug fail on demand before editing code, to prove the later fix solved the real problem.</dd></dl>
+        <dl class="glossary-item"><dt>Seam</dt><dd>A deliberate boundary where one implementation can be replaced by another without disturbing the system.</dd></dl>
+        <dl class="glossary-item"><dt>Trace</dt><dd>The ordered record of what each step did and why: durations, agent calls, tokens, and dollars where reported.</dd></dl>
+        <dl class="glossary-item"><dt>Tri-state policy</dt><dd>A rule that returns deny, authorized, or unknown &mdash; so the application decides what is allowed and never guesses.</dd></dl>
+        <dl class="glossary-item"><dt>Truth-state</dt><dd>A record of how much is actually known about a number: reported, estimated, or unavailable.</dd></dl>
+        <dl class="glossary-item"><dt>Worktree</dt><dd>A separate working copy of a Git project, so an attempted fix cannot disturb the main project folder.</dd></dl>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <div class="footer-inner">
+      <p>Built in ~2 days of orchestrated agent time by one person directing Claude (Fable 5), GPT-5.6, and Grok 4.5 &mdash; the process is the product.</p>
+      <nav aria-label="Dashboard pages"><a href="architecture.html">Architecture</a> <span aria-hidden="true">|</span> <a href="runs.html">Runs</a> <span aria-hidden="true">|</span> <a href="story.html" aria-current="page">Story</a></nav>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      "use strict";
+      const themeToggle = document.querySelector("#theme-toggle");
+      const systemDark = matchMedia("(prefers-color-scheme: dark)");
+      const effectiveTheme = () => document.documentElement.dataset.theme || (systemDark.matches ? "dark" : "light");
+      const renderThemeButton = () => { themeToggle.textContent = `Theme: ${effectiveTheme()}`; themeToggle.setAttribute("aria-pressed", String(effectiveTheme() === "dark")); };
+      themeToggle.addEventListener("click", () => {
+        const next = effectiveTheme() === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        try { localStorage.setItem("bug-loop-theme", next); } catch {}
+        renderThemeButton();
+      });
+      systemDark.addEventListener?.("change", renderThemeButton);
+      renderThemeButton();
+    })();
+  </script>
+  <script>
+    // Optional launcher back-link: a page that links here may pass ?hub=<relative path>;
+    // the link is remembered for the session and only relative targets are accepted.
+    (function () {
+      var hub = new URLSearchParams(window.location.search).get("hub");
+      try {
+        if (hub) sessionStorage.setItem("bugloop-hub-link", hub);
+        else hub = sessionStorage.getItem("bugloop-hub-link");
+      } catch (e) { return; }
+      if (!hub || hub.indexOf(":") !== -1 || hub.indexOf("//") === 0 || hub.indexOf("\\") !== -1) return;
+      var nav = document.querySelector('nav[aria-label="Dashboard pages"]');
+      if (!nav) return;
+      var sep = document.createElement("span");
+      sep.setAttribute("aria-hidden", "true");
+      sep.textContent = " | ";
+      nav.insertBefore(sep, nav.firstChild);
+      var link = document.createElement("a");
+      link.href = hub;
+      link.textContent = "Hub";
+      nav.insertBefore(link, nav.firstChild);
+    })();
+  </script>
+</body>
+</html>
