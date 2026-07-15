@@ -48,6 +48,8 @@ export interface ResolvedPipeline {
     fix: boolean;
     live: boolean;
     fromStart: boolean;
+    /** Present when the run is one pass of a long-lived watch daemon. */
+    watch?: boolean;
   };
 }
 
@@ -56,6 +58,10 @@ export interface TraceWorkload {
   seed: number;
   caseCount: number;
   codeRevision: string;
+  /** Shared id across all passes of one watch-mode daemon session. */
+  watchSessionId?: string;
+  /** 1-based pass number within a watch session. */
+  watchPass?: number;
 }
 
 export type AgentUsage =
@@ -169,6 +175,14 @@ function cloneResolved(resolved: ResolvedPipeline): ResolvedPipeline {
   };
 }
 
+function cloneWorkload(workload: TraceWorkload): TraceWorkload {
+  return {
+    ...workload,
+    ...(workload.watchSessionId === undefined ? {} : { watchSessionId: workload.watchSessionId }),
+    ...(workload.watchPass === undefined ? {} : { watchPass: workload.watchPass }),
+  };
+}
+
 function usageFromCost(cost: CostSample | undefined, reason: string): AgentUsage {
   if (cost?.usd !== undefined) {
     return {
@@ -214,7 +228,7 @@ export class TraceRecorder {
     this.outputPath = options.outputPath ?? join(options.traceRoot ?? "traces", `${this.runId}.json`);
     this.label = options.label;
     this.resolved = cloneResolved(options.resolved);
-    this.workload = { ...options.workload };
+    this.workload = cloneWorkload(options.workload);
     this.startedAt = this.now().toISOString();
   }
 
@@ -296,7 +310,7 @@ export class TraceRecorder {
       startedAt: this.startedAt,
       finishedAt: this.finishedAt ?? this.now().toISOString(),
       resolved: cloneResolved(this.resolved),
-      workload: { ...this.workload },
+      workload: cloneWorkload(this.workload),
       ...(this.label === undefined ? {} : { label: this.label }),
       events: [...this.events],
       agentCalls: [...this.agentCalls],

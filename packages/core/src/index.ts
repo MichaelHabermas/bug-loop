@@ -43,10 +43,13 @@ export type {
 } from "./incident-worker";
 
 export {
+  DEFAULT_WATCH_SETTINGS,
   definePipelineConfig,
   isPathInFixScope,
   isPathInScope,
   isPathInTestScope,
+  resolveWatchSettings,
+  watchPassLabel,
 } from "./config";
 export type {
   PipelineConfig,
@@ -55,7 +58,16 @@ export type {
   ContractRegistryEntry,
   PipelineWorkloadDefinition,
   RegressionTestPolicy,
+  WatchSettings,
 } from "./config";
+
+export { runWatchDaemon } from "./watch";
+export type {
+  WatchPassContext,
+  WatchPassResult,
+  WatchRunnerOptions,
+  WatchRunnerResult,
+} from "./watch";
 
 export {
   TraceRecorder,

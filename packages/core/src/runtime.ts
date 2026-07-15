@@ -144,6 +144,7 @@ export function resolvePipelineRuntime(input: ResolveRuntimeInput): ResolvedPipe
       fix: input.mode.fix ?? false,
       live: input.mode.live ?? false,
       fromStart: input.mode.fromStart,
+      ...(input.mode.watch === true ? { watch: true } : {}),
     },
   };
 }

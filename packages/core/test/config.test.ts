@@ -23,7 +23,7 @@ const config = definePipelineConfig({
   maxFixAttempts: 3,
   fixer: "codex",
   invariantWarnPrefixes: ["invariant failed"],
-});
+}, {});
 
 test("PipelineConfig applies defaults and normalizes path-like values", () => {
   expect(config.branchPrefix).toBe("bugloop/fix-");
@@ -32,6 +32,11 @@ test("PipelineConfig applies defaults and normalizes path-like values", () => {
   expect(config.testScope).toEqual(["services/api/test"]);
   expect(config.regressionTests).toBe("triage-decides");
   expect(config.incidentConcurrency).toBe(1);
+  expect(config.watch).toEqual({
+    pollIntervalMs: 15_000,
+    debounceMs: 5_000,
+    heartbeatMs: 60_000,
+  });
   expect(isPathInFixScope("services/api/src/handler.ts", config.fixScope)).toBe(true);
   expect(isPathInFixScope("services/api/src-old/handler.ts", config.fixScope)).toBe(false);
 });

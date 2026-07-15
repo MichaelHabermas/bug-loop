@@ -9,7 +9,7 @@ export interface OrderItem {
   priceCents: number;
 }
 
-export type OrderStatus = "pending" | "shipped";
+export type OrderStatus = "pending" | "shipped" | "cancelled";
 
 export interface Order {
   id: string;
@@ -63,6 +63,16 @@ export function getOrder(id: string): Order | undefined {
   return orders.get(id);
 }
 
+export function allOrders(): Order[] {
+  return Array.from(orders.values()).sort((a, b) =>
+    a.createdAt < b.createdAt ? 1 : -1,
+  );
+}
+
+export function orderCount(): number {
+  return orders.size;
+}
+
 export function listOrders(opts: {
   page: number;
   pageSize: number;
@@ -71,9 +81,7 @@ export function listOrders(opts: {
   const pageSize = opts.pageSize;
   const page = Math.max(1, opts.page);
 
-  let all = Array.from(orders.values()).sort((a, b) =>
-    a.createdAt < b.createdAt ? 1 : -1,
-  );
+  let all = allOrders();
 
   if (opts.since) {
     const sinceMs = opts.since.getTime();
@@ -94,5 +102,12 @@ export function markShipped(id: string): Order | undefined {
   if (!order) return undefined;
   order.status = "shipped";
   order.shippedAt = new Date().toISOString();
+  return order;
+}
+
+export function markCancelled(id: string): Order | undefined {
+  const order = orders.get(id);
+  if (!order) return undefined;
+  order.status = "cancelled";
   return order;
 }

@@ -100,6 +100,7 @@ export function createInitialState(
       fromStart: options.fromStart,
       fix: options.fix ?? false,
       live: options.live ?? false,
+      ...(options.watch === true ? { watch: true } : {}),
     },
     retryCount: 0,
     errors: [],

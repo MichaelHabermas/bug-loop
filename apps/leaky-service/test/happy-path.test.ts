@@ -1,6 +1,7 @@
-import { describe, expect, test, beforeAll, afterAll } from "bun:test";
+import { describe, expect, test, beforeAll, afterAll, beforeEach } from "bun:test";
 import { join } from "node:path";
 import { rmSync } from "node:fs";
+import { resetStore } from "../src/store";
 
 const BASE = "http://leaky-service.test";
 const LOG_PATH = join(import.meta.dir, ".tmp-test-logs", "happy.jsonl");
@@ -21,6 +22,10 @@ beforeAll(async () => {
   rmSync(join(import.meta.dir, ".tmp-test-logs"), { recursive: true, force: true });
   process.env["LOG_PATH"] = LOG_PATH;
   ({ handleRequest } = await import("../src/server"));
+});
+
+beforeEach(() => {
+  resetStore();
 });
 
 afterAll(() => {
@@ -51,6 +56,14 @@ describe("leaky-service happy path", () => {
   });
 
   test("GET /orders lists orders", async () => {
+    await appFetch("/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customer: { id: "c-list", name: "Lister" },
+        items: [{ sku: "L", qty: 1, priceCents: 100 }],
+      }),
+    });
     const res = await appFetch("/orders?page=1");
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -118,5 +131,85 @@ describe("leaky-service happy path", () => {
     const body = (await res.json()) as { totalCents: number };
     expect(body.totalCents).toBe(750);
     expect(body.totalCents).toBeGreaterThanOrEqual(0);
+  });
+
+  test("GET /orders/:id/items returns the first line item", async () => {
+    const create = await appFetch("/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customer: { id: "c5", name: "Items" },
+        items: [{ sku: "ITEM-1", qty: 2, priceCents: 300 }],
+      }),
+    });
+    const { id } = (await create.json()) as { id: string };
+    const res = await appFetch(`/orders/${id}/items?index=0`);
+    expect(res.status).toBe(200);
+    const item = (await res.json()) as { sku: string; qty: number };
+    expect(item.sku).toBe("ITEM-1");
+    expect(item.qty).toBe(2);
+  });
+
+  test("POST /orders/import accepts valid JSON body", async () => {
+    const res = await appFetch("/orders/import", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customer: { id: "c6", name: "Importer" },
+        items: [{ sku: "IMP", qty: 1, priceCents: 150 }],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { id: string };
+    expect(body.id).toMatch(/^ord_/);
+  });
+
+  test("GET /orders/:id/receipt returns receipt for existing order", async () => {
+    const create = await appFetch("/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customer: { id: "c7", name: "Receipt" },
+        items: [{ sku: "R", qty: 1, priceCents: 100 }],
+      }),
+    });
+    const { id } = (await create.json()) as { id: string };
+    const res = await appFetch(`/orders/${id}/receipt`);
+    expect(res.status).toBe(200);
+    const receipt = (await res.json()) as { orderId: string; customerName: string };
+    expect(receipt.orderId).toBe(id);
+    expect(receipt.customerName).toBe("Receipt");
+  });
+
+  test("GET /stats/orders?window=n returns averages when sample is non-empty", async () => {
+    await appFetch("/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customer: { id: "c8", name: "Stats" },
+        items: [{ sku: "S", qty: 1, priceCents: 400 }],
+      }),
+    });
+    const res = await appFetch("/stats/orders?window=5");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { count: number; averageCents: number };
+    expect(body.count).toBeGreaterThanOrEqual(1);
+    expect(body.averageCents).toBeGreaterThan(0);
+  });
+
+  test("POST /orders/:id/cancel cancels a pending order", async () => {
+    const create = await appFetch("/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        customer: { id: "c9", name: "Cancel" },
+        items: [{ sku: "K", qty: 1, priceCents: 100 }],
+      }),
+    });
+    const { id } = (await create.json()) as { id: string };
+    const res = await appFetch(`/orders/${id}/cancel`, { method: "POST" });
+    expect(res.status).toBe(200);
+    const order = (await res.json()) as { status: string };
+    expect(order.status).toBe("cancelled");
   });
 });

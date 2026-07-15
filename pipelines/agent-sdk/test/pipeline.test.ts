@@ -235,9 +235,9 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   expect(trace.resolved.pipeline).toBe("agent-sdk");
   expect(trace.resolved.fixer).toMatchObject({ harness: "injected", source: "arg" });
   expect(trace.workload).toMatchObject({
-    benchmarkId: "leaky-service-seeded-v1",
+    benchmarkId: "leaky-service-seeded-v2",
     seed: 42,
-    caseCount: 50,
+    caseCount: 14,
   });
   expect(trace.events.slice(0, 6).map((event) => event.stage)).toEqual([
     "ingest",

@@ -60,6 +60,10 @@ const EMPTY_SUMMARY: TriageSummary = {
 export interface AgentSdkPipelineOptions extends TriageRunConfig {
   tracePath?: string;
   label?: string;
+  /** Shared across watch-mode passes; written into trace workload metadata. */
+  watchSessionId?: string;
+  /** 1-based watch pass number for trace workload metadata. */
+  watchPass?: number;
 }
 
 export interface GitHubOperations {
@@ -112,6 +116,7 @@ function initialState(
       fromStart: options.fromStart,
       fix: options.fix ?? false,
       live: options.live ?? false,
+      ...(options.watch === true ? { watch: true } : {}),
     },
     summary: { ...EMPTY_SUMMARY },
     retryCount: 0,
@@ -478,7 +483,14 @@ export async function runAgentSdkPipeline(
       fixer: dependencies.fixer !== undefined || dependencies.createFixer !== undefined,
     },
   });
-  const workload = await resolveTraceWorkload(config, repoRoot);
+  const baseWorkload = await resolveTraceWorkload(config, repoRoot);
+  const workload = {
+    ...baseWorkload,
+    ...(options.watchSessionId === undefined
+      ? {}
+      : { watchSessionId: options.watchSessionId }),
+    ...(options.watchPass === undefined ? {} : { watchPass: options.watchPass }),
+  };
   const github = dependencies.github ?? new GitHubClient(config.repo);
   const recorder = dependencies.recorder ?? new TraceRecorder({
     pipeline: "agent-sdk",

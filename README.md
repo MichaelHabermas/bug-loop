@@ -84,14 +84,36 @@ The defaults preserve the comparison: LangGraph uses Codex, while Agent SDK uses
 
 ## Seeded bug categories
 
-The service intentionally exercises four failure *categories* (no spoilers on exact lines):
+Benchmark identity: `leaky-service-seeded-v2` (14 incidents). Categories below — no spoilers on exact lines.
 
-1. **Null dereference** on create - missing nested fields crash the handler (mechanical).
-2. **Unhandled rejection** on ship - an async provider path is not awaited or caught (mechanical).
-3. **Invalid date parsing** on list filters - bad `since` values blow up ISO conversion (mechanical).
-4. **Judgment / product ambiguity** on discounts - totals can go negative; the service warns and stores rather than deciding policy (must not be auto-fixed).
+### Easy / mechanical (single-request deterministic) — 7 total (3 original + 4 new)
 
-Happy-path tests avoid all four and pass with the bugs present.
+1. **Null dereference** on create - missing nested fields crash the handler.
+2. **Unhandled rejection** on ship - an async provider path is not awaited or caught.
+3. **Invalid date parsing** on list filters - bad `since` values blow up ISO conversion.
+4. **Unguarded line-item index** on order items - out-of-range index access crashes.
+5. **Malformed body parse** on import - non-JSON payloads take down the import route.
+6. **Missing-resource 500** on receipt - absent orders surface as internal errors instead of 404.
+7. **Empty stats window** - a zero-width sample window crashes average computation.
+
+### Medium / multi-step or state-dependent — 4
+
+8. **Ship-then-cancel** - cancel after ship hits a reverse-shipment path that assumes ledger state.
+9. **Pagination overflow** - deep list pages after enough orders hit a short jump-table fast path.
+10. **Header-dependent export** - an export request header takes a code path that assumes optional customer fields.
+11. **Double-ship corruption** - a second ship call takes an “idempotent refresh” path that assumes audit state.
+
+### Judgment / deny — 1
+
+12. **Product ambiguity on discounts** - totals can go negative; the service warns and stores rather than deciding policy (must not be auto-fixed).
+
+### Unknown-class (reproducible, not policy-authorized) — 2
+
+13. **Auth-ish refund token** - malformed bearer tokens crash; correct status (401 vs 400 vs 500) is product-judgment adjacent, so the class is deliberately unregistered and must route `unknown` (agent tier / human fallback).
+14. **Tax region preview** - tax calculation assumes a customer region that orders never carry; whether missing region means tax=0 or client error is unsettled, so the class is unregistered.
+
+Happy-path tests avoid every trigger and pass with the bugs present.
+Meta repro-fires checks live under `bench/seeded-bugs/` (`bun run test:bench`) so they assert bugs exist without participating in pipeline suite-eligibility or post-fix verification.
 
 ## Quickstart
 
@@ -137,6 +159,27 @@ Every pipeline invocation writes a machine-readable trace under `traces/`; pass 
 Without `--live`, code fixing, service reproduction, tests, typecheck, local worktree commits, and cleanup are real, while branch pushes and GitHub mutations are printed.
 Run the dry fix command and live fix command as separate demos only after resetting branches, because both use deterministic branch names.
 
+### Watch mode
+
+`--watch` keeps the pipeline running as a daemon: it polls the log (default every 15s), waits for a quiet gap after new lines (default 5s), then runs the **same** one-shot pass (triage, tickets, optional fix loop). Cursor + GitHub markers still dedupe across passes. Without `--fix` you get continuous triage only; add `--fix` (and optionally `--live`) with the usual meaning. `--from-start` is refused with `--watch`.
+
+```bash
+# Terminal 1: service
+bun run service
+
+# Terminal 2: watch daemon (dry fix — real worktrees, printed GitHub)
+bun run pipeline:langgraph -- --watch --fix --base http://127.0.0.1:3000
+# or: bun run pipeline:agent-sdk -- --watch --fix --base http://127.0.0.1:3000
+
+# Terminal 3: send traffic in bursts; the daemon batches each quiet period into a pass
+bun run traffic -- --count 20 --seed 1 --base http://127.0.0.1:3000
+# wait for the pass to finish, then send another burst
+bun run traffic -- --count 20 --seed 2 --base http://127.0.0.1:3000
+```
+
+Timing overrides: `BUGLOOP_WATCH_POLL_MS`, `BUGLOOP_WATCH_DEBOUNCE_MS`, `BUGLOOP_WATCH_HEARTBEAT_MS`.
+Each pass writes its own trace labeled `…-watch-passN` with a shared `watchSessionId`. Ctrl-C finishes the in-flight pass, writes that pass’s trace, then exits 0.
+
 The verifier assigns a free service port and an isolated log path inside the worktree.
 The service's default log path also resolves inside its checkout through `import.meta.dir`; the verifier sets `LOG_PATH` explicitly so each check starts from a fresh file.
 
@@ -166,17 +209,19 @@ Remaining candidates include a "seen again, count N" heartbeat on open issues an
 
 Stop the service before resetting.
 
+The seeded branch restores the buggy service sources (now 14 incidents under `leaky-service-seeded-v2`). Close any open bug-loop issues/PRs from the prior run; fingerprint branch names are deterministic per incident hash, so delete whichever `bugloop/fix-*` branches the last run created rather than a fixed list.
+
 ```bash
 git checkout seeded -- apps/leaky-service
 
-for number in 1 2 3 4; do
-  gh issue close "$number" -R MichaelHabermas/bug-loop
-done
+# Close open issues filed by the pipeline (adjust the range or query as needed)
+gh issue list -R MichaelHabermas/bug-loop --state open --label bug-loop --json number --jq '.[].number' |
+  while read -r number; do gh issue close "$number" -R MichaelHabermas/bug-loop; done
 
 gh pr list -R MichaelHabermas/bug-loop --state open --label bug-loop --json number --jq '.[].number' |
   while read -r number; do gh pr close "$number" -R MichaelHabermas/bug-loop; done
 
-for branch in bugloop/fix-45b905d3 bugloop/fix-9ac0e1f8 bugloop/fix-fd024683; do
+git branch --list 'bugloop/fix-*' | while read -r branch; do
   git branch -D "$branch" 2>/dev/null || true
   git push origin --delete "$branch" 2>/dev/null || true
 done
@@ -213,6 +258,7 @@ The short contract and extension points are documented in [`packages/core/README
 | `bun run pipeline:agent-sdk` | Run the plain TypeScript Agent SDK implementation |
 | `bun run service` | Start leaky-service on `:3000` |
 | `bun run traffic` | Run the seeded traffic generator |
+| `bun run test:bench` | Seeded-bug repro-fires meta-suite (outside app eligibility) |
 
 ## License
 

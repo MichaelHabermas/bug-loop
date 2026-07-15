@@ -5,6 +5,7 @@
   "scripts": {
     "typecheck": "tsc -b",
     "test": "bun test",
+    "test:bench": "BUGLOOP_BENCH=1 bun test ./bench/seeded-bugs/repro-fires.test.ts",
     "trace:example": "bun run packages/core/scripts/generate-example-trace.ts",
     "publish:traces": "bun run scripts/publish-traces.ts",
     "pipeline:langgraph": "bun run pipelines/langgraph/src/index.ts",

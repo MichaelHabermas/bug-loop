@@ -1,9 +1,12 @@
 import {
+  allOrders,
   createOrder,
   getOrder,
   listOrders,
+  markCancelled,
   markShipped,
   type CreateOrderInput,
+  type Order,
   type OrderItem,
 } from "./store";
 import {
@@ -16,6 +19,8 @@ import {
 
 const PORT = Number(process.env["PORT"] ?? 3000);
 const PAGE_SIZE = 20;
+/** Jump table only covers the first page; deeper pages read past the end. */
+const LIST_JUMP_TABLE_PAGES = 1;
 
 installUnhandledRejectionHook();
 
@@ -92,6 +97,29 @@ async function handleCreate(req: Request, id: string): Promise<Response> {
   return json({ id: order.id, totalCents: order.totalCents }, 201);
 }
 
+/**
+ * Bulk import path: clients sometimes post with non-JSON content-types or
+ * truncated bodies. We still try to parse as JSON for convenience.
+ */
+async function handleImport(req: Request, id: string): Promise<Response> {
+  const route = "POST /orders/import";
+  const raw = await req.text();
+  const payload = JSON.parse(raw) as {
+    customer: CreateOrderInput["customer"];
+    items?: OrderItem[];
+    discountPercent?: number;
+  };
+
+  const order = createOrder({
+    customer: payload.customer,
+    items: payload.items ?? [],
+    discountPercent: payload.discountPercent ?? 0,
+  });
+
+  logInfo("order imported", { reqId: id, route, status: 201 });
+  return json({ id: order.id, totalCents: order.totalCents }, 201);
+}
+
 async function handleList(req: Request, id: string): Promise<Response> {
   const url = new URL(req.url);
   const route = "GET /orders";
@@ -105,9 +133,43 @@ async function handleList(req: Request, id: string): Promise<Response> {
     since = new Date(normalized);
   }
 
+  const exportMode = req.headers.get("x-export");
+  if (exportMode !== null) {
+    // Full export packs extra customer fields for downstream ETL.
+    const packed = allOrders().map((order) => ({
+      id: order.id,
+      customerName: order.customer.name,
+      region: (order.customer as CustomerWithRegion).region.toUpperCase(),
+      totalCents: order.totalCents,
+    }));
+    logInfo("orders exported", { reqId: id, route, status: 200 });
+    return json({ format: exportMode, orders: packed });
+  }
+
   const result = listOrders({ page, pageSize: PAGE_SIZE, since });
+
+  // Jump-table fast path for multi-page UI navigation. Precomputes start
+  // offsets for the first few pages so page transitions stay O(1).
+  if (page >= 2 && result.total > PAGE_SIZE) {
+    const jumpTable: number[] = [];
+    for (let i = 0; i < LIST_JUMP_TABLE_PAGES; i += 1) {
+      jumpTable.push(i * PAGE_SIZE);
+    }
+    const start = jumpTable[page - 1] as number;
+    // toFixed forces a throw when the jump table is shorter than `page`.
+    const window = allOrders().slice(Number(start.toFixed(0)), Number(start.toFixed(0)) + PAGE_SIZE);
+    logInfo("orders listed", { reqId: id, route, status: 200 });
+    return json({ orders: window, page, total: result.total });
+  }
+
   logInfo("orders listed", { reqId: id, route, status: 200 });
   return json(result);
+}
+
+interface CustomerWithRegion {
+  id: string;
+  name: string;
+  region: string;
 }
 
 async function handleGet(id: string, orderId: string): Promise<Response> {
@@ -119,6 +181,56 @@ async function handleGet(id: string, orderId: string): Promise<Response> {
   }
   logInfo("order fetched", { reqId: id, route, status: 200 });
   return json(order);
+}
+
+async function handleGetItems(
+  req: Request,
+  id: string,
+  orderId: string,
+): Promise<Response> {
+  const route = "GET /orders/:id/items";
+  const url = new URL(req.url);
+  const index = Number(url.searchParams.get("index") ?? "0");
+  const order = getOrder(orderId) as Order;
+  // Direct index into the line-items array for partial-line clients.
+  const item = order.items[index] as OrderItem;
+  const sku = item.sku;
+  logInfo("order item fetched", { reqId: id, route, status: 200 });
+  return json({ ...item, sku });
+}
+
+async function handleReceipt(id: string, orderId: string): Promise<Response> {
+  const route = "GET /orders/:id/receipt";
+  const order = getOrder(orderId) as Order;
+  // Receipts always include the customer name line for print layout.
+  const receipt = {
+    orderId: order.id,
+    customerName: order.customer.name,
+    totalCents: order.totalCents,
+    status: order.status,
+  };
+  logInfo("receipt fetched", { reqId: id, route, status: 200 });
+  return json(receipt);
+}
+
+async function handleStats(req: Request, id: string): Promise<Response> {
+  const route = "GET /stats/orders";
+  const url = new URL(req.url);
+  // `window` selects how many recent orders feed the average. Missing/zero
+  // means "use an empty sample window" in the current implementation.
+  const window = Number(url.searchParams.get("window") ?? "0");
+  const orders = allOrders().slice(0, window);
+  const revenue = orders.reduce((sum, order) => sum + order.totalCents, 0);
+  // Baseline anchors the mean to the first sample in the window.
+  const baselineCents = orders[0]!.totalCents;
+  const averageCents = Math.round(revenue / orders.length);
+  logInfo("stats computed", { reqId: id, route, status: 200 });
+  return json({
+    count: orders.length,
+    revenueCents: revenue,
+    averageCents,
+    baselineCents,
+  });
 }
 
 type ShippingProvider = (orderId: string) => Promise<{ trackingNumber: string }>;
@@ -135,6 +247,9 @@ async function handleShip(
     return json({ error: "not found" }, 404);
   }
   if (order.status === "shipped") {
+    // Idempotent refresh: append a re-ship audit event for carrier retries.
+    const events = (order as Order & { shipEvents: { at: string }[] }).shipEvents;
+    events.push({ at: new Date().toISOString() });
     logInfo("already shipped", { reqId: id, route, status: 200 });
     return json(order);
   }
@@ -157,6 +272,90 @@ async function handleShip(
   return json(updated);
 }
 
+async function handleCancel(id: string, orderId: string): Promise<Response> {
+  const route = "POST /orders/:id/cancel";
+  const order = getOrder(orderId);
+  if (!order) {
+    logInfo("order not found", { reqId: id, route, status: 404 });
+    return json({ error: "not found" }, 404);
+  }
+
+  if (order.status === "pending") {
+    const updated = markCancelled(orderId);
+    logInfo("order cancelled", { reqId: id, route, status: 200 });
+    return json(updated);
+  }
+
+  if (order.status === "shipped") {
+    // Reverse the most recent shipment ledger entry before cancelling.
+    const ledger = (order as Order & {
+      shipmentLedger: { trackingNumber: string }[];
+    }).shipmentLedger;
+    const last = ledger[ledger.length - 1];
+    logInfo("shipment reversed", {
+      reqId: id,
+      route,
+      status: 200,
+    });
+    void last;
+    const updated = markCancelled(orderId);
+    return json(updated);
+  }
+
+  logInfo("order already cancelled", { reqId: id, route, status: 200 });
+  return json(order);
+}
+
+/**
+ * Refunds require a Bearer token. Product has not settled whether a missing
+ * or malformed token is 401, 400, or a hard failure.
+ */
+async function handleRefund(req: Request, id: string, orderId: string): Promise<Response> {
+  const route = "POST /orders/:id/refund";
+  const order = getOrder(orderId);
+  if (!order) {
+    logInfo("order not found", { reqId: id, route, status: 404 });
+    return json({ error: "not found" }, 404);
+  }
+
+  const auth = req.headers.get("authorization") ?? "";
+  const token = auth.slice("Bearer ".length);
+  // Compact JWT-ish tokens: header.payload.sig — payload is base64 JSON.
+  const parts = token.split(".");
+  const payloadJson = atob(parts[1]!.replace(/-/g, "+").replace(/_/g, "/"));
+  const payload = JSON.parse(payloadJson) as { sub?: string };
+  if (typeof payload.sub !== "string" || payload.sub.length === 0) {
+    return json({ error: "unauthorized" }, 401);
+  }
+
+  logInfo("refund accepted", { reqId: id, route, status: 200 });
+  return json({ orderId: order.id, refundedCents: order.totalCents, by: payload.sub });
+}
+
+/**
+ * Tax preview. Jurisdiction comes from an optional customer region; product
+ * has not decided whether a missing region means tax=0 or a client error.
+ */
+async function handleTax(id: string, orderId: string): Promise<Response> {
+  const route = "GET /orders/:id/tax";
+  const order = getOrder(orderId);
+  if (!order) {
+    logInfo("order not found", { reqId: id, route, status: 404 });
+    return json({ error: "not found" }, 404);
+  }
+
+  const region = (order.customer as CustomerWithRegion).region;
+  const rateTable: Record<string, number> = {
+    US: 0.08,
+    EU: 0.2,
+    UK: 0.2,
+  };
+  const rate = rateTable[region.toUpperCase()] ?? 0;
+  const taxCents = Math.round(order.totalCents * rate);
+  logInfo("tax computed", { reqId: id, route, status: 200 });
+  return json({ orderId: order.id, region, rate, taxCents });
+}
+
 async function routeRequest(
   req: Request,
   id: string,
@@ -170,8 +369,16 @@ async function routeRequest(
     return handleCreate(req, id);
   }
 
+  if (method === "POST" && path === "/orders/import") {
+    return handleImport(req, id);
+  }
+
   if (method === "GET" && path === "/orders") {
     return handleList(req, id);
+  }
+
+  if (method === "GET" && path === "/stats/orders") {
+    return handleStats(req, id);
   }
 
   const orderMatch = path.match(/^\/orders\/([^/]+)$/);
@@ -179,9 +386,34 @@ async function routeRequest(
     return handleGet(id, orderMatch[1]);
   }
 
+  const itemsMatch = path.match(/^\/orders\/([^/]+)\/items$/);
+  if (method === "GET" && itemsMatch?.[1]) {
+    return handleGetItems(req, id, itemsMatch[1]);
+  }
+
+  const receiptMatch = path.match(/^\/orders\/([^/]+)\/receipt$/);
+  if (method === "GET" && receiptMatch?.[1]) {
+    return handleReceipt(id, receiptMatch[1]);
+  }
+
+  const taxMatch = path.match(/^\/orders\/([^/]+)\/tax$/);
+  if (method === "GET" && taxMatch?.[1]) {
+    return handleTax(id, taxMatch[1]);
+  }
+
   const shipMatch = path.match(/^\/orders\/([^/]+)\/ship$/);
   if (method === "POST" && shipMatch?.[1]) {
     return handleShip(id, shipMatch[1], shippingProvider);
+  }
+
+  const cancelMatch = path.match(/^\/orders\/([^/]+)\/cancel$/);
+  if (method === "POST" && cancelMatch?.[1]) {
+    return handleCancel(id, cancelMatch[1]);
+  }
+
+  const refundMatch = path.match(/^\/orders\/([^/]+)\/refund$/);
+  if (method === "POST" && refundMatch?.[1]) {
+    return handleRefund(req, id, refundMatch[1]);
   }
 
   if (method === "GET" && path === "/health") {
@@ -207,7 +439,7 @@ export async function handleRequest(
     return await routeRequest(req, id, shippingProvider);
   } catch (err) {
     const url = new URL(req.url);
-    const route = `${req.method} ${url.pathname}`;
+    const route = canonicalizeRoute(req.method, url.pathname);
     logError("handler error", {
       reqId: id,
       route,
@@ -216,6 +448,27 @@ export async function handleRequest(
     });
     return json({ error: "internal server error" }, 500);
   }
+}
+
+/** Collapse concrete order ids so fingerprints and policy stay stable. */
+export function canonicalizeRoute(method: string, pathname: string): string {
+  if (pathname === "/orders" || pathname === "/orders/import" || pathname === "/stats/orders" ||
+    pathname === "/health") {
+    return `${method} ${pathname}`;
+  }
+  const patterns: Array<[RegExp, string]> = [
+    [/^\/orders\/[^/]+\/ship$/, "/orders/:id/ship"],
+    [/^\/orders\/[^/]+\/cancel$/, "/orders/:id/cancel"],
+    [/^\/orders\/[^/]+\/refund$/, "/orders/:id/refund"],
+    [/^\/orders\/[^/]+\/items$/, "/orders/:id/items"],
+    [/^\/orders\/[^/]+\/receipt$/, "/orders/:id/receipt"],
+    [/^\/orders\/[^/]+\/tax$/, "/orders/:id/tax"],
+    [/^\/orders\/[^/]+$/, "/orders/:id"],
+  ];
+  for (const [re, canonical] of patterns) {
+    if (re.test(pathname)) return `${method} ${canonical}`;
+  }
+  return `${method} ${pathname}`;
 }
 
 let server: ReturnType<typeof Bun.serve> | undefined;

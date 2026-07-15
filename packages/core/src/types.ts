@@ -103,6 +103,8 @@ export interface TriageRunConfig {
   nextCursorOffset?: number;
   fix?: boolean;
   live?: boolean;
+  /** True when this pass is driven by the watch-mode daemon. */
+  watch?: boolean;
 }
 
 /** Stable aggregate counters printed by pipeline implementations. */
