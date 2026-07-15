@@ -336,7 +336,7 @@ describe("runWatchDaemon", () => {
   });
 });
 
-describe("watch fix re-entry guards", () => {
+describe("fix re-entry guards (one-shot and watch)", () => {
   test("session fingerprint + outcome labels block fix re-entry", () => {
     const session = new Set<string>(["fp-done"]);
     expect(shouldEnterWatchFixLoop({
@@ -353,11 +353,17 @@ describe("watch fix re-entry guards", () => {
       sessionProcessed: session,
       openIssueLabels: ["bug-loop", "needs-human", "bug-loop:gave-up"],
     })).toBe(false);
-    // Restart-safe: empty in-memory set, durable outcome label on the issue.
+    // Restart-safe / one-shot-safe: empty in-memory set, durable outcome label.
     expect(shouldEnterWatchFixLoop({
       fingerprint: "fp-restart",
       sessionProcessed: new Set(),
       openIssueLabels: ["bug-loop:fixed"],
+    })).toBe(false);
+    // One-shot after completed fix: no session set, outcome label present.
+    expect(shouldEnterWatchFixLoop({
+      fingerprint: "fp-oneshot",
+      sessionProcessed: new Set(),
+      openIssueLabels: ["bug-loop", "auto-fix-candidate", "bug-loop:gave-up"],
     })).toBe(false);
     expect(shouldEnterWatchFixLoop({
       fingerprint: "fp-new",

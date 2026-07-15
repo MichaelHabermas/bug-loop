@@ -171,10 +171,9 @@ function detect(
 
 async function dedupe(
   state: TriageState,
-  github: GitHubOperations,
+  openIssues: readonly OpenIssue[],
 ): Promise<void> {
   const all = groupIncidents(state.actionableEvents ?? []);
-  const openIssues = await github.listOpenIssues();
   const existing = all.map((incident) =>
     findOpenIssueByMarker(openIssues, incident.fingerprint.hash)
   );
@@ -556,7 +555,14 @@ export async function runAgentSdkPipeline(
       }),
     );
 
-    await runTracedStage(recorder, "dedupe", () => dedupe(state, github), () => ({
+    // Single open-issue snapshot for the whole run (dedupe + outcome-label
+    // guard). A second listOpenIssues after ticket would be fallible after
+    // the cursor is already committed and could strand the incident.
+    let openIssuesSnapshot: OpenIssue[] = [];
+    await runTracedStage(recorder, "dedupe", async () => {
+      openIssuesSnapshot = await github.listOpenIssues();
+      await dedupe(state, openIssuesSnapshot);
+    }, () => ({
       outcome: `${state.summary?.newIncidents ?? 0} new incidents`,
       detail: {
         incidents: state.summary?.incidents ?? 0,
@@ -625,11 +631,13 @@ export async function runAgentSdkPipeline(
       let mechanical = (state.triage ?? []).filter(
         (item) => item.route?.kind === "mechanical" && item.ticket !== undefined,
       );
-      if (state.config.watch === true) {
+      // Outcome-label guard is universal (one-shot and watch). Session
+      // fingerprints additionally suppress re-entry within a watch daemon.
+      // Reuse the dedupe-stage snapshot — never re-query after ticket commits.
+      {
         const sessionProcessed = options.sessionFixFingerprints ?? new Set<string>();
-        const openIssues = await github.listOpenIssues();
         const labelsByNumber = new Map(
-          openIssues.map((issue) => [issue.number, issue.labels]),
+          openIssuesSnapshot.map((issue) => [issue.number, issue.labels]),
         );
         mechanical = mechanical.filter((item) => {
           const fingerprint = item.incident.fingerprint.hash;

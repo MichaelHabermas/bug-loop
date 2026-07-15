@@ -226,6 +226,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
     issuesFiled: 4,
   });
   expect(issues).toHaveLength(4);
+  // One listOpenIssues per run (dedupe snapshot reused by outcome-label guard)
   expect(issueListCalls).toBe(1);
   // Issue reads: once per mechanical worker setup (outcome labels do not re-read bodies).
   expect(issueReadCalls).toBe(3);
@@ -291,6 +292,7 @@ test("plain orchestrator routes, retries, gives up, and never fixes needs-human 
   }, { triageAgent, github, repoRoot: TMP, reproStrategy, routingPolicy });
   expect(rerun.summary.eventsRead).toBe(0);
   expect(rerun.summary.newIncidents).toBe(0);
+  // +1 dedupe on empty re-run (still one listOpenIssues per run)
   expect(issueListCalls).toBe(2);
   expect(triageCalls).toBe(3);
 });
@@ -931,4 +933,193 @@ test("restarted session with outcome label does not re-enter fix workers", async
   expect(trace.events.filter((event) => event.stage === "fix")).toHaveLength(0);
   // Gave-up label is also recognized by the restart guard.
   expect(OUTCOME_GAVE_UP_LABEL).toBe("bug-loop:gave-up");
+});
+
+test("one-shot --fix: outcome label blocks re-entry even with pending self-generated repro events", async () => {
+  // Simulates: prior fix completed (outcome label on open issue); cursor left
+  // self-generated repro lines pending (not EOF). Next one-shot re-ingests
+  // them, fix-mode dedupe attaches the existing ticket, but workers must not
+  // re-enter.
+  const logPath = join(TMP, "oneshot-outcome.jsonl");
+  const cursorPath = join(TMP, "oneshot-outcome-cursor.json");
+  const event = errorEvent("handler error");
+  // Pending self-generated repro noise: same fingerprint as the resolved ticket.
+  const reproNoise = errorEvent("handler error");
+  await Bun.write(
+    logPath,
+    `${JSON.stringify(event)}\n${JSON.stringify(reproNoise)}\n`,
+  );
+  const fp = fingerprintEvent(event).hash;
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath,
+  });
+
+  const fixCalls: number[] = [];
+  const openIssues = [{
+    number: 1,
+    url: "https://example.test/issues/1",
+    body: FINGERPRINT_MARKER(fp),
+    labels: ["bug-loop", "auto-fix-candidate", OUTCOME_FIXED_LABEL],
+  }];
+
+  const github: GitHubOperations = {
+    async listOpenIssues() {
+      return openIssues.map((issue) => ({ ...issue, labels: [...issue.labels] }));
+    },
+    async createIssue() {
+      throw new Error("should not create issue for resolved ticket");
+    },
+    async readIssue(number) {
+      const issue = openIssues.find((item) => item.number === number);
+      return issue ? { title: "issue", body: issue.body } : null;
+    },
+    async commentIssue() {},
+    async addLabels() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("should not open PR");
+    },
+  };
+
+  const pass = await runAgentSdkPipeline(config, {
+    fromStart: true,
+    fix: true,
+    live: false,
+    watch: false,
+    tracePath: join(TMP, "oneshot-outcome.json"),
+  }, {
+    github,
+    createFixer: () => new FakeFixer(async () => {
+      fixCalls.push(1);
+      return { description: "patch", filesChanged: ["apps/leaky-service/src/server.ts"] };
+    }),
+    reproStrategy: {
+      derive() {
+        return {
+          command: "curl",
+          async reproduce() {
+            return { reproduced: true, evidence: "HTTP 500" };
+          },
+          async verify() {
+            return { passes: true, detail: "ok" };
+          },
+        };
+      },
+    },
+    routingPolicy: {
+      authorizedClasses: ["leaky-service.missing-customer"],
+      evaluate: () => ({ kind: "unknown", reason: "agent" }),
+    },
+    triageAgent: new FakeTriageAgent(async () => ({
+      kind: "authorized",
+      incidentClass: "leaky-service.missing-customer",
+      reason: "mapped",
+      fixBrief: "fix missing customer",
+    })),
+    repoRoot: TMP,
+  });
+
+  // Existing ticket: no new incidents, but fix-mode still sees the group.
+  expect(pass.summary.newIncidents).toBe(0);
+  expect(pass.summary.incidents).toBe(1);
+  expect(fixCalls).toHaveLength(0);
+  const trace = await Bun.file(join(TMP, "oneshot-outcome.json")).json() as RunTrace;
+  expect(trace.events.filter((event) => event.stage === "fix")).toHaveLength(0);
+  expect(trace.events.filter((event) => event.stage === "pr")).toHaveLength(0);
+});
+
+test("outcome-label guard reuses dedupe snapshot: second listOpenIssues is never called", async () => {
+  // Regression: a post-ticket second listOpenIssues() that fails transiently
+  // used to reject after the cursor was already committed, stranding the
+  // incident. Guard must reuse the dedupe-stage snapshot (one fetch per run).
+  const logPath = join(TMP, "no-second-list.jsonl");
+  const cursorPath = join(TMP, "no-second-list-cursor.json");
+  const event = errorEvent("handler error");
+  await Bun.write(logPath, `${JSON.stringify(event)}\n`);
+  const fp = fingerprintEvent(event).hash;
+
+  const config = createLeakyServicePipelineConfig({
+    cursorPath,
+    baseUrl: "http://127.0.0.1:1",
+    fixer: "grok",
+    logPath,
+  });
+
+  let listCalls = 0;
+  const fixCalls: number[] = [];
+  const openIssues = [{
+    number: 1,
+    url: "https://example.test/issues/1",
+    body: FINGERPRINT_MARKER(fp),
+    labels: ["bug-loop", "auto-fix-candidate", OUTCOME_FIXED_LABEL],
+  }];
+
+  const github: GitHubOperations = {
+    async listOpenIssues() {
+      listCalls += 1;
+      if (listCalls > 1) {
+        throw new Error("transient listOpenIssues failure (must not be called twice)");
+      }
+      return openIssues.map((issue) => ({ ...issue, labels: [...issue.labels] }));
+    },
+    async createIssue() {
+      throw new Error("should not create");
+    },
+    async readIssue(number) {
+      const issue = openIssues.find((item) => item.number === number);
+      return issue ? { title: "issue", body: issue.body } : null;
+    },
+    async commentIssue() {},
+    async addLabels() {},
+    async replaceIssueLabel() {},
+    async createPullRequest() {
+      throw new Error("should not open PR");
+    },
+  };
+
+  const pass = await runAgentSdkPipeline(config, {
+    fromStart: true,
+    fix: true,
+    live: false,
+    watch: false,
+    tracePath: join(TMP, "no-second-list.json"),
+  }, {
+    github,
+    createFixer: () => new FakeFixer(async () => {
+      fixCalls.push(1);
+      return { description: "patch", filesChanged: ["apps/leaky-service/src/server.ts"] };
+    }),
+    reproStrategy: {
+      derive() {
+        return {
+          command: "curl",
+          async reproduce() {
+            return { reproduced: true, evidence: "HTTP 500" };
+          },
+          async verify() {
+            return { passes: true, detail: "ok" };
+          },
+        };
+      },
+    },
+    routingPolicy: {
+      authorizedClasses: ["leaky-service.missing-customer"],
+      evaluate: () => ({ kind: "unknown", reason: "agent" }),
+    },
+    triageAgent: new FakeTriageAgent(async () => ({
+      kind: "authorized",
+      incidentClass: "leaky-service.missing-customer",
+      reason: "mapped",
+      fixBrief: "fix missing customer",
+    })),
+    repoRoot: TMP,
+  });
+
+  expect(listCalls).toBe(1);
+  expect(pass.summary.newIncidents).toBe(0);
+  expect(fixCalls).toHaveLength(0);
 });

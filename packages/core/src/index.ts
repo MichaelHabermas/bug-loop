@@ -228,5 +228,20 @@ export {
   formatPrFilesList,
   FINGERPRINT_MARKER,
   findOpenIssueByMarker,
+  LABEL_CREATE_META,
+  buildLabelCreateArgs,
+  ensureLabelNonDestructive,
+  isLabelAlreadyExistsError,
+  labelListIncludes,
+  parseLabelListNames,
 } from "./github";
-export type { IssueInput, PRInput, IssueRef, PRRef, IssueDetails, OpenIssue } from "./github";
+export type {
+  IssueInput,
+  PRInput,
+  IssueRef,
+  PRRef,
+  IssueDetails,
+  OpenIssue,
+  GhCommandResult,
+  GhRunner,
+} from "./github";

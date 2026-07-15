@@ -1,4 +1,25 @@
+import {
+  OUTCOME_FIXED_LABEL,
+  OUTCOME_GAVE_UP_LABEL,
+} from "./watch-fix";
+
 const FINGERPRINT_MARKER = (hash: string) => `bug-loop:fingerprint:${hash}`;
+
+/** Fixed metadata for labels we create lazily (never rewrite existing labels). */
+export const LABEL_CREATE_META: Readonly<
+  Record<string, { color: string; description: string }>
+> = {
+  [OUTCOME_FIXED_LABEL]: {
+    color: "0e8a16",
+    description: "bug-loop verified fix; PR opened",
+  },
+  [OUTCOME_GAVE_UP_LABEL]: {
+    color: "d93f0b",
+    description: "bug-loop fix loop gave up; needs human",
+  },
+};
+
+const DEFAULT_LABEL_COLOR = "ededed";
 
 export interface IssueInput {
   title: string;
@@ -39,7 +60,15 @@ function isDryRun(): boolean {
   return process.env["DRY_RUN"] === "1" || process.env["DRY_RUN"] === "true";
 }
 
-async function runGh(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+export type GhCommandResult = {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+};
+
+export type GhRunner = (args: string[]) => Promise<GhCommandResult>;
+
+async function runGh(args: string[]): Promise<GhCommandResult> {
   if (isDryRun()) {
     console.log(`[DRY_RUN] gh ${args.join(" ")}`);
     return { stdout: "", stderr: "", exitCode: 0 };
@@ -55,6 +84,60 @@ async function runGh(args: string[]): Promise<{ stdout: string; stderr: string; 
     proc.exited,
   ]);
   return { stdout: stdout.trim(), stderr: stderr.trim(), exitCode };
+}
+
+/**
+ * True when `gh label create` failed because the label already exists
+ * (race or list cap miss). Treat as success so outcome-label edits still run.
+ */
+export function isLabelAlreadyExistsError(stderr: string, stdout = ""): boolean {
+  const text = `${stderr}\n${stdout}`.toLowerCase();
+  return (
+    text.includes("already exists") ||
+    text.includes("already_exists") ||
+    text.includes("already been taken") ||
+    text.includes("name has already been taken")
+  );
+}
+
+/**
+ * Lookup-or-create a label. Never uses `--force` (does not update existing
+ * labels). Returns whether a create was issued.
+ *
+ * Existence is checked via a capped `gh label list` (limit 200). If the list
+ * misses the label (cap/race) and create fails with already-exists, that is
+ * treated as success so concurrent creators and large repos still proceed.
+ */
+export async function ensureLabelNonDestructive(input: {
+  name: string;
+  repo: string;
+  dryRun: boolean;
+  run: GhRunner;
+  log?: (message: string) => void;
+}): Promise<"dry-run" | "exists" | "created"> {
+  const log = input.log ?? ((message: string) => console.log(message));
+  if (input.dryRun) {
+    log(`[DRY_RUN] gh label list --repo ${input.repo} --json name`);
+    log(`[DRY_RUN] gh label create ${input.name} --repo ${input.repo} (if missing)`);
+    return "dry-run";
+  }
+  const list = await input.run([
+    "label", "list", "--repo", input.repo, "--json", "name", "--limit", "200",
+  ]);
+  if (list.exitCode !== 0) {
+    throw new Error(`gh label list failed: ${list.stderr || list.stdout}`);
+  }
+  if (labelListIncludes(list.stdout, input.name)) return "exists";
+  const args = buildLabelCreateArgs(input.name, input.repo);
+  const created = await input.run(args);
+  if (created.exitCode !== 0) {
+    // Cap miss or concurrent create: label exists; do not block outcome edits.
+    if (isLabelAlreadyExistsError(created.stderr, created.stdout)) {
+      return "exists";
+    }
+    throw new Error(`gh label create failed: ${created.stderr || created.stdout}`);
+  }
+  return "created";
 }
 
 export class GitHubClient {
@@ -171,20 +254,17 @@ export class GitHubClient {
   }
 
   /**
-   * Create a label if missing. Uses `gh label create --force` so re-runs are
-   * idempotent. DRY_RUN-gated like all mutations.
+   * Create a label if missing. Lookup-or-create only — never `--force`, so
+   * existing label color/description (e.g. needs-human) are never clobbered.
+   * DRY_RUN-gated like all mutations.
    */
   async ensureLabel(name: string): Promise<void> {
-    if (isDryRun()) {
-      console.log(`[DRY_RUN] gh label create ${name} --repo ${this.repo} --force`);
-      return;
-    }
-    const { stdout, stderr, exitCode } = await runGh([
-      "label", "create", name, "--repo", this.repo, "--force",
-    ]);
-    if (exitCode !== 0) {
-      throw new Error(`gh label create failed: ${stderr || stdout}`);
-    }
+    await ensureLabelNonDestructive({
+      name,
+      repo: this.repo,
+      dryRun: isDryRun(),
+      run: runGh,
+    });
   }
 
   private async runMutation(args: string[], description: string): Promise<void> {
@@ -210,6 +290,50 @@ function parseLabelNames(
     if (typeof label.name === "string") names.push(label.name);
   }
   return names;
+}
+
+/** Parse `gh label list --json name` stdout into label names. */
+export function parseLabelListNames(stdout: string): string[] {
+  if (!stdout.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(stdout);
+    if (!Array.isArray(parsed)) return [];
+    const names: string[] = [];
+    for (const item of parsed) {
+      if (typeof item === "string") {
+        names.push(item);
+        continue;
+      }
+      if (typeof item === "object" && item !== null) {
+        const name = (item as { name?: unknown }).name;
+        if (typeof name === "string") names.push(name);
+      }
+    }
+    return names;
+  } catch {
+    return [];
+  }
+}
+
+/** True when `gh label list --json name` output already includes `name`. */
+export function labelListIncludes(stdout: string, name: string): boolean {
+  return parseLabelListNames(stdout).includes(name);
+}
+
+/**
+ * Args for `gh label create` without `--force`. Outcome labels get fixed
+ * color/description; other labels get a neutral default color only.
+ */
+export function buildLabelCreateArgs(name: string, repo: string): string[] {
+  const meta = LABEL_CREATE_META[name];
+  const color = meta?.color ?? DEFAULT_LABEL_COLOR;
+  const args = [
+    "label", "create", name, "--repo", repo, "--color", color,
+  ];
+  if (meta?.description !== undefined) {
+    args.push("--description", meta.description);
+  }
+  return args;
 }
 
 function escapeRegExp(value: string): string {
