@@ -311,6 +311,8 @@
     .error-chip { color: var(--agent); background: var(--agent-soft); text-transform: none; }
     .badge.partial { color: var(--human); background: var(--human-soft); }
     .badge.estimated { color: var(--estimated); background: color-mix(in srgb, var(--estimated) 13%, var(--paper-raised)); border-style: dashed; }
+    .badge.reported { color: var(--reported); background: color-mix(in srgb, var(--reported) 13%, var(--paper-raised)); }
+    #price-meta { margin-top: 4px; max-width: 52ch; line-height: 1.45; text-transform: none; letter-spacing: 0; }
 
     .section { padding: 90px 0; border-bottom: 1px solid var(--rule-strong); }
     .section-head { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 32px; align-items: start; margin-bottom: 42px; }
@@ -438,13 +440,14 @@
           <input id="trace-files" type="file" accept="application/json,.json" multiple>
         </label>
         <div class="price-panel">
-          <label for="price-table">Optional model prices in USD per million tokens</label>
-          <textarea id="price-table" spellcheck="false" placeholder='{"gpt-5.6-luna":{"inPerM":0,"outPerM":0}}'></textarea>
+          <label for="price-table">Optional model prices in USD per million tokens (override)</label>
+          <textarea id="price-table" spellcheck="false" placeholder='Paste JSON to override defaults, e.g. {"gpt-5.6-luna":{"inPerM":1,"outPerM":6}}'></textarea>
           <div class="panel-actions">
             <button class="control-button" id="apply-prices" type="button">Apply prices</button>
             <button class="control-button" id="reset-demo" type="button">Reset to demo</button>
             <p class="inline-message" id="price-message" role="status" aria-live="polite">No price table applied.</p>
           </div>
+          <p class="inline-message" id="price-meta" hidden></p>
         </div>
       </div>
       <div class="error-list" id="file-errors" aria-live="polite" aria-label="File errors"></div>
@@ -608,6 +611,9 @@
 }
   </script>
 
+  <!-- Sibling data file from `bun run publish:traces`. Optional: page works when absent (file:// safe). -->
+  <script src="runs-data.js"></script>
+
   <script>
     (() => {
       "use strict";
@@ -619,6 +625,15 @@
       const COST_SEAMS = ["triage", "fix", "testgen", "other"];
       const TIME_SEAMS = ["triage", "fix", "verify", "other"];
       const seamColors = { triage: "var(--triage)", fix: "var(--fix)", testgen: "var(--testgen)", verify: "var(--verify)", other: "var(--other)" };
+      // Alias → canonical price-table key (and reverse lookups via price table keys).
+      const MODEL_ALIASES = {
+        sonnet: "claude-sonnet-5",
+        haiku: "claude-haiku-4-5",
+        opus: "claude-opus-4-8",
+        "claude-sonnet-5": "claude-sonnet-5",
+        "claude-haiku-4-5": "claude-haiku-4-5",
+        "claude-opus-4-8": "claude-opus-4-8",
+      };
       const columns = [
         { key: "label", label: "Run label" },
         { key: "pipeline", label: "Pipeline" },
@@ -635,6 +650,7 @@
       let runs = [];
       let fileErrors = [];
       let priceTable = null;
+      let defaultPriceTable = null;
       let sortState = { key: "startedAt", direction: "desc" };
 
       const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -693,9 +709,30 @@
         return "other";
       }
 
+      /** Resolve model price, handling aliases and Anthropic dated snapshot ids (…-YYYYMMDD). */
+      function lookupPrice(model) {
+        if (!priceTable || !model) return null;
+        if (priceTable[model]) return priceTable[model];
+        const aliasTarget = MODEL_ALIASES[model];
+        if (aliasTarget && priceTable[aliasTarget]) return priceTable[aliasTarget];
+        // Strip trailing -YYYYMMDD snapshot suffix (e.g. claude-haiku-4-5-20251001).
+        const withoutDate = model.replace(/-\d{8}$/, "");
+        if (withoutDate !== model) {
+          if (priceTable[withoutDate]) return priceTable[withoutDate];
+          const datedAlias = MODEL_ALIASES[withoutDate];
+          if (datedAlias && priceTable[datedAlias]) return priceTable[datedAlias];
+        }
+        // Accept price keys that are aliases of the model name (e.g. table has only "haiku").
+        for (const [alias, canonical] of Object.entries(MODEL_ALIASES)) {
+          if (canonical === model && priceTable[alias]) return priceTable[alias];
+          if (canonical === withoutDate && priceTable[alias]) return priceTable[alias];
+        }
+        return null;
+      }
+
       function estimatedCost(cost) {
         if (cost.usd !== undefined || !priceTable || !cost.model) return null;
-        const price = priceTable[cost.model];
+        const price = lookupPrice(cost.model);
         if (!price) return null;
         const hasTokens = finite(cost.inputTokens) || finite(cost.outputTokens);
         if (!hasTokens) return null;
@@ -876,6 +913,7 @@
           const badges = document.createElement("span");
           badges.className = "label-badges";
           if (metric.isDemo) appendBadge(badges, "built-in demo", "estimated");
+          if (metric.isPublished) appendBadge(badges, "published", "reported");
           if (metric.partialCost) appendBadge(badges, `partial cost data · ${metric.costEventCount}/${metric.agentEventCount}`, "partial");
           labelCell.append(badges);
           row.append(labelCell);
@@ -1198,7 +1236,9 @@
         const results = await Promise.all(files.map(async (file) => {
           try {
             const value = JSON.parse(await file.text());
-            return { run: { label: labelFromFilename(file.name), trace: validateTrace(value), isDemo: false } };
+            const trace = validateTrace(value);
+            const label = (typeof value.label === "string" && value.label.trim()) ? value.label.trim() : labelFromFilename(file.name);
+            return { run: { label, trace, isDemo: false, isPublished: false } };
           } catch (error) {
             return { error: { name: file.name, message: error instanceof Error ? error.message : String(error) } };
           }
@@ -1210,13 +1250,53 @@
         renderAll();
       }
 
+      function renderPriceMeta() {
+        const metaEl = $("#price-meta");
+        const meta = typeof window.BUGLOOP_PRICES_META === "object" && window.BUGLOOP_PRICES_META !== null
+          ? window.BUGLOOP_PRICES_META
+          : null;
+        if (!meta) {
+          metaEl.hidden = true;
+          metaEl.textContent = "";
+          return;
+        }
+        const parts = [];
+        if (typeof meta.asOf === "string") parts.push(`Price table as of ${meta.asOf}`);
+        if (Array.isArray(meta.sources) && meta.sources.length > 0) {
+          parts.push(`Sources: ${meta.sources.join("; ")}`);
+        }
+        if (typeof meta.note === "string" && meta.note.trim()) parts.push(meta.note.trim());
+        if (isRecord(meta.notes)) {
+          const notes = Object.entries(meta.notes)
+            .filter(([, text]) => typeof text === "string")
+            .map(([model, text]) => `${model}: ${text}`);
+          if (notes.length > 0) parts.push(notes.join(" "));
+        }
+        metaEl.textContent = parts.join(" · ");
+        metaEl.hidden = parts.length === 0;
+      }
+
+      function applyDefaultPrices(messageSuffix = "") {
+        const message = $("#price-message");
+        if (defaultPriceTable) {
+          priceTable = defaultPriceTable;
+          const count = Object.keys(defaultPriceTable).length;
+          message.textContent = `Default price table applied (${count} model ${count === 1 ? "entry" : "entries"}). Estimates use published list prices.${messageSuffix}`;
+          message.classList.remove("error");
+        } else {
+          priceTable = null;
+          message.textContent = "No price table applied.";
+          message.classList.remove("error");
+        }
+        renderPriceMeta();
+      }
+
       function applyPrices() {
         const input = $("#price-table").value.trim();
         const message = $("#price-message");
         if (!input) {
-          priceTable = null;
-          message.textContent = "No price table applied.";
-          message.classList.remove("error");
+          // Empty override → restore published defaults when present.
+          applyDefaultPrices(" (override cleared)");
           renderAll();
           return;
         }
@@ -1226,21 +1306,49 @@
           for (const [model, price] of Object.entries(value)) {
             if (!isRecord(price) || !nonNegative(price.inPerM) || !nonNegative(price.outPerM)) throw new Error(`${model} must have non-negative inPerM and outPerM numbers`);
           }
+          // Paste-in override wins over defaults.
           priceTable = value;
-          message.textContent = `${Object.keys(value).length} model ${Object.keys(value).length === 1 ? "price" : "prices"} applied. Estimates are labeled throughout.`;
+          message.textContent = `${Object.keys(value).length} model ${Object.keys(value).length === 1 ? "price" : "prices"} applied (override). Estimates are labeled throughout.`;
           message.classList.remove("error");
           renderAll();
         } catch (error) {
-          priceTable = null;
+          priceTable = defaultPriceTable;
           message.textContent = `Price table ignored: ${error instanceof Error ? error.message : String(error)}`;
           message.classList.add("error");
           renderAll();
         }
       }
 
+      function loadPublishedRuns() {
+        const bundled = window.BUGLOOP_RUNS;
+        if (!Array.isArray(bundled) || bundled.length === 0) return false;
+        const loaded = [];
+        const errors = [];
+        bundled.forEach((entry, index) => {
+          try {
+            if (!isRecord(entry)) throw new Error("entry must be an object");
+            const trace = validateTrace(entry.trace);
+            const label = typeof entry.label === "string" && entry.label.trim()
+              ? entry.label.trim()
+              : (typeof trace.label === "string" && trace.label.trim() ? trace.label.trim() : `published-${index + 1}`);
+            loaded.push({ label, trace, isDemo: false, isPublished: true });
+          } catch (error) {
+            errors.push({
+              name: `BUGLOOP_RUNS[${index}]`,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
+        });
+        if (loaded.length === 0) return false;
+        runs = loaded;
+        fileErrors = errors;
+        renderAll();
+        return true;
+      }
+
       function loadDemo() {
         const demo = validateTrace(JSON.parse($("#demo-trace").textContent));
-        runs = [{ label: "example-run", trace: demo, isDemo: true }];
+        runs = [{ label: "example-run", trace: demo, isDemo: true, isPublished: false }];
         fileErrors = [];
         renderAll();
       }
@@ -1266,8 +1374,13 @@
       });
       systemDark.addEventListener?.("change", renderThemeButton);
 
+      // Feature-detect published data (script may 404 / be absent under file://).
+      if (isRecord(window.BUGLOOP_PRICES)) {
+        defaultPriceTable = window.BUGLOOP_PRICES;
+      }
+      applyDefaultPrices();
       renderThemeButton();
-      loadDemo();
+      if (!loadPublishedRuns()) loadDemo();
     })();
   </script>
 </body>

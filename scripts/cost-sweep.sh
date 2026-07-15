@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Phase C quick cost sweep: run the agent-sdk pipeline dry-fix under several
-# model/effort configs and collect traces for comparison.
+# Phase C quick cost sweep: run pipelines dry-fix under several model/effort
+# configs and collect traces for comparison.
 #
 # Usage:
 #   ./scripts/cost-sweep.sh [--base URL]
+#
+# Row format (CONFIG_MATRIX):
+#   name|space-separated env assignments
+#
+# Optional env assignment BUGLOOP_PIPELINE=langgraph selects
+# `bun run pipeline:langgraph` (default: pipeline:agent-sdk).
 #
 # Prerequisites: leaky-service already listening at --base (default http://127.0.0.1:3000).
 # Does not commit or push.
@@ -16,7 +22,6 @@ cd "$ROOT"
 BASE_URL="http://127.0.0.1:3000"
 TRAFFIC_SEED=42
 TRAFFIC_COUNT=50
-CURSOR_PATH="pipelines/agent-sdk/.cursor.json"
 LOG_PATH="logs/leaky-service.jsonl"
 
 while [[ $# -gt 0 ]]; do
@@ -43,11 +48,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 # name|space-separated env assignments applied only for that row
+# BUGLOOP_PIPELINE=langgraph selects the langgraph CLI; otherwise agent-sdk.
 CONFIG_MATRIX=(
   "baseline|BUGLOOP_TRIAGE_MODEL=sonnet BUGLOOP_FIXER=grok"
   "grok-low|BUGLOOP_TRIAGE_MODEL=sonnet BUGLOOP_FIXER=grok BUGLOOP_GROK_EFFORT=low"
   "haiku-triage|BUGLOOP_TRIAGE_MODEL=haiku BUGLOOP_FIXER=grok"
   "codex-luna|BUGLOOP_TRIAGE_MODEL=sonnet BUGLOOP_FIXER=codex BUGLOOP_CODEX_MODEL=gpt-5.6-luna"
+  "langgraph-codex|BUGLOOP_PIPELINE=langgraph BUGLOOP_FIXER=codex"
+  "langgraph-grok|BUGLOOP_PIPELINE=langgraph BUGLOOP_FIXER=grok"
 )
 
 probe_service() {
@@ -75,13 +83,43 @@ mkdir -p traces
 TRACE_PATHS=()
 FAILED_ROWS=()
 
+pipeline_from_env() {
+  # Default agent-sdk; honor BUGLOOP_PIPELINE=langgraph (or agent-sdk) in the row env.
+  local env_assignments="$1"
+  local pipeline="agent-sdk"
+  local token
+  # shellcheck disable=SC2086 # intentional word-split of env_assignments
+  for token in ${env_assignments}; do
+    case "${token}" in
+      BUGLOOP_PIPELINE=*)
+        pipeline="${token#BUGLOOP_PIPELINE=}"
+        ;;
+    esac
+  done
+  case "${pipeline}" in
+    agent-sdk|langgraph) printf '%s\n' "${pipeline}" ;;
+    *)
+      echo "error: BUGLOOP_PIPELINE must be agent-sdk or langgraph, got: ${pipeline}" >&2
+      return 2
+      ;;
+  esac
+}
+
 for row in "${CONFIG_MATRIX[@]}"; do
   name="${row%%|*}"
   env_assignments="${row#*|}"
   trace_path="traces/sweep-${name}.json"
 
+  if ! pipeline="$(pipeline_from_env "${env_assignments}")"; then
+    FAILED_ROWS+=("${name}:bad-pipeline")
+    continue
+  fi
+  pipeline_script="pipeline:${pipeline}"
+  cursor_path="pipelines/${pipeline}/.cursor.json"
+
   echo
   echo "=== config: ${name} ==="
+  echo "pipeline: ${pipeline_script}"
   echo "env: ${env_assignments}"
   echo "trace: ${trace_path}"
 
@@ -94,11 +132,11 @@ for row in "${CONFIG_MATRIX[@]}"; do
     continue
   fi
 
-  rm -f "${CURSOR_PATH}"
+  rm -f "${cursor_path}"
 
   # shellcheck disable=SC2086 # intentional word-split of env_assignments
   set +e
-  env ${env_assignments} bun run pipeline:agent-sdk -- \
+  env ${env_assignments} bun run "${pipeline_script}" -- \
     --from-start \
     --fix \
     --base "${BASE_URL}" \
