@@ -122,6 +122,40 @@ EOF
   exit 1
 fi
 
+# Rig guard: refuse to spend money unless the service is still in its seeded buggy state.
+if ! git -C "$ROOT" rev-parse -q --verify seeded >/dev/null; then
+  echo "error: 'seeded' ref not found; cannot verify buggy baseline (see README \"Reset the demo\")" >&2
+  exit 1
+fi
+
+if ! git -C "$ROOT" diff --quiet seeded -- apps/leaky-service/src; then
+  cat >&2 <<EOF
+error: apps/leaky-service/src has drifted from the seeded buggy baseline
+
+The sweep only measures fix capability against the seeded bugs. Restore the
+baseline and restart the service, then re-run this script:
+
+  git checkout seeded -- apps/leaky-service
+  bun run service
+EOF
+  exit 1
+fi
+
+canary_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/orders?since=not-a-date" || true)"
+if [[ "${canary_status}" != "500" ]]; then
+  cat >&2 <<EOF
+error: running service does not exhibit the seeded invalid-since bug (got HTTP ${canary_status}, expected 500)
+
+It is likely running fixed or stale code. Restart it from the seeded baseline
+and re-run this script:
+
+  bun run service
+EOF
+  exit 1
+fi
+
+echo "model-sweep: rig guard ok (baseline sources match, canary 500 confirmed)"
+
 PLAN_ARGS=(--config "${CONFIG_PATH}")
 if [[ ${PILOT} -eq 1 ]]; then
   PLAN_ARGS+=(--pilot)
