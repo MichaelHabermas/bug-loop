@@ -2,19 +2,19 @@
 window.BUGLOOP_RUNS = [
   {
     "label": "baseline",
-    "workloadKey": "unknown-v1|null|null|unknown-v1",
-    "resolvedConfigKey": "agent-sdk|unknown-v1:unknown:none|unknown-v1:unknown:none|unknown-v1:unknown:none|triage-decides|2|unknown-v1:unknown-v1:unknown-v1",
+    "workloadKey": "leaky-service-seeded-v1|42|50|a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|grok:unknown:none|triage-decides|2|1|true:false:true:one-shot",
     "trace": {
-      "schemaVersion": 1,
-      "runId": "29468248-3fa7-49e5-b394-20c4a0be0744",
-      "startedAt": "2026-07-15T01:49:12.989Z",
-      "finishedAt": "2026-07-15T01:55:46.060Z",
+      "schemaVersion": 2,
+      "runId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2",
+      "startedAt": "2026-07-15T13:43:01.356Z",
+      "finishedAt": "2026-07-15T13:45:37.704Z",
       "label": "baseline",
       "events": [
         {
           "seq": 1,
           "stage": "ingest",
-          "startedAt": "2026-07-15T01:49:12.989Z",
+          "startedAt": "2026-07-15T13:43:01.356Z",
           "durationMs": 0,
           "outcome": "76 events",
           "detail": {
@@ -24,8 +24,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 2,
           "stage": "detect",
-          "startedAt": "2026-07-15T01:49:12.989Z",
-          "durationMs": 0,
+          "startedAt": "2026-07-15T13:43:01.356Z",
+          "durationMs": 1,
           "outcome": "24 actionable",
           "detail": {
             "actionable": 24
@@ -34,380 +34,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 3,
           "stage": "dedupe",
-          "startedAt": "2026-07-15T01:49:12.989Z",
-          "durationMs": 1,
-          "outcome": "4 new incidents",
-          "detail": {
-            "incidents": 4,
-            "newIncidents": 4
-          }
-        },
-        {
-          "seq": 4,
-          "stage": "reproduce",
-          "startedAt": "2026-07-15T01:49:12.990Z",
-          "durationMs": 128,
-          "outcome": "3 reproduced",
-          "detail": {
-            "reproduced": 3
-          }
-        },
-        {
-          "seq": 5,
-          "stage": "route",
-          "startedAt": "2026-07-15T01:49:13.118Z",
-          "durationMs": 103880,
-          "outcome": "3 mechanical",
-          "detail": {
-            "mechanical": 3,
-            "needsHuman": 1
-          },
-          "cost": {
-            "harness": "claude-agent-sdk",
-            "inputTokens": 18,
-            "outputTokens": 4277,
-            "usd": 0.261783
-          }
-        },
-        {
-          "seq": 6,
-          "stage": "ticket",
-          "startedAt": "2026-07-15T01:50:56.998Z",
-          "durationMs": 2,
-          "outcome": "4 issues",
-          "detail": {
-            "issuesFiled": 4
-          }
-        },
-        {
-          "seq": 7,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T01:50:57.176Z",
-          "durationMs": 246,
-          "outcome": "eligible",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 8,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T01:50:57.422Z",
-          "durationMs": 20247,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/missing-customer.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 9,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T01:51:17.669Z",
-          "durationMs": 20,
-          "outcome": "red established",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 10,
-          "stage": "fix",
-          "startedAt": "2026-07-15T01:51:17.716Z",
-          "durationMs": 43222,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 11,
-          "stage": "verify",
-          "startedAt": "2026-07-15T01:52:00.938Z",
-          "durationMs": 1535,
-          "outcome": "verified",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T01:52:02.473Z",
-          "durationMs": 610,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 13,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T01:52:03.262Z",
-          "durationMs": 249,
-          "outcome": "eligible",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 14,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T01:52:03.511Z",
-          "durationMs": 33292,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-invalid-since.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 15,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T01:52:36.803Z",
-          "durationMs": 19,
-          "outcome": "red established",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 16,
-          "stage": "fix",
-          "startedAt": "2026-07-15T01:52:36.849Z",
-          "durationMs": 22394,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 17,
-          "stage": "verify",
-          "startedAt": "2026-07-15T01:52:59.243Z",
-          "durationMs": 1526,
-          "outcome": "verified",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T01:53:00.769Z",
-          "durationMs": 602,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 19,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T01:53:01.544Z",
-          "durationMs": 246,
-          "outcome": "eligible",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 20,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T01:53:01.790Z",
-          "durationMs": 145074,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/ship-provider-timeout.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 21,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T01:55:26.864Z",
-          "durationMs": 37,
-          "outcome": "red established",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 22,
-          "stage": "fix",
-          "startedAt": "2026-07-15T01:55:26.929Z",
-          "durationMs": 16703,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 23,
-          "stage": "verify",
-          "startedAt": "2026-07-15T01:55:43.632Z",
-          "durationMs": 1810,
-          "outcome": "verified",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 24,
-          "stage": "pr",
-          "startedAt": "2026-07-15T01:55:45.442Z",
-          "durationMs": 617,
-          "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "issueNumber": 9001
-          }
-        }
-      ],
-      "pipeline": "agent-sdk",
-      "config": {
-        "fixer": "unknown-v1",
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2
-      },
-      "resolved": {
-        "pipeline": "agent-sdk",
-        "triage": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "testWriter": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "fixer": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2,
-        "mode": {
-          "fix": "unknown-v1",
-          "live": "unknown-v1",
-          "fromStart": "unknown-v1"
-        }
-      },
-      "workload": {
-        "benchmarkId": "unknown-v1",
-        "seed": null,
-        "caseCount": null,
-        "codeRevision": "unknown-v1"
-      },
-      "agentCalls": [],
-      "compatibility": {
-        "resolved": "unknown-v1",
-        "workload": "unknown-v1"
-      }
-    }
-  },
-  {
-    "label": "codex-luna",
-    "workloadKey": "unknown-v1|null|null|unknown-v1",
-    "resolvedConfigKey": "agent-sdk|unknown-v1:unknown:none|unknown-v1:unknown:none|unknown-v1:unknown:none|triage-decides|2|unknown-v1:unknown-v1:unknown-v1",
-    "trace": {
-      "schemaVersion": 1,
-      "runId": "b8e11848-85a8-448e-a2f9-7b812256e8db",
-      "startedAt": "2026-07-15T02:07:36.119Z",
-      "finishedAt": "2026-07-15T02:20:24.918Z",
-      "label": "codex-luna",
-      "events": [
-        {
-          "seq": 1,
-          "stage": "ingest",
-          "startedAt": "2026-07-15T02:07:36.119Z",
-          "durationMs": 1,
-          "outcome": "76 events",
-          "detail": {
-            "events": 76
-          }
-        },
-        {
-          "seq": 2,
-          "stage": "detect",
-          "startedAt": "2026-07-15T02:07:36.120Z",
-          "durationMs": 0,
-          "outcome": "24 actionable",
-          "detail": {
-            "actionable": 24
-          }
-        },
-        {
-          "seq": 3,
-          "stage": "dedupe",
-          "startedAt": "2026-07-15T02:07:36.120Z",
+          "startedAt": "2026-07-15T13:43:01.357Z",
           "durationMs": 0,
           "outcome": "4 new incidents",
           "detail": {
@@ -418,7 +45,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 4,
           "stage": "reproduce",
-          "startedAt": "2026-07-15T02:07:36.120Z",
+          "startedAt": "2026-07-15T13:43:01.357Z",
           "durationMs": 129,
           "outcome": "3 reproduced",
           "detail": {
@@ -428,8 +55,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 5,
           "stage": "route",
-          "startedAt": "2026-07-15T02:07:36.249Z",
-          "durationMs": 88469,
+          "startedAt": "2026-07-15T13:43:01.486Z",
+          "durationMs": 8677,
           "outcome": "3 mechanical",
           "detail": {
             "mechanical": 3,
@@ -437,15 +64,15 @@ window.BUGLOOP_RUNS = [
           },
           "cost": {
             "harness": "claude-agent-sdk",
-            "inputTokens": 24,
-            "outputTokens": 4770,
-            "usd": 0.3302649
+            "inputTokens": 4,
+            "outputTokens": 579,
+            "usd": 0.2354407
           }
         },
         {
           "seq": 6,
           "stage": "ticket",
-          "startedAt": "2026-07-15T02:09:04.718Z",
+          "startedAt": "2026-07-15T13:43:10.163Z",
           "durationMs": 2,
           "outcome": "4 issues",
           "detail": {
@@ -455,34 +82,34 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 7,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:09:04.906Z",
-          "durationMs": 249,
+          "startedAt": "2026-07-15T13:43:10.495Z",
+          "durationMs": 496,
           "outcome": "eligible",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
           }
         },
         {
           "seq": 8,
           "stage": "testgen",
-          "startedAt": "2026-07-15T02:09:05.155Z",
-          "durationMs": 93641,
+          "startedAt": "2026-07-15T13:43:10.991Z",
+          "durationMs": 0,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/missing-customer.test.ts"
+              "apps/leaky-service/test/bug-loop-missing-customer-45b905d31f2fee6f.test.ts"
             ]
           }
         },
         {
           "seq": 9,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:10:38.796Z",
-          "durationMs": 19,
+          "startedAt": "2026-07-15T13:43:11.017Z",
+          "durationMs": 13,
           "outcome": "red established",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -495,8 +122,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 10,
           "stage": "fix",
-          "startedAt": "2026-07-15T02:10:38.846Z",
-          "durationMs": 120754,
+          "startedAt": "2026-07-15T13:43:11.062Z",
+          "durationMs": 22145,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -509,1201 +136,49 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 11,
           "stage": "verify",
-          "startedAt": "2026-07-15T02:12:39.600Z",
-          "durationMs": 1348,
+          "startedAt": "2026-07-15T13:43:33.208Z",
+          "durationMs": 1906,
           "outcome": "verified",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "attempt": 1,
             "scopePasses": true,
+            "regressionTestPasses": true,
             "reproPasses": true,
             "testsPass": true,
-            "regressionTestPasses": true,
             "typecheckPasses": true
           }
         },
         {
           "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:12:40.948Z",
-          "durationMs": 635,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f",
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:43:35.292Z",
+          "durationMs": 0,
+          "outcome": "eligible",
+          "fingerprint": "9ac0e1f8959488d2",
           "detail": {
-            "issueNumber": 9001
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
           }
         },
         {
           "seq": 13,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:12:41.763Z",
-          "durationMs": 247,
-          "outcome": "eligible",
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:43:35.292Z",
+          "durationMs": 45024,
+          "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-invalid-since-9ac0e1f8959488d2.test.ts"
+            ]
           }
         },
         {
           "seq": 14,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T02:12:42.010Z",
-          "durationMs": 48869,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-invalid-since.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 15,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:13:30.879Z",
-          "durationMs": 21,
-          "outcome": "red established",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 16,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:13:30.929Z",
-          "durationMs": 101452,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 17,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:15:12.381Z",
-          "durationMs": 1332,
-          "outcome": "verified",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:15:13.713Z",
-          "durationMs": 610,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 19,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:15:14.494Z",
-          "durationMs": 244,
-          "outcome": "eligible",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 20,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T02:15:14.738Z",
-          "durationMs": 221996,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/ship-provider-rejection.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 21,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:18:56.734Z",
-          "durationMs": 34,
-          "outcome": "red established",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 22,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:18:56.798Z",
-          "durationMs": 85660,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 23,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:20:22.458Z",
-          "durationMs": 1833,
-          "outcome": "verified",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 24,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:20:24.291Z",
-          "durationMs": 627,
-          "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "issueNumber": 9001
-          }
-        }
-      ],
-      "pipeline": "agent-sdk",
-      "config": {
-        "fixer": "unknown-v1",
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2
-      },
-      "resolved": {
-        "pipeline": "agent-sdk",
-        "triage": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "testWriter": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "fixer": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2,
-        "mode": {
-          "fix": "unknown-v1",
-          "live": "unknown-v1",
-          "fromStart": "unknown-v1"
-        }
-      },
-      "workload": {
-        "benchmarkId": "unknown-v1",
-        "seed": null,
-        "caseCount": null,
-        "codeRevision": "unknown-v1"
-      },
-      "agentCalls": [],
-      "compatibility": {
-        "resolved": "unknown-v1",
-        "workload": "unknown-v1"
-      }
-    }
-  },
-  {
-    "label": "grok-low",
-    "workloadKey": "unknown-v1|null|null|unknown-v1",
-    "resolvedConfigKey": "agent-sdk|unknown-v1:unknown:none|unknown-v1:unknown:none|unknown-v1:unknown:none|triage-decides|2|unknown-v1:unknown-v1:unknown-v1",
-    "trace": {
-      "schemaVersion": 1,
-      "runId": "c5f385f3-4b3f-466a-a6b9-06c94f730227",
-      "startedAt": "2026-07-15T01:55:46.650Z",
-      "finishedAt": "2026-07-15T02:01:01.979Z",
-      "label": "grok-low",
-      "events": [
-        {
-          "seq": 1,
-          "stage": "ingest",
-          "startedAt": "2026-07-15T01:55:46.650Z",
-          "durationMs": 0,
-          "outcome": "76 events",
-          "detail": {
-            "events": 76
-          }
-        },
-        {
-          "seq": 2,
-          "stage": "detect",
-          "startedAt": "2026-07-15T01:55:46.650Z",
-          "durationMs": 0,
-          "outcome": "24 actionable",
-          "detail": {
-            "actionable": 24
-          }
-        },
-        {
-          "seq": 3,
-          "stage": "dedupe",
-          "startedAt": "2026-07-15T01:55:46.650Z",
-          "durationMs": 1,
-          "outcome": "4 new incidents",
-          "detail": {
-            "incidents": 4,
-            "newIncidents": 4
-          }
-        },
-        {
-          "seq": 4,
-          "stage": "reproduce",
-          "startedAt": "2026-07-15T01:55:46.651Z",
-          "durationMs": 129,
-          "outcome": "3 reproduced",
-          "detail": {
-            "reproduced": 3
-          }
-        },
-        {
-          "seq": 5,
-          "stage": "route",
-          "startedAt": "2026-07-15T01:55:46.780Z",
-          "durationMs": 90054,
-          "outcome": "3 mechanical",
-          "detail": {
-            "mechanical": 3,
-            "needsHuman": 1
-          },
-          "cost": {
-            "harness": "claude-agent-sdk",
-            "inputTokens": 30,
-            "outputTokens": 4560,
-            "usd": 0.36845
-          }
-        },
-        {
-          "seq": 6,
-          "stage": "ticket",
-          "startedAt": "2026-07-15T01:57:16.834Z",
-          "durationMs": 2,
-          "outcome": "4 issues",
-          "detail": {
-            "issuesFiled": 4
-          }
-        },
-        {
-          "seq": 7,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T01:57:17.016Z",
-          "durationMs": 244,
-          "outcome": "eligible",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 8,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T01:57:17.260Z",
-          "durationMs": 29702,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-missing-customer.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 9,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T01:57:46.962Z",
-          "durationMs": 19,
-          "outcome": "red established",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 10,
-          "stage": "fix",
-          "startedAt": "2026-07-15T01:57:47.008Z",
-          "durationMs": 10443,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 11,
-          "stage": "verify",
-          "startedAt": "2026-07-15T01:57:57.451Z",
-          "durationMs": 1505,
-          "outcome": "verified",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T01:57:58.956Z",
-          "durationMs": 620,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 13,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T01:57:59.749Z",
-          "durationMs": 247,
-          "outcome": "eligible",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 14,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T01:57:59.996Z",
-          "durationMs": 85947,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-since-invalid.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 15,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T01:59:25.943Z",
-          "durationMs": 18,
-          "outcome": "red established",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 16,
-          "stage": "fix",
-          "startedAt": "2026-07-15T01:59:25.988Z",
-          "durationMs": 12921,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 17,
-          "stage": "verify",
-          "startedAt": "2026-07-15T01:59:38.909Z",
-          "durationMs": 1529,
-          "outcome": "verified",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T01:59:40.438Z",
-          "durationMs": 620,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 19,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T01:59:41.229Z",
-          "durationMs": 258,
-          "outcome": "eligible",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 20,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T01:59:41.487Z",
-          "durationMs": 69380,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/ship-provider-timeout.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 21,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:00:50.867Z",
-          "durationMs": 24,
-          "outcome": "red established",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 22,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:00:50.918Z",
-          "durationMs": 8646,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 23,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:00:59.564Z",
-          "durationMs": 1791,
-          "outcome": "verified",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 24,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:01:01.355Z",
-          "durationMs": 624,
-          "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "issueNumber": 9001
-          }
-        }
-      ],
-      "pipeline": "agent-sdk",
-      "config": {
-        "fixer": "unknown-v1",
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2
-      },
-      "resolved": {
-        "pipeline": "agent-sdk",
-        "triage": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "testWriter": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "fixer": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2,
-        "mode": {
-          "fix": "unknown-v1",
-          "live": "unknown-v1",
-          "fromStart": "unknown-v1"
-        }
-      },
-      "workload": {
-        "benchmarkId": "unknown-v1",
-        "seed": null,
-        "caseCount": null,
-        "codeRevision": "unknown-v1"
-      },
-      "agentCalls": [],
-      "compatibility": {
-        "resolved": "unknown-v1",
-        "workload": "unknown-v1"
-      }
-    }
-  },
-  {
-    "label": "haiku-triage",
-    "workloadKey": "unknown-v1|null|null|unknown-v1",
-    "resolvedConfigKey": "agent-sdk|unknown-v1:unknown:none|unknown-v1:unknown:none|unknown-v1:unknown:none|triage-decides|2|unknown-v1:unknown-v1:unknown-v1",
-    "trace": {
-      "schemaVersion": 1,
-      "runId": "af94b172-8134-46a5-be48-96d8e809a697",
-      "startedAt": "2026-07-15T02:01:02.571Z",
-      "finishedAt": "2026-07-15T02:07:35.530Z",
-      "label": "haiku-triage",
-      "events": [
-        {
-          "seq": 1,
-          "stage": "ingest",
-          "startedAt": "2026-07-15T02:01:02.571Z",
-          "durationMs": 0,
-          "outcome": "76 events",
-          "detail": {
-            "events": 76
-          }
-        },
-        {
-          "seq": 2,
-          "stage": "detect",
-          "startedAt": "2026-07-15T02:01:02.571Z",
-          "durationMs": 0,
-          "outcome": "24 actionable",
-          "detail": {
-            "actionable": 24
-          }
-        },
-        {
-          "seq": 3,
-          "stage": "dedupe",
-          "startedAt": "2026-07-15T02:01:02.571Z",
-          "durationMs": 1,
-          "outcome": "4 new incidents",
-          "detail": {
-            "incidents": 4,
-            "newIncidents": 4
-          }
-        },
-        {
-          "seq": 4,
-          "stage": "reproduce",
-          "startedAt": "2026-07-15T02:01:02.572Z",
-          "durationMs": 129,
-          "outcome": "3 reproduced",
-          "detail": {
-            "reproduced": 3
-          }
-        },
-        {
-          "seq": 5,
-          "stage": "route",
-          "startedAt": "2026-07-15T02:01:02.701Z",
-          "durationMs": 131124,
-          "outcome": "3 mechanical",
-          "detail": {
-            "mechanical": 3,
-            "needsHuman": 1
-          },
-          "cost": {
-            "harness": "claude-agent-sdk",
-            "model": "claude-haiku-4-5-20251001",
-            "inputTokens": 15643,
-            "outputTokens": 7631,
-            "usd": 0.2335428
-          }
-        },
-        {
-          "seq": 6,
-          "stage": "ticket",
-          "startedAt": "2026-07-15T02:03:13.826Z",
-          "durationMs": 2,
-          "outcome": "4 issues",
-          "detail": {
-            "issuesFiled": 4
-          }
-        },
-        {
-          "seq": 7,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:03:14.017Z",
-          "durationMs": 247,
-          "outcome": "eligible",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 8,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T02:03:14.264Z",
-          "durationMs": 19636,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/missing-customer.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 9,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:03:33.900Z",
-          "durationMs": 18,
-          "outcome": "red established",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 10,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:03:33.946Z",
-          "durationMs": 9650,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 11,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:03:43.596Z",
-          "durationMs": 1539,
-          "outcome": "verified",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:03:45.135Z",
-          "durationMs": 606,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 13,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:03:45.915Z",
-          "durationMs": 246,
-          "outcome": "eligible",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 14,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T02:03:46.161Z",
-          "durationMs": 42664,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-invalid-since.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 15,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:04:28.825Z",
-          "durationMs": 20,
-          "outcome": "red established",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 16,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:04:28.874Z",
-          "durationMs": 11724,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 17,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:04:40.599Z",
-          "durationMs": 1521,
-          "outcome": "verified",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:04:42.120Z",
-          "durationMs": 602,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "issueNumber": 9001
-          }
-        },
-        {
-          "seq": 19,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:04:42.891Z",
-          "durationMs": 245,
-          "outcome": "eligible",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 20,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T02:04:43.136Z",
-          "durationMs": 87358,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/shipping-timeout-handling.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 21,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:06:10.494Z",
-          "durationMs": 36,
-          "outcome": "red established",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 22,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:06:10.559Z",
-          "durationMs": 63917,
-          "outcome": "attempt 1",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 23,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:07:14.476Z",
-          "durationMs": 1928,
-          "outcome": "failed",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": false,
-            "regressionTestPasses": false,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 24,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:07:16.404Z",
-          "durationMs": 17507,
-          "outcome": "attempt 2",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 2,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 25,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:07:33.911Z",
-          "durationMs": 1013,
-          "outcome": "verified",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "attempt": 2,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 26,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:07:34.924Z",
-          "durationMs": 606,
-          "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81",
-          "detail": {
-            "issueNumber": 9001
-          }
-        }
-      ],
-      "pipeline": "agent-sdk",
-      "config": {
-        "fixer": "unknown-v1",
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2
-      },
-      "resolved": {
-        "pipeline": "agent-sdk",
-        "triage": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "testWriter": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "fixer": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
-          "effort": null,
-          "source": "unknown-v1"
-        },
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2,
-        "mode": {
-          "fix": "unknown-v1",
-          "live": "unknown-v1",
-          "fromStart": "unknown-v1"
-        }
-      },
-      "workload": {
-        "benchmarkId": "unknown-v1",
-        "seed": null,
-        "caseCount": null,
-        "codeRevision": "unknown-v1"
-      },
-      "agentCalls": [],
-      "compatibility": {
-        "resolved": "unknown-v1",
-        "workload": "unknown-v1"
-      }
-    }
-  },
-  {
-    "label": "langgraph-codex",
-    "workloadKey": "unknown-v1|null|null|unknown-v1",
-    "resolvedConfigKey": "langgraph|unknown-v1:unknown:none|unknown-v1:unknown:none|unknown-v1:unknown:none|triage-decides|2|unknown-v1:unknown-v1:unknown-v1",
-    "trace": {
-      "schemaVersion": 1,
-      "runId": "74c426d1-2c44-43a0-970b-78a41c46cf98",
-      "startedAt": "2026-07-15T02:20:25.539Z",
-      "finishedAt": "2026-07-15T02:30:30.462Z",
-      "label": "langgraph-codex",
-      "events": [
-        {
-          "seq": 1,
-          "stage": "ingest",
-          "startedAt": "2026-07-15T02:20:25.549Z",
-          "durationMs": 1,
-          "outcome": "76 events",
-          "detail": {
-            "events": 76
-          }
-        },
-        {
-          "seq": 2,
-          "stage": "detect",
-          "startedAt": "2026-07-15T02:20:25.551Z",
-          "durationMs": 0,
-          "outcome": "24 actionable",
-          "detail": {
-            "actionable": 24
-          }
-        },
-        {
-          "seq": 3,
-          "stage": "dedupe",
-          "startedAt": "2026-07-15T02:20:25.551Z",
-          "durationMs": 1,
-          "outcome": "4 new incidents",
-          "detail": {
-            "incidents": 4,
-            "newIncidents": 4
-          }
-        },
-        {
-          "seq": 4,
-          "stage": "reproduce",
-          "startedAt": "2026-07-15T02:20:25.553Z",
-          "durationMs": 129,
-          "outcome": "3 reproduced",
-          "detail": {
-            "reproduced": 3
-          }
-        },
-        {
-          "seq": 5,
-          "stage": "route",
-          "startedAt": "2026-07-15T02:20:25.684Z",
-          "durationMs": 0,
-          "outcome": "3 mechanical",
-          "detail": {
-            "mechanical": 3,
-            "needsHuman": 1
-          }
-        },
-        {
-          "seq": 6,
-          "stage": "ticket",
-          "startedAt": "2026-07-15T02:20:25.685Z",
-          "durationMs": 1,
-          "outcome": "4 issues",
-          "detail": {
-            "issuesFiled": 4
-          }
-        },
-        {
-          "seq": 7,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:20:25.860Z",
-          "durationMs": 249,
-          "outcome": "eligible",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 8,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T02:20:26.109Z",
-          "durationMs": 89219,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/missing-customer.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 9,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:21:55.329Z",
-          "durationMs": 18,
-          "outcome": "red established",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "testPassedOnBase": false,
-            "detail": "0 pass, 1 fail"
-          }
-        },
-        {
-          "seq": 10,
-          "stage": "fix",
-          "startedAt": "2026-07-15T02:21:55.384Z",
-          "durationMs": 96818,
-          "outcome": "attempt 1",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/src/server.ts"
-            ]
-          }
-        },
-        {
-          "seq": 11,
-          "stage": "verify",
-          "startedAt": "2026-07-15T02:23:32.205Z",
-          "durationMs": 1277,
-          "outcome": "verified",
-          "fingerprint": "45b905d31f2fee6f",
-          "detail": {
-            "attempt": 1,
-            "scopePasses": true,
-            "reproPasses": true,
-            "testsPass": true,
-            "regressionTestPasses": true,
-            "typecheckPasses": true
-          }
-        },
-        {
-          "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:23:33.484Z",
-          "durationMs": 618,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f"
-        },
-        {
-          "seq": 13,
-          "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:23:34.271Z",
-          "durationMs": 248,
-          "outcome": "eligible",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
-          }
-        },
-        {
-          "seq": 14,
-          "stage": "testgen",
-          "startedAt": "2026-07-15T02:23:34.519Z",
-          "durationMs": 51216,
-          "outcome": "attempt 1",
-          "fingerprint": "9ac0e1f8959488d2",
-          "detail": {
-            "attempt": 1,
-            "filesChanged": [
-              "apps/leaky-service/test/orders-since-invalid.test.ts"
-            ]
-          }
-        },
-        {
-          "seq": 15,
-          "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:24:25.735Z",
+          "startedAt": "2026-07-15T13:44:20.344Z",
           "durationMs": 15,
           "outcome": "red established",
           "fingerprint": "9ac0e1f8959488d2",
@@ -1715,10 +190,10 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 16,
+          "seq": 15,
           "stage": "fix",
-          "startedAt": "2026-07-15T02:24:25.781Z",
-          "durationMs": 96853,
+          "startedAt": "2026-07-15T13:44:20.389Z",
+          "durationMs": 50613,
           "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -1729,60 +204,52 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 17,
+          "seq": 16,
           "stage": "verify",
-          "startedAt": "2026-07-15T02:26:02.637Z",
-          "durationMs": 1327,
+          "startedAt": "2026-07-15T13:45:11.002Z",
+          "durationMs": 1874,
           "outcome": "verified",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "attempt": 1,
             "scopePasses": true,
+            "regressionTestPasses": true,
             "reproPasses": true,
             "testsPass": true,
-            "regressionTestPasses": true,
             "typecheckPasses": true
           }
         },
         {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:26:03.966Z",
-          "durationMs": 716,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2"
-        },
-        {
-          "seq": 19,
+          "seq": 17,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:26:04.878Z",
-          "durationMs": 248,
+          "startedAt": "2026-07-15T13:45:13.052Z",
+          "durationMs": 0,
           "outcome": "eligible",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
           }
         },
         {
-          "seq": 20,
+          "seq": 18,
           "stage": "testgen",
-          "startedAt": "2026-07-15T02:26:05.126Z",
-          "durationMs": 113522,
+          "startedAt": "2026-07-15T13:45:13.052Z",
+          "durationMs": 0,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/ship-provider-rejection.test.ts"
+              "apps/leaky-service/test/bug-loop-shipping-timeout-fd024683a08fdf81.test.ts"
             ]
           }
         },
         {
-          "seq": 21,
+          "seq": 19,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:27:58.648Z",
-          "durationMs": 36,
+          "startedAt": "2026-07-15T13:45:13.077Z",
+          "durationMs": 13,
           "outcome": "red established",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1793,10 +260,10 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 22,
+          "seq": 20,
           "stage": "fix",
-          "startedAt": "2026-07-15T02:27:58.715Z",
-          "durationMs": 149470,
+          "startedAt": "2026-07-15T13:45:13.122Z",
+          "durationMs": 20500,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -1807,96 +274,202 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 23,
+          "seq": 21,
           "stage": "verify",
-          "startedAt": "2026-07-15T02:30:28.188Z",
-          "durationMs": 1660,
+          "startedAt": "2026-07-15T13:45:33.622Z",
+          "durationMs": 2044,
           "outcome": "verified",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "attempt": 1,
             "scopePasses": true,
+            "regressionTestPasses": true,
             "reproPasses": true,
             "testsPass": true,
-            "regressionTestPasses": true,
             "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:45:35.667Z",
+          "durationMs": 660,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:45:36.327Z",
+          "durationMs": 715,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "issueNumber": 9001
           }
         },
         {
           "seq": 24,
           "stage": "pr",
-          "startedAt": "2026-07-15T02:30:29.849Z",
-          "durationMs": 612,
+          "startedAt": "2026-07-15T13:45:37.042Z",
+          "durationMs": 662,
           "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81"
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
         }
       ],
-      "pipeline": "langgraph",
-      "config": {
-        "fixer": "unknown-v1",
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2
-      },
       "resolved": {
-        "pipeline": "langgraph",
+        "pipeline": "agent-sdk",
         "triage": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
           "effort": null,
-          "source": "unknown-v1"
+          "source": "env"
         },
         "testWriter": {
-          "harness": "unknown-v1",
+          "harness": "grok",
           "requestedModel": null,
           "effectiveModel": null,
           "effort": null,
-          "source": "unknown-v1"
+          "source": "default"
         },
         "fixer": {
-          "harness": "unknown-v1",
+          "harness": "grok",
           "requestedModel": null,
           "effectiveModel": null,
           "effort": null,
-          "source": "unknown-v1"
+          "source": "env"
         },
         "regressionTests": "triage-decides",
         "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
         "mode": {
-          "fix": "unknown-v1",
-          "live": "unknown-v1",
-          "fromStart": "unknown-v1"
+          "fix": true,
+          "live": false,
+          "fromStart": true
         }
       },
       "workload": {
-        "benchmarkId": "unknown-v1",
-        "seed": null,
-        "caseCount": null,
-        "codeRevision": "unknown-v1"
+        "benchmarkId": "leaky-service-seeded-v1",
+        "seed": 42,
+        "caseCount": 50,
+        "codeRevision": "a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c"
       },
-      "agentCalls": [],
-      "compatibility": {
-        "resolved": "unknown-v1",
-        "workload": "unknown-v1"
-      }
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "grok",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:9ac0e1f8959488d2",
+          "attemptId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:9ac0e1f8959488d2:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 8676.3765,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 4,
+            "outputTokens": 579,
+            "usd": 0.2354407
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "fixer",
+          "fingerprint": "45b905d31f2fee6f",
+          "correlationId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:45b905d31f2fee6f",
+          "attemptId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:45b905d31f2fee6f:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 22145,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "testWriter",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:9ac0e1f8959488d2",
+          "attemptId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:9ac0e1f8959488d2:testgen:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 45024,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "fixer",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:9ac0e1f8959488d2",
+          "attemptId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:9ac0e1f8959488d2:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 50613,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "fixer",
+          "fingerprint": "fd024683a08fdf81",
+          "correlationId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:fd024683a08fdf81",
+          "attemptId": "5a6c3968-1bb9-44a8-a4c5-3654fcb47bb2:fd024683a08fdf81:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 20500,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        }
+      ]
     }
   },
   {
-    "label": "langgraph-grok",
-    "workloadKey": "unknown-v1|null|null|unknown-v1",
-    "resolvedConfigKey": "langgraph|unknown-v1:unknown:none|unknown-v1:unknown:none|unknown-v1:unknown:none|triage-decides|2|unknown-v1:unknown-v1:unknown-v1",
+    "label": "codex-luna",
+    "workloadKey": "leaky-service-seeded-v1|42|50|a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|codex:gpt-5.6-luna:none|triage-decides|2|1|true:false:true:one-shot",
     "trace": {
-      "schemaVersion": 1,
-      "runId": "fc5249ef-ea95-4efa-b129-e2e0b6760a9e",
-      "startedAt": "2026-07-15T02:30:31.065Z",
-      "finishedAt": "2026-07-15T02:35:48.851Z",
-      "label": "langgraph-grok",
+      "schemaVersion": 2,
+      "runId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10",
+      "startedAt": "2026-07-15T13:49:37.692Z",
+      "finishedAt": "2026-07-15T13:58:07.220Z",
+      "label": "codex-luna",
       "events": [
         {
           "seq": 1,
           "stage": "ingest",
-          "startedAt": "2026-07-15T02:30:31.075Z",
-          "durationMs": 1,
+          "startedAt": "2026-07-15T13:49:37.692Z",
+          "durationMs": 0,
           "outcome": "76 events",
           "detail": {
             "events": 76
@@ -1905,7 +478,7 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 2,
           "stage": "detect",
-          "startedAt": "2026-07-15T02:30:31.077Z",
+          "startedAt": "2026-07-15T13:49:37.692Z",
           "durationMs": 0,
           "outcome": "24 actionable",
           "detail": {
@@ -1915,8 +488,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 3,
           "stage": "dedupe",
-          "startedAt": "2026-07-15T02:30:31.078Z",
-          "durationMs": 0,
+          "startedAt": "2026-07-15T13:49:37.692Z",
+          "durationMs": 1,
           "outcome": "4 new incidents",
           "detail": {
             "incidents": 4,
@@ -1926,8 +499,8 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 4,
           "stage": "reproduce",
-          "startedAt": "2026-07-15T02:30:31.080Z",
-          "durationMs": 129,
+          "startedAt": "2026-07-15T13:49:37.693Z",
+          "durationMs": 128,
           "outcome": "3 reproduced",
           "detail": {
             "reproduced": 3
@@ -1936,18 +509,24 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 5,
           "stage": "route",
-          "startedAt": "2026-07-15T02:30:31.210Z",
-          "durationMs": 0,
+          "startedAt": "2026-07-15T13:49:37.821Z",
+          "durationMs": 11088,
           "outcome": "3 mechanical",
           "detail": {
             "mechanical": 3,
             "needsHuman": 1
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 4,
+            "outputTokens": 532,
+            "usd": 0.05003339999999999
           }
         },
         {
           "seq": 6,
           "stage": "ticket",
-          "startedAt": "2026-07-15T02:30:31.211Z",
+          "startedAt": "2026-07-15T13:49:48.909Z",
           "durationMs": 1,
           "outcome": "4 issues",
           "detail": {
@@ -1957,34 +536,34 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 7,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:30:31.397Z",
-          "durationMs": 248,
+          "startedAt": "2026-07-15T13:49:49.103Z",
+          "durationMs": 582,
           "outcome": "eligible",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
           }
         },
         {
           "seq": 8,
           "stage": "testgen",
-          "startedAt": "2026-07-15T02:30:31.645Z",
-          "durationMs": 50579,
+          "startedAt": "2026-07-15T13:49:49.685Z",
+          "durationMs": 1,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/post-orders-missing-customer.test.ts"
+              "apps/leaky-service/test/bug-loop-missing-customer-45b905d31f2fee6f.test.ts"
             ]
           }
         },
         {
           "seq": 9,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:31:22.224Z",
-          "durationMs": 20,
+          "startedAt": "2026-07-15T13:49:49.720Z",
+          "durationMs": 15,
           "outcome": "red established",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -1997,8 +576,477 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 10,
           "stage": "fix",
-          "startedAt": "2026-07-15T02:31:22.283Z",
-          "durationMs": 25405,
+          "startedAt": "2026-07-15T13:49:49.776Z",
+          "durationMs": 150703,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          },
+          "cost": {
+            "harness": "codex",
+            "model": "gpt-5.6-luna",
+            "totalTokens": 50142
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T13:52:20.479Z",
+          "durationMs": 2053,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:52:22.724Z",
+          "durationMs": 0,
+          "outcome": "eligible",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 13,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:52:22.724Z",
+          "durationMs": 48954,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-invalid-since-9ac0e1f8959488d2.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T13:53:11.710Z",
+          "durationMs": 17,
+          "outcome": "red established",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "fix",
+          "startedAt": "2026-07-15T13:53:11.767Z",
+          "durationMs": 116175,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          },
+          "cost": {
+            "harness": "codex",
+            "model": "gpt-5.6-luna",
+            "totalTokens": 58528
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "verify",
+          "startedAt": "2026-07-15T13:55:07.942Z",
+          "durationMs": 1890,
+          "outcome": "verified",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:55:10.106Z",
+          "durationMs": 0,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:55:10.106Z",
+          "durationMs": 0,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-shipping-timeout-fd024683a08fdf81.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 19,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T13:55:10.137Z",
+          "durationMs": 15,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 20,
+          "stage": "fix",
+          "startedAt": "2026-07-15T13:55:10.191Z",
+          "durationMs": 172493,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          },
+          "cost": {
+            "harness": "codex",
+            "model": "gpt-5.6-luna",
+            "totalTokens": 63464
+          }
+        },
+        {
+          "seq": 21,
+          "stage": "verify",
+          "startedAt": "2026-07-15T13:58:02.684Z",
+          "durationMs": 2347,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:58:05.032Z",
+          "durationMs": 781,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:58:05.813Z",
+          "durationMs": 727,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 24,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:58:06.540Z",
+          "durationMs": 680,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "env"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "codex",
+          "requestedModel": "gpt-5.6-luna",
+          "effectiveModel": "gpt-5.6-luna",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v1",
+        "seed": 42,
+        "caseCount": 50,
+        "codeRevision": "a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "codex",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:9ac0e1f8959488d2",
+          "attemptId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:9ac0e1f8959488d2:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 11086.760625,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 4,
+            "outputTokens": 532,
+            "usd": 0.05003339999999999
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "fixer",
+          "fingerprint": "45b905d31f2fee6f",
+          "correlationId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:45b905d31f2fee6f",
+          "attemptId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:45b905d31f2fee6f:fix:1",
+          "harness": "codex",
+          "effectiveModel": "gpt-5.6-luna",
+          "effort": null,
+          "durationMs": 150703,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "tokens-only",
+            "totalTokens": 50142
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "testWriter",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:9ac0e1f8959488d2",
+          "attemptId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:9ac0e1f8959488d2:testgen:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 48954,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "fixer",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:9ac0e1f8959488d2",
+          "attemptId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:9ac0e1f8959488d2:fix:1",
+          "harness": "codex",
+          "effectiveModel": "gpt-5.6-luna",
+          "effort": null,
+          "durationMs": 116175,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "tokens-only",
+            "totalTokens": 58528
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "fixer",
+          "fingerprint": "fd024683a08fdf81",
+          "correlationId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:fd024683a08fdf81",
+          "attemptId": "3dcf2348-d81b-4ddc-b995-8dd6c7391f10:fd024683a08fdf81:fix:1",
+          "harness": "codex",
+          "effectiveModel": "gpt-5.6-luna",
+          "effort": null,
+          "durationMs": 172493,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "tokens-only",
+            "totalTokens": 63464
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "grok-low",
+    "workloadKey": "leaky-service-seeded-v1|42|50|a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:low|grok:unknown:low|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad",
+      "startedAt": "2026-07-15T13:45:38.297Z",
+      "finishedAt": "2026-07-15T13:47:28.722Z",
+      "label": "grok-low",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T13:45:38.297Z",
+          "durationMs": 1,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T13:45:38.298Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T13:45:38.298Z",
+          "durationMs": 0,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T13:45:38.298Z",
+          "durationMs": 129,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T13:45:38.427Z",
+          "durationMs": 12605,
+          "outcome": "3 mechanical",
+          "detail": {
+            "mechanical": 3,
+            "needsHuman": 1
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 6,
+            "outputTokens": 696,
+            "usd": 0.062923
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T13:45:51.032Z",
+          "durationMs": 1,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:45:51.233Z",
+          "durationMs": 488,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:45:51.721Z",
+          "durationMs": 0,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-missing-customer-45b905d31f2fee6f.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T13:45:51.745Z",
+          "durationMs": 13,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T13:45:51.791Z",
+          "durationMs": 21372,
           "outcome": "attempt 1",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
@@ -2011,58 +1059,50 @@ window.BUGLOOP_RUNS = [
         {
           "seq": 11,
           "stage": "verify",
-          "startedAt": "2026-07-15T02:31:47.691Z",
-          "durationMs": 1504,
+          "startedAt": "2026-07-15T13:46:13.163Z",
+          "durationMs": 1783,
           "outcome": "verified",
           "fingerprint": "45b905d31f2fee6f",
           "detail": {
             "attempt": 1,
             "scopePasses": true,
+            "regressionTestPasses": true,
             "reproPasses": true,
             "testsPass": true,
-            "regressionTestPasses": true,
             "typecheckPasses": true
           }
         },
         {
           "seq": 12,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:31:49.197Z",
-          "durationMs": 604,
-          "outcome": "completed",
-          "fingerprint": "45b905d31f2fee6f"
-        },
-        {
-          "seq": 13,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:31:49.979Z",
-          "durationMs": 243,
+          "startedAt": "2026-07-15T13:46:15.110Z",
+          "durationMs": 0,
           "outcome": "eligible",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
           }
         },
         {
-          "seq": 14,
+          "seq": 13,
           "stage": "testgen",
-          "startedAt": "2026-07-15T02:31:50.222Z",
-          "durationMs": 79128,
+          "startedAt": "2026-07-15T13:46:15.110Z",
+          "durationMs": 41475,
           "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/orders-invalid-since.test.ts"
+              "apps/leaky-service/test/invalid-since-regression.test.ts"
             ]
           }
         },
         {
-          "seq": 15,
+          "seq": 14,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:33:09.350Z",
-          "durationMs": 19,
+          "startedAt": "2026-07-15T13:46:56.614Z",
+          "durationMs": 15,
           "outcome": "red established",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -2073,10 +1113,10 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 16,
+          "seq": 15,
           "stage": "fix",
-          "startedAt": "2026-07-15T02:33:09.400Z",
-          "durationMs": 18566,
+          "startedAt": "2026-07-15T13:46:56.660Z",
+          "durationMs": 10397,
           "outcome": "attempt 1",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
@@ -2087,60 +1127,507 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 17,
+          "seq": 16,
           "stage": "verify",
-          "startedAt": "2026-07-15T02:33:27.970Z",
-          "durationMs": 1533,
+          "startedAt": "2026-07-15T13:47:07.057Z",
+          "durationMs": 1831,
           "outcome": "verified",
           "fingerprint": "9ac0e1f8959488d2",
           "detail": {
             "attempt": 1,
             "scopePasses": true,
+            "regressionTestPasses": true,
             "reproPasses": true,
             "testsPass": true,
-            "regressionTestPasses": true,
             "typecheckPasses": true
           }
         },
         {
-          "seq": 18,
-          "stage": "pr",
-          "startedAt": "2026-07-15T02:33:29.504Z",
-          "durationMs": 622,
-          "outcome": "completed",
-          "fingerprint": "9ac0e1f8959488d2"
-        },
-        {
-          "seq": 19,
+          "seq": 17,
           "stage": "verify-test-eligibility",
-          "startedAt": "2026-07-15T02:33:30.301Z",
-          "durationMs": 246,
+          "startedAt": "2026-07-15T13:47:09.061Z",
+          "durationMs": 0,
           "outcome": "eligible",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "suitePasses": true,
-            "detail": "eligible: deterministic repro and green pre-fix suite - 105 pass, 0 fail"
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
           }
         },
         {
-          "seq": 20,
+          "seq": 18,
           "stage": "testgen",
-          "startedAt": "2026-07-15T02:33:30.547Z",
-          "durationMs": 95515,
+          "startedAt": "2026-07-15T13:47:09.061Z",
+          "durationMs": 0,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "attempt": 1,
             "filesChanged": [
-              "apps/leaky-service/test/ship-provider-rejection.test.ts"
+              "apps/leaky-service/test/bug-loop-shipping-timeout-fd024683a08fdf81.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 19,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T13:47:09.088Z",
+          "durationMs": 13,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 20,
+          "stage": "fix",
+          "startedAt": "2026-07-15T13:47:09.132Z",
+          "durationMs": 15464,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
             ]
           }
         },
         {
           "seq": 21,
+          "stage": "verify",
+          "startedAt": "2026-07-15T13:47:24.596Z",
+          "durationMs": 2073,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:47:26.670Z",
+          "durationMs": 673,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:47:27.343Z",
+          "durationMs": 686,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 24,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:47:28.029Z",
+          "durationMs": 693,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "env"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": "low",
+          "source": "env"
+        },
+        "fixer": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": "low",
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v1",
+        "seed": 42,
+        "caseCount": 50,
+        "codeRevision": "a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "grok",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:9ac0e1f8959488d2",
+          "attemptId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:9ac0e1f8959488d2:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 12603.897708,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 696,
+            "usd": 0.062923
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "fixer",
+          "fingerprint": "45b905d31f2fee6f",
+          "correlationId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:45b905d31f2fee6f",
+          "attemptId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:45b905d31f2fee6f:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": "low",
+          "durationMs": 21372,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "testWriter",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:9ac0e1f8959488d2",
+          "attemptId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:9ac0e1f8959488d2:testgen:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": "low",
+          "durationMs": 41475,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "fixer",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:9ac0e1f8959488d2",
+          "attemptId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:9ac0e1f8959488d2:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": "low",
+          "durationMs": 10397,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "fixer",
+          "fingerprint": "fd024683a08fdf81",
+          "correlationId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:fd024683a08fdf81",
+          "attemptId": "7fd15b4b-06e8-44ef-a6d1-eb1be5d37fad:fd024683a08fdf81:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": "low",
+          "durationMs": 15464,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "haiku-triage",
+    "workloadKey": "leaky-service-seeded-v1|42|50|a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:haiku:none|grok:unknown:none|grok:unknown:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "a3102795-6309-4bc3-8058-8b93975716fb",
+      "startedAt": "2026-07-15T13:47:29.319Z",
+      "finishedAt": "2026-07-15T13:49:37.103Z",
+      "label": "haiku-triage",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T13:47:29.319Z",
+          "durationMs": 0,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T13:47:29.319Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T13:47:29.319Z",
+          "durationMs": 1,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T13:47:29.320Z",
+          "durationMs": 129,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T13:47:29.449Z",
+          "durationMs": 19403,
+          "outcome": "3 mechanical",
+          "detail": {
+            "mechanical": 3,
+            "needsHuman": 1
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "model": "claude-haiku-4-5-20251001",
+            "inputTokens": 3942,
+            "outputTokens": 931,
+            "usd": 0.069302
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T13:47:48.853Z",
+          "durationMs": 1,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:47:49.055Z",
+          "durationMs": 487,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:47:49.542Z",
+          "durationMs": 1,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-missing-customer-45b905d31f2fee6f.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
           "stage": "verify-test-red",
-          "startedAt": "2026-07-15T02:35:06.062Z",
-          "durationMs": 35,
+          "startedAt": "2026-07-15T13:47:49.568Z",
+          "durationMs": 13,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T13:47:49.614Z",
+          "durationMs": 18596,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T13:48:08.210Z",
+          "durationMs": 1870,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:48:10.252Z",
+          "durationMs": 0,
+          "outcome": "eligible",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 13,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:48:10.252Z",
+          "durationMs": 48727,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-invalid-since-9ac0e1f8959488d2.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T13:48:59.013Z",
+          "durationMs": 18,
+          "outcome": "red established",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "fix",
+          "startedAt": "2026-07-15T13:48:59.071Z",
+          "durationMs": 12998,
+          "outcome": "attempt 1",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "verify",
+          "startedAt": "2026-07-15T13:49:12.069Z",
+          "durationMs": 2043,
+          "outcome": "verified",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:49:14.298Z",
+          "durationMs": 0,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:49:14.298Z",
+          "durationMs": 1,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-shipping-timeout-fd024683a08fdf81.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 19,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T13:49:14.334Z",
+          "durationMs": 14,
           "outcome": "red established",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -2151,10 +1638,10 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 22,
+          "seq": 20,
           "stage": "fix",
-          "startedAt": "2026-07-15T02:35:06.127Z",
-          "durationMs": 40337,
+          "startedAt": "2026-07-15T13:49:14.390Z",
+          "durationMs": 18631,
           "outcome": "attempt 1",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
@@ -2165,78 +1652,3245 @@ window.BUGLOOP_RUNS = [
           }
         },
         {
-          "seq": 23,
+          "seq": 21,
           "stage": "verify",
-          "startedAt": "2026-07-15T02:35:46.467Z",
-          "durationMs": 1774,
+          "startedAt": "2026-07-15T13:49:33.021Z",
+          "durationMs": 2115,
           "outcome": "verified",
           "fingerprint": "fd024683a08fdf81",
           "detail": {
             "attempt": 1,
             "scopePasses": true,
+            "regressionTestPasses": true,
             "reproPasses": true,
             "testsPass": true,
-            "regressionTestPasses": true,
             "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 22,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:49:35.136Z",
+          "durationMs": 654,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 23,
+          "stage": "pr",
+          "startedAt": "2026-07-15T13:49:35.790Z",
+          "durationMs": 666,
+          "outcome": "completed",
+          "fingerprint": "9ac0e1f8959488d2",
+          "detail": {
+            "issueNumber": 9001
           }
         },
         {
           "seq": 24,
           "stage": "pr",
-          "startedAt": "2026-07-15T02:35:48.242Z",
-          "durationMs": 608,
+          "startedAt": "2026-07-15T13:49:36.456Z",
+          "durationMs": 647,
           "outcome": "completed",
-          "fingerprint": "fd024683a08fdf81"
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
         }
       ],
-      "pipeline": "langgraph",
-      "config": {
-        "fixer": "unknown-v1",
-        "regressionTests": "triage-decides",
-        "maxFixAttempts": 2
-      },
       "resolved": {
-        "pipeline": "langgraph",
+        "pipeline": "agent-sdk",
         "triage": {
-          "harness": "unknown-v1",
-          "requestedModel": null,
-          "effectiveModel": null,
+          "harness": "claude-agent-sdk",
+          "requestedModel": "haiku",
+          "effectiveModel": "haiku",
           "effort": null,
-          "source": "unknown-v1"
+          "source": "env"
         },
         "testWriter": {
-          "harness": "unknown-v1",
+          "harness": "grok",
           "requestedModel": null,
           "effectiveModel": null,
           "effort": null,
-          "source": "unknown-v1"
+          "source": "default"
         },
         "fixer": {
-          "harness": "unknown-v1",
+          "harness": "grok",
           "requestedModel": null,
           "effectiveModel": null,
           "effort": null,
-          "source": "unknown-v1"
+          "source": "env"
         },
         "regressionTests": "triage-decides",
         "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
         "mode": {
-          "fix": "unknown-v1",
-          "live": "unknown-v1",
-          "fromStart": "unknown-v1"
+          "fix": true,
+          "live": false,
+          "fromStart": true
         }
       },
       "workload": {
-        "benchmarkId": "unknown-v1",
-        "seed": null,
-        "caseCount": null,
-        "codeRevision": "unknown-v1"
+        "benchmarkId": "leaky-service-seeded-v1",
+        "seed": 42,
+        "caseCount": 50,
+        "codeRevision": "a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c"
       },
-      "agentCalls": [],
-      "compatibility": {
-        "resolved": "unknown-v1",
-        "workload": "unknown-v1"
-      }
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "grok",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "a3102795-6309-4bc3-8058-8b93975716fb:9ac0e1f8959488d2",
+          "attemptId": "a3102795-6309-4bc3-8058-8b93975716fb:9ac0e1f8959488d2:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "claude-haiku-4-5-20251001",
+          "effort": null,
+          "durationMs": 19401.517000000003,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 3942,
+            "outputTokens": 931,
+            "usd": 0.069302
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "fixer",
+          "fingerprint": "45b905d31f2fee6f",
+          "correlationId": "a3102795-6309-4bc3-8058-8b93975716fb:45b905d31f2fee6f",
+          "attemptId": "a3102795-6309-4bc3-8058-8b93975716fb:45b905d31f2fee6f:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 18596,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "testWriter",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "a3102795-6309-4bc3-8058-8b93975716fb:9ac0e1f8959488d2",
+          "attemptId": "a3102795-6309-4bc3-8058-8b93975716fb:9ac0e1f8959488d2:testgen:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 48727,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "fixer",
+          "fingerprint": "9ac0e1f8959488d2",
+          "correlationId": "a3102795-6309-4bc3-8058-8b93975716fb:9ac0e1f8959488d2",
+          "attemptId": "a3102795-6309-4bc3-8058-8b93975716fb:9ac0e1f8959488d2:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 12998,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "fixer",
+          "fingerprint": "fd024683a08fdf81",
+          "correlationId": "a3102795-6309-4bc3-8058-8b93975716fb:fd024683a08fdf81",
+          "attemptId": "a3102795-6309-4bc3-8058-8b93975716fb:fd024683a08fdf81:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 18631,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "langgraph-codex",
+    "workloadKey": "leaky-service-seeded-v1|42|50|a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c",
+    "resolvedConfigKey": "langgraph|policy-only:unknown:none|grok:unknown:none|codex:unknown:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "0a86238a-79bf-4a25-81bc-395c395ff0df",
+      "startedAt": "2026-07-15T13:58:07.849Z",
+      "finishedAt": "2026-07-15T14:03:07.469Z",
+      "label": "langgraph-codex",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T13:58:07.860Z",
+          "durationMs": 0,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T13:58:07.862Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T13:58:07.863Z",
+          "durationMs": 0,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T13:58:07.865Z",
+          "durationMs": 130,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T13:58:07.996Z",
+          "durationMs": 0,
+          "outcome": "2 mechanical",
+          "detail": {
+            "mechanical": 2,
+            "needsHuman": 2
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T13:58:07.997Z",
+          "durationMs": 1,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T13:58:08.189Z",
+          "durationMs": 566,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T13:58:08.755Z",
+          "durationMs": 0,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-missing-customer-45b905d31f2fee6f.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T13:58:08.787Z",
+          "durationMs": 14,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T13:58:08.842Z",
+          "durationMs": 129198,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          },
+          "cost": {
+            "harness": "codex",
+            "model": "gpt-5.6-sol",
+            "totalTokens": 48668
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T14:00:18.040Z",
+          "durationMs": 2043,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T14:00:20.264Z",
+          "durationMs": 0,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 13,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T14:00:20.264Z",
+          "durationMs": 1,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-shipping-timeout-fd024683a08fdf81.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T14:00:20.295Z",
+          "durationMs": 14,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "fix",
+          "startedAt": "2026-07-15T14:00:20.350Z",
+          "durationMs": 163554,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          },
+          "cost": {
+            "harness": "codex",
+            "model": "gpt-5.6-sol",
+            "totalTokens": 54981
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "verify",
+          "startedAt": "2026-07-15T14:03:03.904Z",
+          "durationMs": 2217,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "pr",
+          "startedAt": "2026-07-15T14:03:06.121Z",
+          "durationMs": 662,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "pr",
+          "startedAt": "2026-07-15T14:03:06.783Z",
+          "durationMs": 684,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "langgraph",
+        "triage": {
+          "harness": "policy-only",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "codex",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v1",
+        "seed": 42,
+        "caseCount": 50,
+        "codeRevision": "a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c"
+      },
+      "pipeline": "langgraph",
+      "config": {
+        "fixer": "codex",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "fixer",
+          "fingerprint": "45b905d31f2fee6f",
+          "correlationId": "0a86238a-79bf-4a25-81bc-395c395ff0df:45b905d31f2fee6f",
+          "attemptId": "0a86238a-79bf-4a25-81bc-395c395ff0df:45b905d31f2fee6f:fix:1",
+          "harness": "codex",
+          "effectiveModel": "gpt-5.6-sol",
+          "effort": null,
+          "durationMs": 129198,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "tokens-only",
+            "totalTokens": 48668
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "fixer",
+          "fingerprint": "fd024683a08fdf81",
+          "correlationId": "0a86238a-79bf-4a25-81bc-395c395ff0df:fd024683a08fdf81",
+          "attemptId": "0a86238a-79bf-4a25-81bc-395c395ff0df:fd024683a08fdf81:fix:1",
+          "harness": "codex",
+          "effectiveModel": "gpt-5.6-sol",
+          "effort": null,
+          "durationMs": 163554,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "tokens-only",
+            "totalTokens": 54981
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "langgraph-grok",
+    "workloadKey": "leaky-service-seeded-v1|42|50|a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c",
+    "resolvedConfigKey": "langgraph|policy-only:unknown:none|grok:unknown:none|grok:unknown:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "d4d8d573-ce8c-4aae-a182-476ac5b97c6b",
+      "startedAt": "2026-07-15T14:03:08.088Z",
+      "finishedAt": "2026-07-15T14:04:19.227Z",
+      "label": "langgraph-grok",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-15T14:03:08.101Z",
+          "durationMs": 0,
+          "outcome": "76 events",
+          "detail": {
+            "events": 76
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-15T14:03:08.103Z",
+          "durationMs": 0,
+          "outcome": "24 actionable",
+          "detail": {
+            "actionable": 24
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-15T14:03:08.104Z",
+          "durationMs": 0,
+          "outcome": "4 new incidents",
+          "detail": {
+            "incidents": 4,
+            "newIncidents": 4
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-15T14:03:08.106Z",
+          "durationMs": 129,
+          "outcome": "3 reproduced",
+          "detail": {
+            "reproduced": 3
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-15T14:03:08.236Z",
+          "durationMs": 0,
+          "outcome": "2 mechanical",
+          "detail": {
+            "mechanical": 2,
+            "needsHuman": 2
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-15T14:03:08.237Z",
+          "durationMs": 1,
+          "outcome": "4 issues",
+          "detail": {
+            "issuesFiled": 4
+          }
+        },
+        {
+          "seq": 7,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T14:03:08.432Z",
+          "durationMs": 548,
+          "outcome": "eligible",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 8,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T14:03:08.980Z",
+          "durationMs": 1,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-missing-customer-45b905d31f2fee6f.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 9,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T14:03:09.014Z",
+          "durationMs": 14,
+          "outcome": "red established",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 10,
+          "stage": "fix",
+          "startedAt": "2026-07-15T14:03:09.066Z",
+          "durationMs": 19666,
+          "outcome": "attempt 1",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 11,
+          "stage": "verify",
+          "startedAt": "2026-07-15T14:03:28.732Z",
+          "durationMs": 1984,
+          "outcome": "verified",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 12,
+          "stage": "verify-test-eligibility",
+          "startedAt": "2026-07-15T14:03:30.909Z",
+          "durationMs": 0,
+          "outcome": "eligible",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "suitePasses": true,
+            "detail": "eligible: deterministic repro and green pre-fix suite - 136 pass, 0 fail"
+          }
+        },
+        {
+          "seq": 13,
+          "stage": "testgen",
+          "startedAt": "2026-07-15T14:03:30.909Z",
+          "durationMs": 0,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/test/bug-loop-shipping-timeout-fd024683a08fdf81.test.ts"
+            ]
+          }
+        },
+        {
+          "seq": 14,
+          "stage": "verify-test-red",
+          "startedAt": "2026-07-15T14:03:30.938Z",
+          "durationMs": 14,
+          "outcome": "red established",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "testPassedOnBase": false,
+            "detail": "0 pass, 1 fail"
+          }
+        },
+        {
+          "seq": 15,
+          "stage": "fix",
+          "startedAt": "2026-07-15T14:03:30.990Z",
+          "durationMs": 44709,
+          "outcome": "attempt 1",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "filesChanged": [
+              "apps/leaky-service/src/server.ts"
+            ]
+          }
+        },
+        {
+          "seq": 16,
+          "stage": "verify",
+          "startedAt": "2026-07-15T14:04:15.699Z",
+          "durationMs": 2176,
+          "outcome": "verified",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "attempt": 1,
+            "scopePasses": true,
+            "regressionTestPasses": true,
+            "reproPasses": true,
+            "testsPass": true,
+            "typecheckPasses": true
+          }
+        },
+        {
+          "seq": 17,
+          "stage": "pr",
+          "startedAt": "2026-07-15T14:04:17.875Z",
+          "durationMs": 683,
+          "outcome": "completed",
+          "fingerprint": "45b905d31f2fee6f",
+          "detail": {
+            "issueNumber": 9001
+          }
+        },
+        {
+          "seq": 18,
+          "stage": "pr",
+          "startedAt": "2026-07-15T14:04:18.558Z",
+          "durationMs": 667,
+          "outcome": "completed",
+          "fingerprint": "fd024683a08fdf81",
+          "detail": {
+            "issueNumber": 9001
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "langgraph",
+        "triage": {
+          "harness": "policy-only",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v1",
+        "seed": 42,
+        "caseCount": 50,
+        "codeRevision": "a03f7d48d4fcb6d65dfe2c594d9fd87adc5a575c"
+      },
+      "pipeline": "langgraph",
+      "config": {
+        "fixer": "grok",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "fixer",
+          "fingerprint": "45b905d31f2fee6f",
+          "correlationId": "d4d8d573-ce8c-4aae-a182-476ac5b97c6b:45b905d31f2fee6f",
+          "attemptId": "d4d8d573-ce8c-4aae-a182-476ac5b97c6b:45b905d31f2fee6f:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 19666,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "fixer",
+          "fingerprint": "fd024683a08fdf81",
+          "correlationId": "d4d8d573-ce8c-4aae-a182-476ac5b97c6b:fd024683a08fdf81",
+          "attemptId": "d4d8d573-ce8c-4aae-a182-476ac5b97c6b:fd024683a08fdf81:fix:1",
+          "harness": "grok",
+          "effectiveModel": null,
+          "effort": null,
+          "durationMs": 44709,
+          "outcome": "attempt 1",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-deepseek-v4-pro-t1",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/deepseek/deepseek-v4-pro:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "9b98c7ff-f422-451f-ba75-9a86e8658d7d",
+      "startedAt": "2026-07-16T14:54:15.580Z",
+      "finishedAt": "2026-07-16T14:54:41.318Z",
+      "label": "or-deepseek-v4-pro-t1",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:54:15.580Z",
+          "durationMs": 0,
+          "outcome": "85 events",
+          "detail": {
+            "events": 85
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:54:15.580Z",
+          "durationMs": 0,
+          "outcome": "3 actionable",
+          "detail": {
+            "actionable": 3
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:54:15.580Z",
+          "durationMs": 1,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:54:15.581Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:54:15.587Z",
+          "durationMs": 25728,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 12,
+            "outputTokens": 1740,
+            "usd": 0.35595899999999997
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:54:41.316Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/deepseek/deepseek-v4-pro",
+          "effectiveModel": "openrouter/deepseek/deepseek-v4-pro",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "9b98c7ff-f422-451f-ba75-9a86e8658d7d:9167fae1a700943c",
+          "attemptId": "9b98c7ff-f422-451f-ba75-9a86e8658d7d:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 12627.339667,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 849,
+            "usd": 0.2904826
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "9b98c7ff-f422-451f-ba75-9a86e8658d7d:388fd083ab6d90d1",
+          "attemptId": "9b98c7ff-f422-451f-ba75-9a86e8658d7d:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 13099.597916,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 891,
+            "usd": 0.0654764
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-deepseek-v4-pro-t2",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/deepseek/deepseek-v4-pro:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "a92da310-d99e-4758-ac8a-77c4d87ca5a3",
+      "startedAt": "2026-07-16T14:54:41.928Z",
+      "finishedAt": "2026-07-16T14:55:40.061Z",
+      "label": "or-deepseek-v4-pro-t2",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:54:41.928Z",
+          "durationMs": 0,
+          "outcome": "77 events",
+          "detail": {
+            "events": 77
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:54:41.928Z",
+          "durationMs": 0,
+          "outcome": "2 actionable",
+          "detail": {
+            "actionable": 2
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:54:41.928Z",
+          "durationMs": 1,
+          "outcome": "2 new incidents",
+          "detail": {
+            "incidents": 2,
+            "newIncidents": 2
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:54:41.929Z",
+          "durationMs": 6,
+          "outcome": "1 reproduced",
+          "detail": {
+            "reproduced": 1
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:54:41.935Z",
+          "durationMs": 58124,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 2
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 12,
+            "outputTokens": 1447,
+            "usd": 0.1201756
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:55:40.059Z",
+          "durationMs": 2,
+          "outcome": "2 issues",
+          "detail": {
+            "issuesFiled": 2
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/deepseek/deepseek-v4-pro",
+          "effectiveModel": "openrouter/deepseek/deepseek-v4-pro",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "a92da310-d99e-4758-ac8a-77c4d87ca5a3:9167fae1a700943c",
+          "attemptId": "a92da310-d99e-4758-ac8a-77c4d87ca5a3:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 58122.534042,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 12,
+            "outputTokens": 1447,
+            "usd": 0.1201756
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-deepseek-v4-pro-t3",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/deepseek/deepseek-v4-pro:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "3aaba59a-1663-4504-9f6b-fe0721246673",
+      "startedAt": "2026-07-16T14:55:40.755Z",
+      "finishedAt": "2026-07-16T14:56:15.405Z",
+      "label": "or-deepseek-v4-pro-t3",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:55:40.755Z",
+          "durationMs": 0,
+          "outcome": "82 events",
+          "detail": {
+            "events": 82
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:55:40.755Z",
+          "durationMs": 0,
+          "outcome": "4 actionable",
+          "detail": {
+            "actionable": 4
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:55:40.755Z",
+          "durationMs": 1,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:55:40.756Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:55:40.762Z",
+          "durationMs": 34641,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 14,
+            "outputTokens": 1816,
+            "usd": 0.31221279999999996
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:56:15.404Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/deepseek/deepseek-v4-pro",
+          "effectiveModel": "openrouter/deepseek/deepseek-v4-pro",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "3aaba59a-1663-4504-9f6b-fe0721246673:9167fae1a700943c",
+          "attemptId": "3aaba59a-1663-4504-9f6b-fe0721246673:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 25195.608458,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 10,
+            "outputTokens": 1165,
+            "usd": 0.22851049999999998
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "3aaba59a-1663-4504-9f6b-fe0721246673:388fd083ab6d90d1",
+          "attemptId": "3aaba59a-1663-4504-9f6b-fe0721246673:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 9444.078792,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 4,
+            "outputTokens": 651,
+            "usd": 0.0837023
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-glm-5.2-t1",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/z-ai/glm-5.2:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "32b65ef7-179a-4902-9158-3c59a2744f91",
+      "startedAt": "2026-07-16T14:59:16.566Z",
+      "finishedAt": "2026-07-16T14:59:16.574Z",
+      "label": "or-glm-5.2-t1",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:59:16.566Z",
+          "durationMs": 1,
+          "outcome": "81 events",
+          "detail": {
+            "events": 81
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:59:16.567Z",
+          "durationMs": 0,
+          "outcome": "1 actionable",
+          "detail": {
+            "actionable": 1
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:59:16.567Z",
+          "durationMs": 0,
+          "outcome": "1 new incidents",
+          "detail": {
+            "incidents": 1,
+            "newIncidents": 1
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:59:16.567Z",
+          "durationMs": 6,
+          "outcome": "0 reproduced",
+          "detail": {
+            "reproduced": 0
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:59:16.573Z",
+          "durationMs": 0,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 1
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:59:16.573Z",
+          "durationMs": 1,
+          "outcome": "1 issues",
+          "detail": {
+            "issuesFiled": 1
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/z-ai/glm-5.2",
+          "effectiveModel": "openrouter/z-ai/glm-5.2",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": []
+    }
+  },
+  {
+    "label": "or-glm-5.2-t2",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/z-ai/glm-5.2:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "ffb25122-cbab-459f-a2a0-dc1765733870",
+      "startedAt": "2026-07-16T14:59:17.236Z",
+      "finishedAt": "2026-07-16T14:59:39.808Z",
+      "label": "or-glm-5.2-t2",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:59:17.236Z",
+          "durationMs": 1,
+          "outcome": "81 events",
+          "detail": {
+            "events": 81
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:59:17.237Z",
+          "durationMs": 0,
+          "outcome": "4 actionable",
+          "detail": {
+            "actionable": 4
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:59:17.237Z",
+          "durationMs": 0,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:59:17.237Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:59:17.243Z",
+          "durationMs": 22563,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 10,
+            "outputTokens": 1459,
+            "usd": 0.1175253
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:59:39.807Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/z-ai/glm-5.2",
+          "effectiveModel": "openrouter/z-ai/glm-5.2",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "ffb25122-cbab-459f-a2a0-dc1765733870:9167fae1a700943c",
+          "attemptId": "ffb25122-cbab-459f-a2a0-dc1765733870:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 10061.363459,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 4,
+            "outputTokens": 614,
+            "usd": 0.0520713
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "ffb25122-cbab-459f-a2a0-dc1765733870:388fd083ab6d90d1",
+          "attemptId": "ffb25122-cbab-459f-a2a0-dc1765733870:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 12499.963459,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 845,
+            "usd": 0.065454
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-glm-5.2-t3",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/z-ai/glm-5.2:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "ca6a0474-1485-42cc-86ab-2c0289525f41",
+      "startedAt": "2026-07-16T14:59:40.493Z",
+      "finishedAt": "2026-07-16T15:00:17.318Z",
+      "label": "or-glm-5.2-t3",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:59:40.493Z",
+          "durationMs": 0,
+          "outcome": "79 events",
+          "detail": {
+            "events": 79
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:59:40.493Z",
+          "durationMs": 1,
+          "outcome": "3 actionable",
+          "detail": {
+            "actionable": 3
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:59:40.494Z",
+          "durationMs": 0,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:59:40.494Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:59:40.500Z",
+          "durationMs": 36815,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 16,
+            "outputTokens": 2116,
+            "usd": 0.2920741
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T15:00:17.316Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/z-ai/glm-5.2",
+          "effectiveModel": "openrouter/z-ai/glm-5.2",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "ca6a0474-1485-42cc-86ab-2c0289525f41:9167fae1a700943c",
+          "attemptId": "ca6a0474-1485-42cc-86ab-2c0289525f41:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 19935.946,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 10,
+            "outputTokens": 1255,
+            "usd": 0.2278268
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "ca6a0474-1485-42cc-86ab-2c0289525f41:388fd083ab6d90d1",
+          "attemptId": "ca6a0474-1485-42cc-86ab-2c0289525f41:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 16877.611042,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 861,
+            "usd": 0.06424730000000001
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-kimi-k2.7-code-t1",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/moonshotai/kimi-k2.7-code:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "3bb7bd8a-7998-44e2-b7ca-4d28ddab6daf",
+      "startedAt": "2026-07-16T15:00:18.016Z",
+      "finishedAt": "2026-07-16T15:00:57.841Z",
+      "label": "or-kimi-k2.7-code-t1",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T15:00:18.016Z",
+          "durationMs": 0,
+          "outcome": "84 events",
+          "detail": {
+            "events": 84
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T15:00:18.016Z",
+          "durationMs": 1,
+          "outcome": "4 actionable",
+          "detail": {
+            "actionable": 4
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T15:00:18.017Z",
+          "durationMs": 0,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T15:00:18.017Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T15:00:18.023Z",
+          "durationMs": 39817,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 16,
+            "outputTokens": 2537,
+            "usd": 0.3035778
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T15:00:57.840Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/moonshotai/kimi-k2.7-code",
+          "effectiveModel": "openrouter/moonshotai/kimi-k2.7-code",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "3bb7bd8a-7998-44e2-b7ca-4d28ddab6daf:9167fae1a700943c",
+          "attemptId": "3bb7bd8a-7998-44e2-b7ca-4d28ddab6daf:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 12223.9755,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 4,
+            "outputTokens": 769,
+            "usd": 0.0514233
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "3bb7bd8a-7998-44e2-b7ca-4d28ddab6daf:388fd083ab6d90d1",
+          "attemptId": "3bb7bd8a-7998-44e2-b7ca-4d28ddab6daf:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 27590.976917,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 12,
+            "outputTokens": 1768,
+            "usd": 0.2521545
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-kimi-k2.7-code-t2",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/moonshotai/kimi-k2.7-code:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "f43b076e-1562-49ca-843f-f7183e365efb",
+      "startedAt": "2026-07-16T15:00:58.463Z",
+      "finishedAt": "2026-07-16T15:01:32.798Z",
+      "label": "or-kimi-k2.7-code-t2",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T15:00:58.463Z",
+          "durationMs": 1,
+          "outcome": "75 events",
+          "detail": {
+            "events": 75
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T15:00:58.464Z",
+          "durationMs": 0,
+          "outcome": "3 actionable",
+          "detail": {
+            "actionable": 3
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T15:00:58.464Z",
+          "durationMs": 0,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T15:00:58.464Z",
+          "durationMs": 7,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T15:00:58.471Z",
+          "durationMs": 34324,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 16,
+            "outputTokens": 2175,
+            "usd": 0.20296340000000002
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T15:01:32.796Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/moonshotai/kimi-k2.7-code",
+          "effectiveModel": "openrouter/moonshotai/kimi-k2.7-code",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "f43b076e-1562-49ca-843f-f7183e365efb:9167fae1a700943c",
+          "attemptId": "f43b076e-1562-49ca-843f-f7183e365efb:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 22728.207583,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 12,
+            "outputTokens": 1456,
+            "usd": 0.1555331
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "f43b076e-1562-49ca-843f-f7183e365efb:388fd083ab6d90d1",
+          "attemptId": "f43b076e-1562-49ca-843f-f7183e365efb:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 11594.137707999998,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 4,
+            "outputTokens": 719,
+            "usd": 0.04743030000000001
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-kimi-k2.7-code-t3",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/moonshotai/kimi-k2.7-code:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "ad3bc22f-8eca-4a15-9f2a-1ac46c2b2145",
+      "startedAt": "2026-07-16T15:01:33.403Z",
+      "finishedAt": "2026-07-16T15:01:58.631Z",
+      "label": "or-kimi-k2.7-code-t3",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T15:01:33.403Z",
+          "durationMs": 0,
+          "outcome": "80 events",
+          "detail": {
+            "events": 80
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T15:01:33.403Z",
+          "durationMs": 0,
+          "outcome": "3 actionable",
+          "detail": {
+            "actionable": 3
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T15:01:33.403Z",
+          "durationMs": 1,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T15:01:33.404Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T15:01:33.410Z",
+          "durationMs": 25220,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 12,
+            "outputTokens": 1549,
+            "usd": 0.1269651
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T15:01:58.630Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/moonshotai/kimi-k2.7-code",
+          "effectiveModel": "openrouter/moonshotai/kimi-k2.7-code",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "ad3bc22f-8eca-4a15-9f2a-1ac46c2b2145:9167fae1a700943c",
+          "attemptId": "ad3bc22f-8eca-4a15-9f2a-1ac46c2b2145:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 13173.241542,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 791,
+            "usd": 0.0633822
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "ad3bc22f-8eca-4a15-9f2a-1ac46c2b2145:388fd083ab6d90d1",
+          "attemptId": "ad3bc22f-8eca-4a15-9f2a-1ac46c2b2145:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 12045.173999999999,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 758,
+            "usd": 0.0635829
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-nemotron-3-super-120b-a12b-t1",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/nvidia/nemotron-3-super-120b-a12b:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "f3b2e046-cbd6-4129-a528-c145b53db9f8",
+      "startedAt": "2026-07-16T15:01:59.249Z",
+      "finishedAt": "2026-07-16T15:02:33.443Z",
+      "label": "or-nemotron-3-super-120b-a12b-t1",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T15:01:59.249Z",
+          "durationMs": 0,
+          "outcome": "71 events",
+          "detail": {
+            "events": 71
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T15:01:59.249Z",
+          "durationMs": 0,
+          "outcome": "3 actionable",
+          "detail": {
+            "actionable": 3
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T15:01:59.249Z",
+          "durationMs": 1,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T15:01:59.250Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T15:01:59.256Z",
+          "durationMs": 34184,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 14,
+            "outputTokens": 1870,
+            "usd": 0.1689529
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T15:02:33.441Z",
+          "durationMs": 2,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/nvidia/nemotron-3-super-120b-a12b",
+          "effectiveModel": "openrouter/nvidia/nemotron-3-super-120b-a12b",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "f3b2e046-cbd6-4129-a528-c145b53db9f8:9167fae1a700943c",
+          "attemptId": "f3b2e046-cbd6-4129-a528-c145b53db9f8:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 18837.481499999998,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 8,
+            "outputTokens": 1058,
+            "usd": 0.1058915
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "f3b2e046-cbd6-4129-a528-c145b53db9f8:388fd083ab6d90d1",
+          "attemptId": "f3b2e046-cbd6-4129-a528-c145b53db9f8:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 15344.665,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 812,
+            "usd": 0.06306139999999999
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-nemotron-3-super-120b-a12b-t2",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/nvidia/nemotron-3-super-120b-a12b:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "a1126ca5-18fc-493f-8a0a-bc524e1c871e",
+      "startedAt": "2026-07-16T15:02:34.123Z",
+      "finishedAt": "2026-07-16T15:03:12.362Z",
+      "label": "or-nemotron-3-super-120b-a12b-t2",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T15:02:34.123Z",
+          "durationMs": 1,
+          "outcome": "88 events",
+          "detail": {
+            "events": 88
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T15:02:34.124Z",
+          "durationMs": 0,
+          "outcome": "4 actionable",
+          "detail": {
+            "actionable": 4
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T15:02:34.124Z",
+          "durationMs": 0,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T15:02:34.124Z",
+          "durationMs": 8,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T15:02:34.132Z",
+          "durationMs": 38227,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "model": "claude-sonnet-5",
+            "inputTokens": 14,
+            "outputTokens": 2552,
+            "usd": 0.3372062
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T15:03:12.360Z",
+          "durationMs": 2,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/nvidia/nemotron-3-super-120b-a12b",
+          "effectiveModel": "openrouter/nvidia/nemotron-3-super-120b-a12b",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "a1126ca5-18fc-493f-8a0a-bc524e1c871e:9167fae1a700943c",
+          "attemptId": "a1126ca5-18fc-493f-8a0a-bc524e1c871e:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "claude-sonnet-5",
+          "effort": null,
+          "durationMs": 11850.908625,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 800,
+            "usd": 0.0632394
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "a1126ca5-18fc-493f-8a0a-bc524e1c871e:388fd083ab6d90d1",
+          "attemptId": "a1126ca5-18fc-493f-8a0a-bc524e1c871e:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 26375.118834,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 8,
+            "outputTokens": 1752,
+            "usd": 0.2739668
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-nemotron-3-super-120b-a12b-t3",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/nvidia/nemotron-3-super-120b-a12b:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "be87d82f-b97c-4fb3-81e9-94055c3abceb",
+      "startedAt": "2026-07-16T15:03:12.975Z",
+      "finishedAt": "2026-07-16T15:03:59.492Z",
+      "label": "or-nemotron-3-super-120b-a12b-t3",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T15:03:12.975Z",
+          "durationMs": 0,
+          "outcome": "81 events",
+          "detail": {
+            "events": 81
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T15:03:12.975Z",
+          "durationMs": 0,
+          "outcome": "3 actionable",
+          "detail": {
+            "actionable": 3
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T15:03:12.975Z",
+          "durationMs": 1,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T15:03:12.976Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T15:03:12.982Z",
+          "durationMs": 46508,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 16,
+            "outputTokens": 3075,
+            "usd": 0.1878491
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T15:03:59.491Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/nvidia/nemotron-3-super-120b-a12b",
+          "effectiveModel": "openrouter/nvidia/nemotron-3-super-120b-a12b",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "be87d82f-b97c-4fb3-81e9-94055c3abceb:9167fae1a700943c",
+          "attemptId": "be87d82f-b97c-4fb3-81e9-94055c3abceb:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 12938.193666000001,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 876,
+            "usd": 0.06333720000000001
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "be87d82f-b97c-4fb3-81e9-94055c3abceb:388fd083ab6d90d1",
+          "attemptId": "be87d82f-b97c-4fb3-81e9-94055c3abceb:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 33568.205625,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 10,
+            "outputTokens": 2199,
+            "usd": 0.1245119
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-qwen3-coder-t1",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/qwen/qwen3-coder:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "e41e30a4-658b-4692-a1a6-37875a8067ac",
+      "startedAt": "2026-07-16T14:56:16.100Z",
+      "finishedAt": "2026-07-16T14:56:54.338Z",
+      "label": "or-qwen3-coder-t1",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:56:16.100Z",
+          "durationMs": 1,
+          "outcome": "80 events",
+          "detail": {
+            "events": 80
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:56:16.101Z",
+          "durationMs": 0,
+          "outcome": "3 actionable",
+          "detail": {
+            "actionable": 3
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:56:16.101Z",
+          "durationMs": 0,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:56:16.101Z",
+          "durationMs": 7,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:56:16.108Z",
+          "durationMs": 38228,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 6,
+            "outputTokens": 714,
+            "usd": 0.1584079
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:56:54.336Z",
+          "durationMs": 2,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/qwen/qwen3-coder",
+          "effectiveModel": "openrouter/qwen/qwen3-coder",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "e41e30a4-658b-4692-a1a6-37875a8067ac:9167fae1a700943c",
+          "attemptId": "e41e30a4-658b-4692-a1a6-37875a8067ac:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 21748.082166,
+          "outcome": "error",
+          "usage": {
+            "status": "unavailable",
+            "reason": "harness-did-not-report-usage"
+          },
+          "fallback": {
+            "type": "needs-human",
+            "reason": "SDK threw: Claude Code returned an error result: Reached maximum number of turns (6)"
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "e41e30a4-658b-4692-a1a6-37875a8067ac:388fd083ab6d90d1",
+          "attemptId": "e41e30a4-658b-4692-a1a6-37875a8067ac:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 16478.373415999995,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 714,
+            "usd": 0.1584079
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-qwen3-coder-t2",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/qwen/qwen3-coder:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "fe684f0a-9393-4039-b08e-79fc13096ea6",
+      "startedAt": "2026-07-16T14:56:55.036Z",
+      "finishedAt": "2026-07-16T14:58:50.823Z",
+      "label": "or-qwen3-coder-t2",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:56:55.036Z",
+          "durationMs": 0,
+          "outcome": "79 events",
+          "detail": {
+            "events": 79
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:56:55.036Z",
+          "durationMs": 0,
+          "outcome": "4 actionable",
+          "detail": {
+            "actionable": 4
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:56:55.036Z",
+          "durationMs": 1,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:56:55.037Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:56:55.043Z",
+          "durationMs": 115778,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 20,
+            "outputTokens": 2875,
+            "usd": 0.34154039999999997
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:58:50.821Z",
+          "durationMs": 1,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/qwen/qwen3-coder",
+          "effectiveModel": "openrouter/qwen/qwen3-coder",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "fe684f0a-9393-4039-b08e-79fc13096ea6:9167fae1a700943c",
+          "attemptId": "fe684f0a-9393-4039-b08e-79fc13096ea6:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 24923.977375,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 10,
+            "outputTokens": 1265,
+            "usd": 0.2284137
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "fe684f0a-9393-4039-b08e-79fc13096ea6:388fd083ab6d90d1",
+          "attemptId": "fe684f0a-9393-4039-b08e-79fc13096ea6:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 90851.955417,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 10,
+            "outputTokens": 1610,
+            "usd": 0.1131267
+          }
+        }
+      ]
+    }
+  },
+  {
+    "label": "or-qwen3-coder-t3",
+    "workloadKey": "leaky-service-seeded-v2|42|14|10927f2bc2b38ecc527d72ac2129b766dc0e67a4",
+    "resolvedConfigKey": "agent-sdk|claude-agent-sdk:sonnet:none|grok:unknown:none|opencode:openrouter/qwen/qwen3-coder:none|triage-decides|2|1|true:false:true:one-shot",
+    "trace": {
+      "schemaVersion": 2,
+      "runId": "0f30962e-19f2-4c6f-817e-9db8bbd44f24",
+      "startedAt": "2026-07-16T14:58:51.516Z",
+      "finishedAt": "2026-07-16T14:59:16.006Z",
+      "label": "or-qwen3-coder-t3",
+      "events": [
+        {
+          "seq": 1,
+          "stage": "ingest",
+          "startedAt": "2026-07-16T14:58:51.516Z",
+          "durationMs": 1,
+          "outcome": "95 events",
+          "detail": {
+            "events": 95
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "detect",
+          "startedAt": "2026-07-16T14:58:51.517Z",
+          "durationMs": 0,
+          "outcome": "4 actionable",
+          "detail": {
+            "actionable": 4
+          }
+        },
+        {
+          "seq": 3,
+          "stage": "dedupe",
+          "startedAt": "2026-07-16T14:58:51.517Z",
+          "durationMs": 0,
+          "outcome": "3 new incidents",
+          "detail": {
+            "incidents": 3,
+            "newIncidents": 3
+          }
+        },
+        {
+          "seq": 4,
+          "stage": "reproduce",
+          "startedAt": "2026-07-16T14:58:51.517Z",
+          "durationMs": 6,
+          "outcome": "2 reproduced",
+          "detail": {
+            "reproduced": 2
+          }
+        },
+        {
+          "seq": 5,
+          "stage": "route",
+          "startedAt": "2026-07-16T14:58:51.523Z",
+          "durationMs": 24480,
+          "outcome": "0 mechanical",
+          "detail": {
+            "mechanical": 0,
+            "needsHuman": 3
+          },
+          "cost": {
+            "harness": "claude-agent-sdk",
+            "inputTokens": 12,
+            "outputTokens": 1506,
+            "usd": 0.1277992
+          }
+        },
+        {
+          "seq": 6,
+          "stage": "ticket",
+          "startedAt": "2026-07-16T14:59:16.004Z",
+          "durationMs": 2,
+          "outcome": "3 issues",
+          "detail": {
+            "issuesFiled": 3
+          }
+        }
+      ],
+      "resolved": {
+        "pipeline": "agent-sdk",
+        "triage": {
+          "harness": "claude-agent-sdk",
+          "requestedModel": "sonnet",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "source": "default"
+        },
+        "testWriter": {
+          "harness": "grok",
+          "requestedModel": null,
+          "effectiveModel": null,
+          "effort": null,
+          "source": "default"
+        },
+        "fixer": {
+          "harness": "opencode",
+          "requestedModel": "openrouter/qwen/qwen3-coder",
+          "effectiveModel": "openrouter/qwen/qwen3-coder",
+          "effort": null,
+          "source": "env"
+        },
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1,
+        "mode": {
+          "fix": true,
+          "live": false,
+          "fromStart": true
+        }
+      },
+      "workload": {
+        "benchmarkId": "leaky-service-seeded-v2",
+        "seed": 42,
+        "caseCount": 14,
+        "codeRevision": "10927f2bc2b38ecc527d72ac2129b766dc0e67a4"
+      },
+      "pipeline": "agent-sdk",
+      "config": {
+        "fixer": "opencode",
+        "regressionTests": "triage-decides",
+        "maxFixAttempts": 2,
+        "incidentConcurrency": 1
+      },
+      "agentCalls": [
+        {
+          "seq": 1,
+          "stage": "triage",
+          "fingerprint": "9167fae1a700943c",
+          "correlationId": "0f30962e-19f2-4c6f-817e-9db8bbd44f24:9167fae1a700943c",
+          "attemptId": "0f30962e-19f2-4c6f-817e-9db8bbd44f24:9167fae1a700943c:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 12978.724833,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 837,
+            "usd": 0.065058
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "triage",
+          "fingerprint": "388fd083ab6d90d1",
+          "correlationId": "0f30962e-19f2-4c6f-817e-9db8bbd44f24:388fd083ab6d90d1",
+          "attemptId": "0f30962e-19f2-4c6f-817e-9db8bbd44f24:388fd083ab6d90d1:triage:1",
+          "harness": "claude-agent-sdk",
+          "effectiveModel": "sonnet",
+          "effort": null,
+          "durationMs": 11499.782083,
+          "outcome": "success",
+          "usage": {
+            "status": "reported",
+            "inputTokens": 6,
+            "outputTokens": 669,
+            "usd": 0.0627412
+          }
+        }
+      ]
     }
   }
 ];
