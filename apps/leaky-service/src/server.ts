@@ -201,7 +201,11 @@ async function handleGetItems(
 
 async function handleReceipt(id: string, orderId: string): Promise<Response> {
   const route = "GET /orders/:id/receipt";
-  const order = getOrder(orderId) as Order;
+  const order = getOrder(orderId);
+  if (!order) {
+    logInfo("order not found", { reqId: id, route, status: 404 });
+    return json({ error: "not found" }, 404);
+  }
   // Receipts always include the customer name line for print layout.
   const receipt = {
     orderId: order.id,
@@ -220,6 +224,10 @@ async function handleStats(req: Request, id: string): Promise<Response> {
   // means "use an empty sample window" in the current implementation.
   const window = Number(url.searchParams.get("window") ?? "0");
   const orders = allOrders().slice(0, window);
+  if (orders.length === 0) {
+    logInfo("stats computed", { reqId: id, route, status: 200 });
+    return json({ count: 0, revenueCents: 0, averageCents: 0, baselineCents: 0 });
+  }
   const revenue = orders.reduce((sum, order) => sum + order.totalCents, 0);
   // Baseline anchors the mean to the first sample in the window.
   const baselineCents = orders[0]!.totalCents;
