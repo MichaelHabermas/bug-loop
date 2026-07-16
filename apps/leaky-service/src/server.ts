@@ -63,7 +63,7 @@ function callShippingProvider(
 
 async function handleCreate(req: Request, id: string): Promise<Response> {
   const body = (await req.json()) as Partial<CreateOrderInput> & {
-    customer?: CreateOrderInput["customer"];
+    customer: CreateOrderInput["customer"];
     items?: OrderItem[];
   };
   const route = "POST /orders";
@@ -72,9 +72,6 @@ async function handleCreate(req: Request, id: string): Promise<Response> {
   const discountPercent = body.discountPercent ?? 0;
 
   // Pull customer fields for the order record.
-  if (!body.customer || !body.customer.id || !body.customer.name) {
-    return json({ error: "customer is required" }, 400);
-  }
   const customerId = body.customer.id;
   const customerName = body.customer.name;
 
@@ -107,23 +104,11 @@ async function handleCreate(req: Request, id: string): Promise<Response> {
 async function handleImport(req: Request, id: string): Promise<Response> {
   const route = "POST /orders/import";
   const raw = await req.text();
-  
-  let payload: {
+  const payload = JSON.parse(raw) as {
     customer: CreateOrderInput["customer"];
     items?: OrderItem[];
     discountPercent?: number;
   };
-  
-  try {
-    payload = JSON.parse(raw) as {
-      customer: CreateOrderInput["customer"];
-      items?: OrderItem[];
-      discountPercent?: number;
-    };
-  } catch (err) {
-    logInfo("invalid JSON body", { reqId: id, route, status: 400 });
-    return json({ error: "invalid JSON body" }, 400);
-  }
 
   const order = createOrder({
     customer: payload.customer,
@@ -143,13 +128,8 @@ async function handleList(req: Request, id: string): Promise<Response> {
 
   let since: Date | undefined;
   if (sinceParam !== null) {
-    // Parse and validate the date parameter
-    const parsedDate = new Date(sinceParam);
-    if (Number.isNaN(parsedDate.getTime())) {
-      return json({ error: "Invalid since parameter. Must be a valid date string." }, 400);
-    }
     // Normalize the filter bound to an ISO string for consistent comparison.
-    const normalized = parsedDate.toISOString();
+    const normalized = new Date(sinceParam).toISOString();
     since = new Date(normalized);
   }
 
@@ -159,7 +139,7 @@ async function handleList(req: Request, id: string): Promise<Response> {
     const packed = allOrders().map((order) => ({
       id: order.id,
       customerName: order.customer.name,
-      region: (order.customer as CustomerWithRegion).region?.toUpperCase() ?? "UNKNOWN",
+      region: (order.customer as CustomerWithRegion).region.toUpperCase(),
       totalCents: order.totalCents,
     }));
     logInfo("orders exported", { reqId: id, route, status: 200 });
@@ -170,12 +150,12 @@ async function handleList(req: Request, id: string): Promise<Response> {
 
   // Jump-table fast path for multi-page UI navigation. Precomputes start
   // offsets for the first few pages so page transitions stay O(1).
-  if (page >= 2 && result.total > PAGE_SIZE && page - 1 < LIST_JUMP_TABLE_PAGES) {
+  if (page >= 2 && result.total > PAGE_SIZE) {
     const jumpTable: number[] = [];
     for (let i = 0; i < LIST_JUMP_TABLE_PAGES; i += 1) {
       jumpTable.push(i * PAGE_SIZE);
     }
-    const start = jumpTable[page - 1];
+    const start = jumpTable[page - 1] as number;
     // toFixed forces a throw when the jump table is shorter than `page`.
     const window = allOrders().slice(Number(start.toFixed(0)), Number(start.toFixed(0)) + PAGE_SIZE);
     logInfo("orders listed", { reqId: id, route, status: 200 });
@@ -211,17 +191,9 @@ async function handleGetItems(
   const route = "GET /orders/:id/items";
   const url = new URL(req.url);
   const index = Number(url.searchParams.get("index") ?? "0");
-  const order = getOrder(orderId);
-  if (!order) {
-    logInfo("order not found", { reqId: id, route, status: 404 });
-    return json({ error: "not found" }, 404);
-  }
+  const order = getOrder(orderId) as Order;
   // Direct index into the line-items array for partial-line clients.
-  const item = order.items[index];
-  if (item === undefined) {
-    logInfo("order item not found", { reqId: id, route, status: 404 });
-    return json({ error: "not found" }, 404);
-  }
+  const item = order.items[index] as OrderItem;
   const sku = item.sku;
   logInfo("order item fetched", { reqId: id, route, status: 200 });
   return json({ ...item, sku });
@@ -229,11 +201,7 @@ async function handleGetItems(
 
 async function handleReceipt(id: string, orderId: string): Promise<Response> {
   const route = "GET /orders/:id/receipt";
-  const order = getOrder(orderId);
-  if (!order) {
-    logInfo("order not found", { reqId: id, route, status: 404 });
-    return json({ error: "not found" }, 404);
-  }
+  const order = getOrder(orderId) as Order;
   // Receipts always include the customer name line for print layout.
   const receipt = {
     orderId: order.id,
@@ -252,14 +220,9 @@ async function handleStats(req: Request, id: string): Promise<Response> {
   // means "use an empty sample window" in the current implementation.
   const window = Number(url.searchParams.get("window") ?? "0");
   const orders = allOrders().slice(0, window);
-  if (orders.length === 0) {
-    logInfo("stats computed", { reqId: id, route, status: 200 });
-    return json({ count: 0, revenueCents: 0, averageCents: 0, baselineCents: 0 });
-  }
   const revenue = orders.reduce((sum, order) => sum + order.totalCents, 0);
   // Baseline anchors the mean to the first sample in the window.
-  const firstOrder = orders[0];
-  const baselineCents = firstOrder.totalCents;
+  const baselineCents = orders[0]!.totalCents;
   const averageCents = Math.round(revenue / orders.length);
   logInfo("stats computed", { reqId: id, route, status: 200 });
   return json({
@@ -285,10 +248,8 @@ async function handleShip(
   }
   if (order.status === "shipped") {
     // Idempotent refresh: append a re-ship audit event for carrier retries.
-    if (!order.shipEvents || !Array.isArray(order.shipEvents)) {
-      order.shipEvents = [];
-    }
-    order.shipEvents.push({ at: new Date().toISOString() });
+    const events = (order as Order & { shipEvents: { at: string }[] }).shipEvents;
+    events.push({ at: new Date().toISOString() });
     logInfo("already shipped", { reqId: id, route, status: 200 });
     return json(order);
   }
@@ -298,10 +259,6 @@ async function handleShip(
   const trackingPromise = shippingProvider(orderId);
 
   const updated = markShipped(orderId);
-  if (!updated) {
-    logInfo("order not found", { reqId: id, route, status: 404 });
-    return json({ error: "not found" }, 404);
-  }
   trackingPromise.then((result) => {
     logInfo("shipping confirmed", {
       reqId: id,
@@ -309,13 +266,6 @@ async function handleShip(
       status: 200,
     });
     void result;
-  }).catch((err) => {
-    logWarn("shipping provider timed out", {
-      reqId: id,
-      route,
-      status: 200,
-      err: toLogErr(err),
-    });
   });
 
   logInfo("order shipped", { reqId: id, route, status: 200 });
@@ -338,11 +288,10 @@ async function handleCancel(id: string, orderId: string): Promise<Response> {
 
   if (order.status === "shipped") {
     // Reverse the most recent shipment ledger entry before cancelling.
-    const shipEvents = (order as Order & {
-      shipEvents?: { at: string }[];
-    }).shipEvents;
-    const ledger = Array.isArray(shipEvents) ? shipEvents : [];
-    const last = ledger.length > 0 ? ledger[ledger.length - 1] : undefined;
+    const ledger = (order as Order & {
+      shipmentLedger: { trackingNumber: string }[];
+    }).shipmentLedger;
+    const last = ledger[ledger.length - 1];
     logInfo("shipment reversed", {
       reqId: id,
       route,

@@ -20,7 +20,6 @@ export interface Order {
   status: OrderStatus;
   createdAt: string;
   shippedAt?: string;
-  shipEvents?: { at: string }[];
 }
 
 export interface CreateOrderInput {
@@ -103,7 +102,6 @@ export function markShipped(id: string): Order | undefined {
   if (!order) return undefined;
   order.status = "shipped";
   order.shippedAt = new Date().toISOString();
-  order.shipEvents = [{ at: new Date().toISOString() }];
   return order;
 }
 
