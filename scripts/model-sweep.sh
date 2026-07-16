@@ -110,51 +110,89 @@ probe_service() {
   return 1
 }
 
-if ! probe_service; then
-  cat >&2 <<EOF
-error: leaky-service is not reachable at ${BASE_URL}
+# Restore apps/leaky-service/src if a fixer agent escaped its worktree.
+ensure_buggy_sources() {
+  if ! git -C "$ROOT" rev-parse -q --verify seeded >/dev/null; then
+    echo "error: 'seeded' ref not found; cannot verify buggy baseline (see README \"Reset the demo\")" >&2
+    exit 1
+  fi
 
-Start it first (separate terminal), then re-run this script:
-  bun run service
-
-Probe used: GET ${BASE_URL}/health
+  if ! git -C "$ROOT" diff --quiet seeded -- apps/leaky-service/src; then
+    cat >&2 <<EOF
+WARNING: apps/leaky-service/src drifted from the seeded baseline
+(likely a fixer agent escaped its worktree and edited the main checkout)
 EOF
-  exit 1
-fi
+    git -C "$ROOT" checkout seeded -- apps/leaky-service/src
+    echo "model-sweep: healed apps/leaky-service/src back to seeded baseline"
+  fi
+}
 
-# Rig guard: refuse to spend money unless the service is still in its seeded buggy state.
-if ! git -C "$ROOT" rev-parse -q --verify seeded >/dev/null; then
-  echo "error: 'seeded' ref not found; cannot verify buggy baseline (see README \"Reset the demo\")" >&2
-  exit 1
-fi
+# Remove orphaned fix worktrees and local bugloop/fix-* branches between trials.
+cleanup_fix_residue() {
+  local dir
+  for dir in "$ROOT/.worktrees"/*/; do
+    [ -e "$dir" ] || continue
+    git -C "$ROOT" worktree remove --force "$dir" 2>/dev/null || rm -rf "$dir"
+  done
+  git -C "$ROOT" worktree prune
+  git -C "$ROOT" branch --list 'bugloop/fix-*' | xargs git -C "$ROOT" branch -D 2>/dev/null || true
+}
 
-if ! git -C "$ROOT" diff --quiet seeded -- apps/leaky-service/src; then
-  cat >&2 <<EOF
-error: apps/leaky-service/src has drifted from the seeded buggy baseline
+# Ensure leaky-service is up and still exhibits the seeded invalid-since bug.
+# Restarts only for local BASE_URL (127.0.0.1 / localhost).
+ensure_service() {
+  local canary_status port i ready
 
-The sweep only measures fix capability against the seeded bugs. Restore the
-baseline and restart the service, then re-run this script:
+  if probe_service; then
+    canary_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/orders?since=not-a-date" || true)"
+    if [[ "${canary_status}" == "500" ]]; then
+      return 0
+    fi
+  fi
 
-  git checkout seeded -- apps/leaky-service
-  bun run service
+  if [[ ! "${BASE_URL}" =~ ^http://127\.0\.0\.1:[0-9]+$ && ! "${BASE_URL}" =~ ^http://localhost:[0-9]+$ ]]; then
+    cat >&2 <<EOF
+error: service at ${BASE_URL} is unhealthy or not buggy (health/canary failed)
+
+Cannot restart a non-local service. Ensure it is running and exhibits the
+seeded invalid-since bug (GET /orders?since=not-a-date -> HTTP 500), then re-run.
 EOF
-  exit 1
-fi
+    exit 1
+  fi
 
-canary_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/orders?since=not-a-date" || true)"
-if [[ "${canary_status}" != "500" ]]; then
-  cat >&2 <<EOF
-error: running service does not exhibit the seeded invalid-since bug (got HTTP ${canary_status}, expected 500)
+  port="${BASE_URL##*:}"
+  lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null || true
+  mkdir -p "$ROOT/logs"
+  (cd "$ROOT" && nohup bun run service >> logs/service-stdout.log 2>&1 &)
 
-It is likely running fixed or stale code. Restart it from the seeded baseline
-and re-run this script:
+  ready=0
+  for ((i = 0; i < 30; i++)); do
+    if probe_service; then
+      ready=1
+      break
+    fi
+    sleep 0.5
+  done
+  if [[ ${ready} -ne 1 ]]; then
+    echo "error: leaky-service failed to become healthy after restart at ${BASE_URL}" >&2
+    exit 1
+  fi
 
-  bun run service
+  canary_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/orders?since=not-a-date" || true)"
+  if [[ "${canary_status}" != "500" ]]; then
+    cat >&2 <<EOF
+error: service came up but does not exhibit the seeded invalid-since bug (got HTTP ${canary_status}, expected 500)
 EOF
-  exit 1
-fi
+    exit 1
+  fi
 
-echo "model-sweep: rig guard ok (baseline sources match, canary 500 confirmed)"
+  echo "model-sweep: (re)started leaky-service on port ${port}"
+}
+
+ensure_buggy_sources
+cleanup_fix_residue
+ensure_service
+echo "model-sweep: rig guard ok (seeded sources, buggy service confirmed)"
 
 PLAN_ARGS=(--config "${CONFIG_PATH}")
 if [[ ${PILOT} -eq 1 ]]; then
@@ -199,6 +237,10 @@ for ((i = 0; i < PLAN_COUNT; i++)); do
   echo "model: ${MODEL_ID} (${MODEL})"
   echo "seed: ${SEED}"
   echo "trace: ${TRACE_PATH}"
+
+  ensure_buggy_sources
+  cleanup_fix_residue
+  ensure_service
 
   : >"${LOG_PATH}"
   if ! bun run traffic -- --count "${TRAFFIC_COUNT}" --seed "${SEED}" --base "${BASE_URL}"; then
