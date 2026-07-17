@@ -118,6 +118,13 @@ ensure_buggy_sources() {
     exit 1
   fi
 
+  local seeded_now
+  seeded_now="$(git -C "$ROOT" rev-parse seeded)"
+  if [[ -n "${SWEEP_SEEDED:-}" && "${seeded_now}" != "${SWEEP_SEEDED}" ]]; then
+    echo "WARNING: 'seeded' tag moved mid-sweep (${seeded_now}, expected ${SWEEP_SEEDED}); re-pinning — a fetch --tags reverts an unpushed local tag move, and healing to the wrong baseline silently shrinks the bug surface" >&2
+    git -C "$ROOT" tag -f seeded "${SWEEP_SEEDED}" >/dev/null
+  fi
+
   local head
   head="$(git -C "$ROOT" rev-parse HEAD)"
   if [[ -n "${SWEEP_HEAD:-}" && "${head}" != "${SWEEP_HEAD}" ]]; then
@@ -212,6 +219,7 @@ EOF
 }
 
 SWEEP_HEAD="$(git -C "$ROOT" rev-parse HEAD)"
+SWEEP_SEEDED="$(git -C "$ROOT" rev-parse seeded)"
 ensure_buggy_sources
 cleanup_fix_residue
 ensure_service
