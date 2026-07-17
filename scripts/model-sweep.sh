@@ -110,20 +110,32 @@ probe_service() {
   return 1
 }
 
-# Restore apps/leaky-service/src if a fixer agent escaped its worktree.
+# Restore the leaky-service checkout if a fixer agent escaped its worktree.
+# Escape modes observed live: in-place edits, commits on main, gutted sources.
 ensure_buggy_sources() {
   if ! git -C "$ROOT" rev-parse -q --verify seeded >/dev/null; then
     echo "error: 'seeded' ref not found; cannot verify buggy baseline (see README \"Reset the demo\")" >&2
     exit 1
   fi
 
-  if ! git -C "$ROOT" diff --quiet seeded -- apps/leaky-service/src; then
+  local head
+  head="$(git -C "$ROOT" rev-parse HEAD)"
+  if [[ -n "${SWEEP_HEAD:-}" && "${head}" != "${SWEEP_HEAD}" ]]; then
     cat >&2 <<EOF
-WARNING: apps/leaky-service/src drifted from the seeded baseline
+WARNING: HEAD moved from ${SWEEP_HEAD} to ${head} mid-sweep
+(a fixer agent committed to the main checkout); quarantining and resetting.
+EOF
+    git -C "$ROOT" branch "rig-contamination/sweep-$(date +%Y%m%d-%H%M%S)" "${head}" 2>/dev/null || true
+    git -C "$ROOT" reset --hard "${SWEEP_HEAD}"
+  fi
+
+  if ! git -C "$ROOT" diff --quiet seeded -- apps/leaky-service; then
+    cat >&2 <<EOF
+WARNING: apps/leaky-service drifted from the seeded baseline
 (likely a fixer agent escaped its worktree and edited the main checkout)
 EOF
-    git -C "$ROOT" checkout seeded -- apps/leaky-service/src
-    echo "model-sweep: healed apps/leaky-service/src back to seeded baseline"
+    git -C "$ROOT" checkout seeded -- apps/leaky-service
+    echo "model-sweep: healed apps/leaky-service back to seeded baseline"
   fi
 }
 
@@ -138,19 +150,29 @@ cleanup_fix_residue() {
   git -C "$ROOT" branch --list 'bugloop/fix-*' | xargs git -C "$ROOT" branch -D 2>/dev/null || true
 }
 
-# Ensure leaky-service is up and still exhibits the seeded invalid-since bug.
-# Restarts only for local BASE_URL (127.0.0.1 / localhost).
+# A partial-fix imposter (fixer-started service) can pass a single-class canary
+# while hiding most of the seeded bug surface — probe three independent classes.
+# Requires a fresh (empty) store, so only meaningful right after a restart.
+rig_canary_ok() {
+  local s1 s2 s3
+  s1="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/orders?since=not-a-date" || true)"
+  s2="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST -H 'content-type: application/json' --data '{"items":[{"sku":"CANARY","qty":1,"priceCents":100}]}' "${BASE_URL}/orders" || true)"
+  s3="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/stats/orders" || true)"
+  CANARY_STATUS="invalid-since=${s1} missing-customer=${s2} stats-div-zero=${s3}"
+  [[ "${s1}" == "500" && "${s2}" == "500" && "${s3}" == "500" ]]
+}
+
+# Ensure a FRESH leaky-service owns the port for every trial. Always kill and
+# restart for local BASE_URL: process identity can't be trusted after a trial
+# (fixer agents were observed starting their own services and killing ours).
 ensure_service() {
   local canary_status port i ready
 
-  if probe_service; then
+  if [[ ! "${BASE_URL}" =~ ^http://127\.0\.0\.1:[0-9]+$ && ! "${BASE_URL}" =~ ^http://localhost:[0-9]+$ ]]; then
     canary_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/orders?since=not-a-date" || true)"
-    if [[ "${canary_status}" == "500" ]]; then
+    if probe_service && [[ "${canary_status}" == "500" ]]; then
       return 0
     fi
-  fi
-
-  if [[ ! "${BASE_URL}" =~ ^http://127\.0\.0\.1:[0-9]+$ && ! "${BASE_URL}" =~ ^http://localhost:[0-9]+$ ]]; then
     cat >&2 <<EOF
 error: service at ${BASE_URL} is unhealthy or not buggy (health/canary failed)
 
@@ -178,17 +200,18 @@ EOF
     exit 1
   fi
 
-  canary_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "${BASE_URL}/orders?since=not-a-date" || true)"
-  if [[ "${canary_status}" != "500" ]]; then
+  if ! rig_canary_ok; then
     cat >&2 <<EOF
-error: service came up but does not exhibit the seeded invalid-since bug (got HTTP ${canary_status}, expected 500)
+error: freshly started service does not exhibit the seeded bug classes
+(${CANARY_STATUS}; expected all 500) — checkout is not the seeded baseline?
 EOF
     exit 1
   fi
 
-  echo "model-sweep: (re)started leaky-service on port ${port}"
+  echo "model-sweep: (re)started leaky-service on port ${port} (${CANARY_STATUS})"
 }
 
+SWEEP_HEAD="$(git -C "$ROOT" rev-parse HEAD)"
 ensure_buggy_sources
 cleanup_fix_residue
 ensure_service
