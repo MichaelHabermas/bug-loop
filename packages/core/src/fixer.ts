@@ -780,7 +780,10 @@ export class OpenCodeFixer implements Fixer {
   async fix(input: FixInput): Promise<FixOutput> {
     const startedAt = new Date();
     const command = this.command(input);
-    const result = await this.runner(command, { cwd: input.worktreeDir });
+    // Hung provider streams stall the whole sweep (observed with OpenRouter,
+    // 2026-07-16): cap the CLI call; 124 flows into the normal failure path.
+    const timeoutMs = Number(Bun.env["BUGLOOP_FIXER_TIMEOUT_MS"] ?? "") || 600_000;
+    const result = await this.runner(command, { cwd: input.worktreeDir, timeoutMs });
     requireSuccess(this.displayCommand(), result);
     const finishedAt = new Date();
 
