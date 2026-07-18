@@ -148,6 +148,13 @@ async function handleShip(id: string, orderId: string): Promise<Response> {
       status: 200,
     });
     void result;
+  }).catch((err: unknown) => {
+    logError("shipping failed", {
+      reqId: id,
+      route,
+      status: 502,
+      err: toLogErr(err),
+    });
   });
 
   logInfo("order shipped", { reqId: id, route, status: 200 });
